@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Email Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome to Workmate!</h2>
+        <p>Hello {{name}},</p>
+        <p>Thank you for signing up with Workmate. To complete your registration and verify your email address, please click the button below:</p>
+        
+        <a href="{{verificationLink}}" class="button">Verify Email Address</a>
+        
+        <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
+        <p>{{verificationLink}}</p>
+        
+        <p>This verification link will expire in 24 hours.</p>
+        
+        <div class="footer">
+            <p>If you did not create an account with Workmate, please ignore this email.</p>
+            <p>© 2024 Workmate. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
