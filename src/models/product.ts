@@ -10,7 +10,7 @@ const ProductSchema = new mongoose.Schema({
   videos: [{ type: String }], // URLs or paths to videos
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
-  // ...existing code...
+  categories: [{ type: String }], // e.g. ["maize", "grain"]
 });
 
 export default mongoose.models.Product || mongoose.model('Product', ProductSchema);

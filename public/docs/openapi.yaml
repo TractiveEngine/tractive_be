@@ -1,0 +1,552 @@
+openapi: 3.0.3
+info:
+  title: Tractive API
+  description: API documentation for the Tractive project
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/auth/register:
+    post:
+      summary: Register a user (name, email, password only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: "Agbe Buyer"
+                email:
+                  type: string
+                  example: "caspar.georgiy@freedrops.org"
+                password:
+                  type: string
+                  example: "Password123!"
+      responses:
+        '201':
+          description: User registered, verification code sent via email
+  /api/auth/verify-code:
+    post:
+      summary: Verify email with code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - code
+              properties:
+                email:
+                  type: string
+                  example: "caspar.georgiy@freedrops.org"
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        '200':
+          description: Email verified
+  /api/auth/login:
+    post:
+      summary: Login and get JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: "caspar.georgiy@freedrops.org"
+                password:
+                  type: string
+                  example: "Password123!"
+      responses:
+        '200':
+          description: JWT token
+  /api/auth/forgot-password:
+    post:
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  example: "caspar.georgiy@freedrops.org"
+      responses:
+        '200':
+          description: Reset link sent if email exists
+  /api/auth/reset-password:
+    post:
+      summary: Reset password using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  example: "<reset-token-from-email>"
+                password:
+                  type: string
+                  example: "NewPassword123!"
+      responses:
+        '200':
+          description: Password reset successful
+  /api/auth/add-account:
+    post:
+      summary: Add account type and extra info after verification/login
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [buyer, agent, transporter, admin]
+                  example: "agent"
+                businessName:
+                  type: string
+                  example: "Doe Farms"
+                villageOrLocalMarket:
+                  type: string
+                  example: "Sabon Gari"
+                phone:
+                  type: string
+                  example: "08012345678"
+                nin:
+                  type: string
+                  example: "12345678901"
+                interests:
+                  type: array
+                  items:
+                    type: string
+                  example: ["Grains", "Livestock"]
+      responses:
+        '200':
+          description: Account type and info updated
+  /api/products:
+    get:
+      summary: List products
+      responses:
+        '200':
+          description: List of products
+    post:
+      summary: Create product (admin/agent only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Product created
+  /api/products/{id}:
+    get:
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details
+    patch:
+      summary: Update product (admin/agent only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Product updated
+  /api/farmers:
+    get:
+      summary: List farmers created by you
+      responses:
+        '200':
+          description: List of farmers
+    post:
+      summary: Create farmer (agent/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Farmer'
+      responses:
+        '201':
+          description: Farmer created
+  /api/farmers/{id}:
+    get:
+      summary: Get farmer by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Farmer details
+    patch:
+      summary: Update farmer (agent only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Farmer'
+      responses:
+        '200':
+          description: Farmer updated
+  /api/orders:
+    get:
+      summary: List your orders
+      responses:
+        '200':
+          description: List of orders
+    post:
+      summary: Create order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Order created
+  /api/orders/{id}:
+    get:
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+    patch:
+      summary: Update order status/transport
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '200':
+          description: Order updated
+  /api/transactions:
+    get:
+      summary: List your transactions
+      responses:
+        '200':
+          description: List of transactions
+    post:
+      summary: Create transaction for paid order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        '201':
+          description: Transaction created
+  /api/transactions/{id}:
+    get:
+      summary: Get transaction by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction details
+    patch:
+      summary: Approve transaction (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved]
+      responses:
+        '200':
+          description: Transaction approved
+  /api/drivers:
+    get:
+      summary: List drivers onboarded by transporter
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of drivers
+    post:
+      summary: Onboard a new driver (transporter only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                licenseNumber:
+                  type: string
+      responses:
+        '201':
+          description: Driver onboarded
+  /api/trucks:
+    get:
+      summary: List trucks owned by transporter
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of trucks
+    post:
+      summary: Onboard a new truck (transporter only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plateNumber:
+                  type: string
+                model:
+                  type: string
+                capacity:
+                  type: string
+      responses:
+        '201':
+          description: Truck onboarded
+  /api/drivers/assign-truck:
+    post:
+      summary: Assign a truck to a driver (transporter only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                driverId:
+                  type: string
+                truckId:
+                  type: string
+      responses:
+        '200':
+          description: Truck assigned to driver
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        activeRole:
+          type: string
+        isVerified:
+          type: boolean
+        interests:
+          type: array
+          items:
+            type: string
+    Product:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+        images:
+          type: array
+          items:
+            type: string
+        videos:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+    Farmer:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        businessName:
+          type: string
+        nin:
+          type: string
+        businessCAC:
+          type: string
+        address:
+          type: string
+        country:
+          type: string
+        state:
+          type: string
+        lga:
+          type: string
+        villageOrLocalMarket:
+          type: string
+    Order:
+      type: object
+      properties:
+        buyer:
+          type: string
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              product:
+                type: string
+              quantity:
+                type: number
+        totalAmount:
+          type: number
+        status:
+          type: string
+        transportStatus:
+          type: string
+        transporter:
+          type: string
+        address:
+          type: string
+    Transaction:
+      type: object
+      properties:
+        order:
+          type: string
+        buyer:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+        paymentMethod:
+          type: string
+        approvedBy:
+          type: string
+    Truck:
+      type: object
+      properties:
+        plateNumber:
+          type: string
+        model:
+          type: string
+        capacity:
+          type: string
+        transporter:
+          type: string
+        assignedDriver:
+          type: string
+        route:
+          type: object
+          properties:
+            fromState:
+              type: string
+            toState:
+              type: string

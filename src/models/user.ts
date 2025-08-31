@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['buyer', 'agent', 'admin'], required: true },
+  roles: { type: [String], enum: ['buyer', 'agent', 'transporter', 'admin'], default: ['buyer'], required: true }, // multiple roles
+  activeRole: { type: String, enum: ['buyer', 'agent', 'transporter', 'admin'], default: null }, // allow null if not set
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
   name: { type: String },
@@ -16,6 +17,9 @@ const UserSchema = new mongoose.Schema({
   state: { type: String },
   lga: { type: String },
   villageOrLocalMarket: { type: String },
+  interests: [{ type: String }], // e.g. ["fish", "Tubers", "Grains", "Edible", "Livestock", "Vegetable"]
+  resetPasswordToken: { type: String },
+  resetPasswordTokenExpiry: { type: Date },
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
