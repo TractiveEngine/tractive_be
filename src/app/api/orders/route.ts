@@ -13,8 +13,8 @@ type JwtUserPayload = {
   exp?: number;
 };
 
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 function getUserFromRequest(request: Request): JwtUserPayload | null {

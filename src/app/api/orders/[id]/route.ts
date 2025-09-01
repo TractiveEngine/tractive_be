@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
-import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
@@ -13,8 +12,8 @@ type JwtUserPayload = {
   exp?: number;
 };
 
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 function getUserFromRequest(request: Request): JwtUserPayload | null {
@@ -30,26 +29,28 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
   }
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const order = await Order.findById(params.id).populate('products.product');
+  const order = await Order.findById(id).populate('products.product');
   if (!order || String(order.buyer) !== userData.userId) {
     return NextResponse.json({ error: 'Order not found or access denied' }, { status: 404 });
   }
   return NextResponse.json({ order }, { status: 200 });
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const order = await Order.findById(params.id);
+  const order = await Order.findById(id);
   if (!order || String(order.buyer) !== userData.userId) {
     return NextResponse.json({ error: 'Order not found or access denied' }, { status: 404 });
   }
@@ -68,3 +69,4 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({ order }, { status: 200 });
 }
+

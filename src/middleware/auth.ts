@@ -1,15 +1,26 @@
-import { verifyToken } from '../lib/auth';
+// src/middleware/auth.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { verifyToken, type TokenPayload } from '../lib/auth';
 
-export function requireAuth(handler: any) {
-  return async (req: any, res: any) => {
+export type AuthedRequest = NextApiRequest & { user: TokenPayload };
+
+export function requireAuth(
+  handler: (req: AuthedRequest, res: NextApiResponse) => Promise<void> | void
+) {
+  return async (req: NextApiRequest, res: NextApiResponse) => {
     const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No token provided' });
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
 
     const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-    if (!decoded) return res.status(401).json({ error: 'Invalid token' });
+    const payload = verifyToken(token);
 
-    req.user = decoded;
-    return handler(req, res);
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    (req as AuthedRequest).user = payload;
+    return handler(req as AuthedRequest, res);
   };
 }

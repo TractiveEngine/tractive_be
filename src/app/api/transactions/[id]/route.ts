@@ -13,8 +13,8 @@ type JwtUserPayload = {
   exp?: number;
 };
 
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 function getUserFromRequest(request: Request): JwtUserPayload | null {
@@ -30,21 +30,23 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
   }
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const transaction = await Transaction.findById(params.id).populate('order');
+  const transaction = await Transaction.findById(id).populate('order');
   if (!transaction || String(transaction.buyer) !== userData.userId) {
     return NextResponse.json({ error: 'Transaction not found or access denied' }, { status: 404 });
   }
   return NextResponse.json({ transaction }, { status: 200 });
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -54,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: 'Only admin can approve transactions' }, { status: 403 });
   }
 
-  const transaction = await Transaction.findById(params.id);
+  const transaction = await Transaction.findById(id);
   if (!transaction) {
     return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
   }

@@ -25,10 +25,10 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
 
     // If you use `sub` in your tokens, uncomment the 3 lines below:
     // const idFromSub = typeof decoded.sub === 'string' ? decoded.sub : undefined;
-    // const uid = (decoded as any).userId ?? idFromSub;
+    // const uid = (decoded as JwtUserPayload).userId ?? idFromSub;
     // if (!uid) return null;
 
-    if (typeof (decoded as any).userId !== 'string') return null; // guard
+    if (typeof (decoded as JwtUserPayload).userId !== 'string') return null; // guard
     return decoded as JwtUserPayload;
   } catch {
     return null;
@@ -36,9 +36,10 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
 }
 
 // GET /api/products/[id]
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
-  const product = await Product.findById(params.id);
+  const { id } = await params;
+  const product = await Product.findById(id);
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
@@ -46,8 +47,9 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 }
 
 // PATCH /api/products/[id]
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
 
   const userData = getUserFromRequest(request);
   if (!userData) {
@@ -60,10 +62,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   const body = await request.json();
-  const product = await Product.findByIdAndUpdate(params.id, body, { new: true });
+  const product = await Product.findByIdAndUpdate(id, body, { new: true });
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
 
   return NextResponse.json({ product }, { status: 200 });
 }
+

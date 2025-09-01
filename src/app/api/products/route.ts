@@ -15,8 +15,8 @@ type JwtUserPayload = {
 };
 
 // 2) Tiny type guard
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 // 3) Verify + return a typed payload (or null)

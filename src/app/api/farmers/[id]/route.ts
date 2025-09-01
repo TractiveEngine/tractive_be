@@ -15,8 +15,8 @@ type JwtUserPayload = {
 };
 
 // Type guard for JwtUserPayload
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 // Verify + return a typed payload (or null)
@@ -34,17 +34,19 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
   }
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
-  const farmer = await Farmer.findById(params.id);
+  const { id } = await params;
+  const farmer = await Farmer.findById(id);
   if (!farmer) {
     return NextResponse.json({ error: 'Farmer not found' }, { status: 404 });
   }
   return NextResponse.json({ farmer }, { status: 200 });
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -55,7 +57,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   const body = await request.json();
-  const farmer = await Farmer.findByIdAndUpdate(params.id, body, { new: true });
+  const farmer = await Farmer.findByIdAndUpdate(id, body, { new: true });
   if (!farmer) {
     return NextResponse.json({ error: 'Farmer not found' }, { status: 404 });
   }

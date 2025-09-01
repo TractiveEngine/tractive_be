@@ -13,8 +13,8 @@ type JwtUserPayload = {
   exp?: number;
 };
 
-function isJwtUserPayload(p: any): p is JwtUserPayload {
-  return p && typeof p === 'object' && typeof p.userId === 'string';
+function isJwtUserPayload(p: unknown): p is JwtUserPayload {
+  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
 }
 
 function getUserFromRequest(request: Request): JwtUserPayload | null {
@@ -30,23 +30,26 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
   }
 }
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+// Use Promise for params to match Next.js App Router signature
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
-  const bid = await Bid.findById(params.id).populate('product buyer agent');
+  const { id } = await params;
+  const bid = await Bid.findById(id).populate('product buyer agent');
   if (!bid) {
     return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
   }
   return NextResponse.json({ bid }, { status: 200 });
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const { id } = await params;
   const userData = getUserFromRequest(request);
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   const user = await User.findById(userData.userId);
-  const bid = await Bid.findById(params.id);
+  const bid = await Bid.findById(id);
   if (!bid) {
     return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
   }

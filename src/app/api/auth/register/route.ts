@@ -4,17 +4,23 @@ import User from '@/models/user';
 import { hash } from 'bcryptjs';
 import sendEmail from '@/lib/sendSmtpMail';
 
+interface RegisterPayload {
+  email: string;
+  password: string;
+  name: string;
+}
+
 function generateVerificationToken() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function safeString(val: any): string {
+function safeString(val: unknown): string {
   return typeof val === 'string' ? val : (val ? String(val) : '');
 }
 
 export async function POST(request: Request) {
   await dbConnect();
-  const { email, password, name } = await request.json();
+  const { email, password, name }: RegisterPayload = await request.json();
 
   if (!email || !password || !name) {
     return NextResponse.json({ error: 'Name, email, and password required' }, { status: 400 });
