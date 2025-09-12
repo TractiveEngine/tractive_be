@@ -1,21 +1,30 @@
 import mongoose from "mongoose";
 
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+  },
   password: { type: String, required: true },
   roles: {
     type: [String],
     enum: ["buyer", "agent", "transporter", "admin"],
     default: ["buyer"],
     required: true,
-  }, // multiple roles
+  },
   activeRole: {
     type: String,
     enum: ["buyer", "agent", "transporter", "admin"],
     default: null,
-  }, // allow null if not set
+  },
   isVerified: { type: Boolean, default: false },
   verificationCode: { type: String },
+  verificationTokenExpiry: { type: Date, default: null }, // ✅ needed for expiry check
+  lastResendAt: { type: Date, default: null }, // optional
+  resendCountToday: { type: Number, default: 0 }, // optional
   name: { type: String },
   phone: { type: String },
   businessName: { type: String },
