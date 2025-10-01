@@ -1,7 +1,9 @@
+// src/app/api/profile/route.ts
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/user";
 import { verifyToken } from "@/lib/auth";
+import { z } from "zod";
 
 // Pull Bearer token from headers
 function getBearerToken(req: Request): string | null {
@@ -13,38 +15,40 @@ function getBearerToken(req: Request): string | null {
   return token;
 }
 
-// Only allow these fields to be updated via PATCH
-const ALLOWED_UPDATE_FIELDS = new Set([
-  "name",
-  "phone",
-  "address",
-  "country",
-  "state",
-  "lga",
-  "villageOrLocalMarket",
-  "businessName",
-  "businessCAC",
-  "interests", // array of strings
-  "activeRole", // if you let the user switch (and they already have that role)
-]);
+// Allowed roles (align with your Mongoose schema)
+const ROLE_ENUM = ["buyer", "agent", "transporter", "admin"] as const;
+type Role = (typeof ROLE_ENUM)[number];
 
-function pickAllowed(body: Record<string, any>) {
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(body)) {
-    if (ALLOWED_UPDATE_FIELDS.has(k)) out[k] = v;
-  }
-  return out;
-}
+// Only allow these fields to be updated via PATCH (typed)
+const ProfileUpdateSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    country: z.string().optional(),
+    state: z.string().optional(),
+    lga: z.string().optional(),
+    villageOrLocalMarket: z.string().optional(),
+    businessName: z.string().optional(),
+    businessCAC: z.string().optional(),
+    interests: z.array(z.string()).optional(),
+    activeRole: z.enum(ROLE_ENUM).optional(),
+  })
+  .strict(); // disallow unknown keys
+
+type ProfileUpdate = z.infer<typeof ProfileUpdateSchema>;
 
 export async function GET(req: Request) {
   await dbConnect();
   const token = getBearerToken(req);
-  if (!token)
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const payload = verifyToken(token);
-  if (!payload?.userId)
+  if (!payload?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const user = await User.findById(payload.userId)
     .select(
@@ -52,36 +56,45 @@ export async function GET(req: Request) {
     )
     .lean();
 
-  if (!user)
+  if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
   return NextResponse.json({ user }, { status: 200 });
 }
 
 export async function PATCH(req: Request) {
   await dbConnect();
   const token = getBearerToken(req);
-  if (!token)
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const payload = verifyToken(token);
-  if (!payload?.userId)
+  if (!payload?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const body = await req.json().catch(() => ({}));
-  const updates = pickAllowed(body);
+  // Parse & validate body; unknown keys rejected
+  const raw: unknown = await req.json().catch(() => ({}));
+  const parsed = ProfileUpdateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+  const updates: ProfileUpdate = parsed.data;
 
-  // Optional Zod validation
-  // const parsed = ProfileUpdateSchema.safeParse(updates);
-  // if (!parsed.success) {
-  //   return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  // }
-
-  // Enforce role-switch safety (only allow switching to a role the user already has)
+  // Enforce role-switch safety (only to an already-owned role)
   if (updates.activeRole) {
-    const current = await User.findById(payload.userId).select("roles").lean();
-    if (!current || Array.isArray(current))
+    const current = await User.findById(payload.userId)
+      .select("roles")
+      .lean<{ roles: Role[] }>();
+
+    if (!current) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
-    if (!(current as any).roles?.includes(updates.activeRole)) {
+    }
+    if (!current.roles?.includes(updates.activeRole)) {
       return NextResponse.json(
         { error: "Cannot activate a role you don't have" },
         { status: 403 }
@@ -104,8 +117,9 @@ export async function PATCH(req: Request) {
     "-password -resetPasswordToken -resetPasswordTokenExpiry -verificationCode"
   );
 
-  if (!user)
+  if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
   return NextResponse.json(
     { user, message: "Profile updated" },
