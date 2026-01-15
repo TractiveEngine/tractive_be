@@ -5,6 +5,7 @@ import sendEmail from '@/lib/sendSmtpMail';
 import crypto from 'crypto';
 
 function generateResetToken() {
+  // Generate secure random token
   return crypto.randomBytes(32).toString('hex');
 }
 
@@ -27,13 +28,16 @@ export async function POST(request: Request) {
   user.resetPasswordTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
   await user.save();
 
+  // Frontend reset password page URL with token
+  const resetLink = `${process.env.FRONTEND_ORIGIN || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+
   await sendEmail({
     to: user.email,
     subject: 'Reset your password',
-    template: 'reset-password', // create this template
+    template: 'reset-password',
     replacements: {
       name: user.name || user.email,
-      resetLink: `${process.env.APP_BASE_URL}/reset-password?token=${resetToken}`,
+      resetLink: resetLink,
     }
   });
 

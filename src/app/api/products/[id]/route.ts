@@ -57,7 +57,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const user = await User.findById(userData.userId);
-  if (!user || !['admin', 'agent'].includes(user.role)) {
+  if (!user || !user.roles.some((r: string) => ['admin', 'agent'].includes(r))) {
     return NextResponse.json({ error: 'Only admin or agent can update products' }, { status: 403 });
   }
 
@@ -68,5 +68,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   return NextResponse.json({ product }, { status: 200 });
+}
+
+// DELETE /api/products/[id]
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  await dbConnect();
+  const { id } = await params;
+
+  const userData = getUserFromRequest(request);
+  if (!userData) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const user = await User.findById(userData.userId);
+  if (!user || !user.roles.some((r: string) => ['admin', 'agent'].includes(r))) {
+    return NextResponse.json({ error: 'Only admin or agent can delete products' }, { status: 403 });
+  }
+
+  const product = await Product.findByIdAndDelete(id);
+  if (!product) {
+    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ message: 'Product deleted successfully' }, { status: 200 });
 }
 

@@ -3,13 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "node scripts/dev-with-port.js",
+    "dev:fixed": "next dev --turbopack -p 3000",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "seed": "ts-node src/scripts/seed.ts",
+    "reset": "ts-node src/scripts/reset.ts",
+    "postman:test": "newman run docs/Tractive-API.postman_collection.json --env-var base_url=http://localhost:3000",
+    "postman:export": "echo 'Open Postman → Collection → Export → Save to docs/Tractive-API.postman_collection.json'"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
     "next": "15.5.0",
@@ -23,16 +33,27 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
     "@types/bcryptjs": "^3.0.0",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/supertest": "^6.0.2",
     "@types/swagger-ui-react": "^5.18.0",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
+    "fast-check": "^4.3.0",
+    "jest": "^30.2.0",
+    "supertest": "^7.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5",
+    "vitest": "^2.1.8"
   }
 }

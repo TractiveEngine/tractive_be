@@ -38,6 +38,28 @@ const UserSchema = new mongoose.Schema({
   interests: [{ type: String }],
   resetPasswordToken: { type: String },
   resetPasswordTokenExpiry: { type: Date },
+  
+  // Admin management fields
+  status: {
+    type: String,
+    enum: ["active", "suspended", "removed"],
+    default: "active"
+  },
+  agentApprovalStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: null
+  },
+  approvalNotes: { type: String },
+  
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Update timestamp on save
+UserSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
 });
 
 export default mongoose.models.User || mongoose.model("User", UserSchema);

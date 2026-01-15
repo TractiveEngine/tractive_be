@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
 import User from '@/models/user';
+import Product from '@/models/product';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '@/lib/notifications';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -67,8 +69,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
+  const oldStatus = bid.status;
   Object.assign(bid, body, { updatedAt: new Date() });
   await bid.save();
+
+  // Notify buyer when bid is accepted
+  if (body.status === 'accepted' && oldStatus !== 'accepted') {
+    const product = await Product.findById(bid.product);
+    await createNotification({
+      userId: bid.buyer.toString(),
+      type: 'bid_accepted',
+      title: 'Your bid was accepted',
+      message: `Your bid of ${bid.amount} on ${product?.name || 'a product'} was accepted`,
+      metadata: {
+        productId: bid.product.toString(),
+        bidId: bid._id.toString(),
+        amount: bid.amount
+      }
+    });
+  }
 
   return NextResponse.json({ bid }, { status: 200 });
 }

@@ -31,5 +31,14 @@ export async function POST(request: Request) {
     expiresIn: "1h",
   });
 
-  return NextResponse.json({ token }, { status: 200 });
+  return NextResponse.json({ 
+    token,
+    user: {
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      roles: user.roles,
+      activeRole: user.activeRole
+    }
+  }, { status: 200 });
 }

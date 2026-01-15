@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '@/lib/notifications';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -67,6 +68,40 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     transaction.approvedBy = user._id;
     transaction.updatedAt = new Date();
     await transaction.save();
+
+    // Notify buyer about transaction approval
+    await createNotification({
+      userId: transaction.buyer.toString(),
+      type: 'transaction_approved',
+      title: 'Transaction approved',
+      message: `Your transaction of ${transaction.amount} has been approved`,
+      metadata: {
+        transactionId: transaction._id.toString(),
+        amount: transaction.amount,
+        orderId: transaction.order?.toString()
+      }
+    });
+
+    return NextResponse.json({ transaction }, { status: 200 });
+  }
+
+  if (body.status && body.status === 'declined') {
+    transaction.status = 'pending'; // or add 'declined' to enum
+    transaction.updatedAt = new Date();
+    await transaction.save();
+
+    // Notify buyer about transaction decline
+    await createNotification({
+      userId: transaction.buyer.toString(),
+      type: 'transaction_declined',
+      title: 'Transaction declined',
+      message: `Your transaction of ${transaction.amount} was declined`,
+      metadata: {
+        transactionId: transaction._id.toString(),
+        amount: transaction.amount
+      }
+    });
+
     return NextResponse.json({ transaction }, { status: 200 });
   }
 

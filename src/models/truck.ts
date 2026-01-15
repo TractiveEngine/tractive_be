@@ -12,6 +12,7 @@ const TruckSchema = new mongoose.Schema({
     fromState: { type: String }, // e.g. "Kaduna"
     toState: { type: String }    // e.g. "Lagos"
   },
+  status: { type: String, enum: ['available', 'on_transit', 'under_maintenance'], default: 'available' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '@/lib/notifications';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -64,8 +65,41 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Invalid transport status' }, { status: 400 });
   }
 
+  const oldStatus = order.status;
+  const oldTransportStatus = order.transportStatus;
+  
   Object.assign(order, body, { updatedAt: new Date() });
   await order.save();
+
+  // Notify buyer about order status change
+  if (body.status && body.status !== oldStatus) {
+    await createNotification({
+      userId: order.buyer.toString(),
+      type: 'order_status_changed',
+      title: 'Order status updated',
+      message: `Your order status changed from ${oldStatus} to ${body.status}`,
+      metadata: {
+        orderId: order._id.toString(),
+        oldStatus,
+        newStatus: body.status,
+        totalAmount: order.totalAmount
+      }
+    });
+  }
+
+  // Notify about transport status change
+  if (body.transportStatus && body.transportStatus !== oldTransportStatus) {
+    await createNotification({
+      userId: order.buyer.toString(),
+      type: 'order_status_changed',
+      title: 'Delivery status updated',
+      message: `Your delivery status changed to ${body.transportStatus}`,
+      metadata: {
+        orderId: order._id.toString(),
+        transportStatus: body.transportStatus
+      }
+    });
+  }
 
   return NextResponse.json({ order }, { status: 200 });
 }

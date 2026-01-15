@@ -1,0 +1,130 @@
+/api/admin/approvals/agents : GET, PATCH
+/api/admin/approvals/agents/{id} : PATCH
+/api/admin/approvals/farmers : GET, PATCH
+/api/admin/approvals/farmers/{id} : PATCH
+/api/admin/dashboard : GET
+/api/admin/dashboard/orders : GET
+/api/admin/dashboard/received-payments : GET
+/api/admin/dashboard/registered-users : GET
+/api/admin/dashboard/revenue-chart : GET
+/api/admin/dashboard/visitors : GET
+/api/admin/live-chats : GET
+/api/admin/live-chats/{conversationId} : DELETE, GET
+/api/admin/live-chats/{conversationId}/close : PATCH
+/api/admin/live-chats/{conversationId}/messages : POST
+/api/admin/queries : GET
+/api/admin/queries/{id} : DELETE
+/api/admin/queries/{id}/reply : POST
+/api/admin/queries/{id}/status : PATCH
+/api/admin/top-agents : GET
+/api/admin/top-buyers : GET
+/api/admin/top-transporters : GET
+/api/admin/transactions : GET
+/api/admin/transactions/{id}/refund : POST
+/api/admin/transactions/refund : POST
+/api/admin/users : GET
+/api/admin/users/{id} : GET, PATCH
+/api/admin/users/{id}/onboard : POST
+/api/admin/users/{id}/reactivate : POST
+/api/admin/users/{id}/status : PATCH
+/api/admin/users/removed : GET
+/api/admin/users/stats : GET
+/api/auth/add-account : POST
+/api/auth/change-password : POST
+/api/auth/forgot-password : POST
+/api/auth/login : POST
+/api/auth/register : POST
+/api/auth/request-verification : POST
+/api/auth/resend-verification : POST
+/api/auth/reset-password : POST
+/api/auth/verify-code : POST
+/api/bids : GET, POST
+/api/bids/{id} : GET, PATCH
+/api/buyers/biddings : GET
+/api/buyers/biddings/won : GET
+/api/buyers/biddings/won/checkout : GET
+/api/buyers/categories/{categoryId}/{subcategoryId}/farmers : GET
+/api/buyers/farmers/{farmerId}/follow : DELETE, POST
+/api/buyers/products/{productId}/bid : POST
+/api/buyers/recommendations : GET
+/api/buyers/top-sellers : GET
+/api/buyers/top-selling : GET
+/api/buyers/wishlist : GET
+/api/buyers/wishlist/{productId} : DELETE, POST
+/api/chat : GET, POST
+/api/chat/{conversationId} : GET, POST
+/api/chat/{conversationId}/messages/{messageId} : DELETE, PATCH
+/api/customers : GET
+/api/customers/{id}/chat : POST
+/api/drivers : GET, POST
+/api/drivers/assign-truck : POST
+/api/farmers : GET, POST
+/api/farmers/{id} : DELETE, GET, PATCH, PUT
+/api/help : DELETE, GET, POST
+/api/help/{id} : DELETE
+/api/negotiations : GET, POST
+/api/negotiations/{id}/accept : POST
+/api/negotiations/{id}/reject : POST
+/api/notifications : GET, PATCH
+/api/notifications/{id} : DELETE, PATCH
+/api/notifications/{id}/read : PATCH
+/api/orders : GET, POST
+/api/orders/{id} : GET, PATCH
+/api/orders/{id}/parties : GET
+/api/orders/{id}/status : PATCH
+/api/products : GET, POST
+/api/products/{id} : DELETE, GET, PATCH
+/api/products/{id}/status : PATCH
+/api/products/bulk/delete : POST
+/api/products/bulk/status : PATCH
+/api/products/out-of-stock : GET
+/api/profile : GET, PATCH
+/api/profile/switch-role : GET, PATCH
+/api/reviews : GET, POST
+/api/reviews/{id}/like : POST
+/api/reviews/{id}/reply : POST
+/api/sellers : GET
+/api/sellers/{id} : GET
+/api/sellers/{id}/products : GET
+/api/sellers/products/{id} : GET
+/api/shipping : GET, POST
+/api/shipping/{id} : GET
+/api/transactions : GET, POST
+/api/transactions/{id} : GET, PATCH
+/api/transactions/{id}/contact-customer-care : POST
+/api/transactions/{id}/status : PATCH
+/api/transporters : GET, POST
+/api/transporters/{id} : GET
+/api/transporters/{id}/reviews : GET
+/api/transporters/customers : GET
+/api/transporters/dashboard : GET
+/api/transporters/dashboard/customers : GET
+/api/transporters/dashboard/drivers : GET
+/api/transporters/dashboard/fleet : GET
+/api/transporters/dashboard/revenue : GET
+/api/transporters/dashboard/revenue-chart : GET
+/api/transporters/dashboard/top-customers : GET
+/api/transporters/dashboard/top-fleet : GET
+/api/transporters/dashboard/trucks-on-transit : GET
+/api/transporters/drivers : GET, POST
+/api/transporters/drivers/{id} : DELETE, PATCH
+/api/transporters/drivers/{id}/assign-fleet : POST
+/api/transporters/fleet : GET, POST
+/api/transporters/fleet/{id} : DELETE, PATCH
+/api/transporters/fleet/{id}/status : PATCH
+/api/transporters/negotiations : GET
+/api/transporters/negotiations/{id}/respond : POST
+/api/transporters/orders/{orderId}/buyer : GET
+/api/transporters/orders/{orderId}/product : GET
+/api/transporters/orders/{orderId}/status : PATCH
+/api/transporters/orders/{orderId}/tracking : GET
+/api/transporters/recommendations : GET
+/api/transporters/reviews : GET
+/api/transporters/transactions : GET
+/api/transporters/transactions/{id}/status : PATCH
+/api/transporters/trucks : GET
+/api/transporters/trucks/{id} : GET
+/api/transporters/trucks/almost-full : GET
+/api/transporters/trucks/empty : GET
+/api/trucks : GET, POST
+/api/wishlist : DELETE, GET, POST

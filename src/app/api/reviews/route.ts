@@ -30,7 +30,7 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
   }
 }
 
-// POST /api/reviews - buyer reviews an agent
+// POST /api/reviews - buyer reviews an agent/transporter
 export async function POST(request: Request) {
   await dbConnect();
   const userData = getUserFromRequest(request);
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   const agent = await User.findById(agentId);
-  if (!agent || !agent.roles.includes('agent')) {
+  if (!agent || (!agent.roles.includes('agent') && !agent.roles.includes('transporter'))) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
   }
 

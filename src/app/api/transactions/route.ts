@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const { orderId, amount, paymentMethod } = await request.json();
+  const { order: orderId, amount, paymentMethod } = await request.json();
   if (!orderId || !amount) {
     return NextResponse.json({ error: 'Order and amount required' }, { status: 400 });
   }

@@ -34,6 +34,12 @@ const sendEmail = async ({
       throw new Error("Invalid recipient email address");
     }
 
+    // In test environment, skip actual email sending
+    if (process.env.NODE_ENV === 'test') {
+      console.log(`[TEST] Email would be sent to: ${to}, subject: ${subject}`);
+      return;
+    }
+
     // Load the email template
     let htmlContent = loadTemplate(template);
 

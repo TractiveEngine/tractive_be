@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import User from '@/models/user';
+import Product from '@/models/product';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '@/lib/notifications';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -54,6 +56,38 @@ export async function POST(request: Request) {
     status: 'pending',
     transportStatus: transportStatus || 'pending'
   });
+
+  // Notify buyer about order creation
+  await createNotification({
+    userId: user._id.toString(),
+    type: 'order_created',
+    title: 'Order created successfully',
+    message: `Your order of ${totalAmount} has been created`,
+    metadata: {
+      orderId: order._id.toString(),
+      totalAmount,
+      productsCount: products.length
+    }
+  });
+
+  // Notify sellers/agents about new order
+  const productIds = products.map((p: any) => p.product);
+  const productDocs = await Product.find({ _id: { $in: productIds } });
+  const sellerIds = [...new Set(productDocs.map(p => p.owner.toString()))];
+  
+  for (const sellerId of sellerIds) {
+    await createNotification({
+      userId: sellerId,
+      type: 'order_created',
+      title: 'New order received',
+      message: `You have a new order for ${totalAmount}`,
+      metadata: {
+        orderId: order._id.toString(),
+        totalAmount,
+        buyerName: user.name || user.email
+      }
+    });
+  }
 
   return NextResponse.json({ order }, { status: 201 });
 }

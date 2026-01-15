@@ -4,6 +4,7 @@ import Bid from '@/models/bid';
 import Product from '@/models/product';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
+import { createNotification } from '@/lib/notifications';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -63,6 +64,22 @@ export async function POST(request: Request) {
     message,
     status: 'pending'
   });
+
+  // Notify product owner/agent about new bid
+  if (agent) {
+    await createNotification({
+      userId: agent._id.toString(),
+      type: 'bid_created',
+      title: 'New bid received',
+      message: `You received a new bid of ${amount} on ${product.name}`,
+      metadata: {
+        productId: product._id.toString(),
+        bidId: bid._id.toString(),
+        amount,
+        buyerName: user.name || user.email
+      }
+    });
+  }
 
   return NextResponse.json({ bid }, { status: 201 });
 }

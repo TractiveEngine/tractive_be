@@ -21,13 +21,15 @@ const transporter = nodemailer.createTransport({
   debug: true,
 });
 
-// Verify SMTP connection configuration
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("SMTP connection error:", error);
-  } else {
-    console.log("SMTP server is ready to send emails");
-  }
-});
+// Verify SMTP connection configuration (skip in test environment)
+if (process.env.NODE_ENV !== 'test') {
+  transporter.verify(function (error, success) {
+    if (error) {
+      console.error("SMTP connection error:", error);
+    } else {
+      console.log("SMTP server is ready to send emails");
+    }
+  });
+}
 
 export default transporter;

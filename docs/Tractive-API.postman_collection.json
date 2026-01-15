@@ -1,0 +1,2491 @@
+{
+  "info": {
+    "name": "Tractive API",
+    "description": "Complete API collection for Tractive backend testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "PATCH Order Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"paid\", \"transportStatus\": \"picked\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/orders/ORDER_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "ORDER_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Order Parties",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders/ORDER_ID/parties",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "ORDER_ID",
+                "parties"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "PATCH Transaction Status (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"approved\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transactions/TRANSACTION_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "TRANSACTION_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Contact Customer Care",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"message\": \"Need help\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transactions/TRANSACTION_ID/contact-customer-care",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                "TRANSACTION_ID",
+                "contact-customer-care"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products Bulk/Status",
+      "item": [
+        {
+          "name": "PATCH Product Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"out_of_stock\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/products/PRODUCT_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "PRODUCT_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Out of Stock",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/products/out-of-stock",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "out-of-stock"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Bulk Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"productIds\": [\"ID1\",\"ID2\"], \"status\": \"available\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/products/bulk/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "bulk",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Bulk Delete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"productIds\": [\"ID1\",\"ID2\"] }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/products/bulk/delete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "bulk",
+                "delete"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transporters Ops",
+      "item": [
+        {
+          "name": "GET Fleet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/fleet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "fleet"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Fleet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"plateNumber\": \"ABC-123\", \"model\": \"Volvo\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/fleet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "fleet"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Fleet",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"model\": \"MAN\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/fleet/FLEET_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "fleet",
+                "FLEET_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Fleet Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"under_maintenance\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/fleet/FLEET_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "fleet",
+                "FLEET_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Fleet",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/fleet/FLEET_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "fleet",
+                "FLEET_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/drivers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "drivers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"John\", \"licenseNumber\": \"LIC123\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/drivers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "drivers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Driver",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"phone\": \"080123456\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/drivers/DRIVER_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "drivers",
+                "DRIVER_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Assign Driver Fleet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"truckId\": \"FLEET_ID\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/drivers/DRIVER_ID/assign-fleet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "drivers",
+                "DRIVER_ID",
+                "assign-fleet"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Driver",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/drivers/DRIVER_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "drivers",
+                "DRIVER_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Negotiations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/negotiations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "negotiations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Negotiation Respond",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"action\": \"accept\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/negotiations/NEGOTIATION_ID/respond",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "negotiations",
+                "NEGOTIATION_ID",
+                "respond"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Order Transport Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"transportStatus\": \"on_transit\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/orders/ORDER_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "orders",
+                "ORDER_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Order Tracking",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/orders/ORDER_ID/tracking",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "orders",
+                "ORDER_ID",
+                "tracking"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Order Buyer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/orders/ORDER_ID/buyer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "orders",
+                "ORDER_ID",
+                "buyer"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Order Product",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/orders/ORDER_ID/product",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "orders",
+                "ORDER_ID",
+                "product"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Support",
+      "item": [
+        {
+          "name": "GET Support Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/queries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "queries"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Ticket Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"in_progress\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/queries/TICKET_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "queries",
+                "TICKET_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Ticket Reply",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"reply\": \"We are on it\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/queries/TICKET_ID/reply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "queries",
+                "TICKET_ID",
+                "reply"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Ticket",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/queries/TICKET_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "queries",
+                "TICKET_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Live Chats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/live-chats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "live-chats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Live Chat Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/live-chats/CONVERSATION_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "live-chats",
+                "CONVERSATION_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Live Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"text\": \"Hello from admin\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/live-chats/CONVERSATION_ID/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "live-chats",
+                "CONVERSATION_ID",
+                "messages"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Close Live Chat",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/live-chats/CONVERSATION_ID/close",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "live-chats",
+                "CONVERSATION_ID",
+                "close"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Live Chat",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/live-chats/CONVERSATION_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "live-chats",
+                "CONVERSATION_ID"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "verify-code"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set(\"token\", jsonData.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Complete Account (Agent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"agent\",\n  \"businessName\": \"Doe Farms Ltd\",\n  \"villageOrLocalMarket\": \"Sabon Gari Market\",\n  \"phone\": \"+2348012345678\",\n  \"nin\": \"12345678901\",\n  \"address\": \"123 Farm Road, Kaduna\",\n  \"country\": \"Nigeria\",\n  \"state\": \"Kaduna\",\n  \"interests\": [\"Grains\", \"Livestock\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/add-account",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "add-account"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/change-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "change-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/forgot-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_TOKEN_HERE\",\n  \"password\": \"NewSecurePass456!\",\n  \"confirmPassword\": \"NewSecurePass456!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/reset-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "reset-password"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fresh Maize\",\n  \"description\": \"High quality yellow maize\",\n  \"price\": 5000,\n  \"quantity\": 100,\n  \"unit\": \"kg\",\n  \"categories\": [\"Grains\"],\n  \"images\": [\"https://example.com/maize.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/products?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/products/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "PRODUCT_ID_HERE"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 5500,\n  \"quantity\": 150\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/products/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "PRODUCT_ID_HERE"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/products/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "PRODUCT_ID_HERE"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Farmers",
+      "item": [
+        {
+          "name": "Create Farmer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Farmer John\",\n  \"phone\": \"+2348055555555\",\n  \"address\": \"Farm Village, Kaduna\",\n  \"country\": \"Nigeria\",\n  \"state\": \"Kaduna\",\n  \"farmSize\": \"5 hectares\",\n  \"crops\": [\"Maize\", \"Rice\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/farmers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "farmers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Farmers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/farmers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "farmers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Farmer",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/farmers/FARMER_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "farmers",
+                "FARMER_ID"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"products\": [\n    {\n      \"product\": \"PRODUCT_ID_HERE\",\n      \"quantity\": 10\n    }\n  ],\n  \"totalAmount\": 50000,\n  \"address\": \"123 Delivery Street, Abuja\",\n  \"phone\": \"+2348011223344\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order\": \"ORDER_ID_HERE\",\n  \"amount\": 50000,\n  \"paymentMethod\": \"bank_transfer\",\n  \"paymentReference\": \"TRX123456789\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transactions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Transaction (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transactions/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transactions",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "TRANSACTION_ID_HERE"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isRead\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "NOTIFICATION_ID_HERE"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark as Read (alias)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/NOTIFICATION_ID/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "NOTIFICATION_ID",
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Shipping",
+      "item": [
+        {
+          "name": "Create Truck",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plateNumber\": \"ABC123XYZ\",\n  \"model\": \"MAN Diesel\",\n  \"capacity\": \"20 tons\",\n  \"route\": {\n    \"fromState\": \"Kaduna\",\n    \"toState\": \"Lagos\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/trucks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "trucks"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Driver John\",\n  \"phone\": \"+2348077777777\",\n  \"licenseNumber\": \"DRV123456\",\n  \"licenseExpiry\": \"2025-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Shipping Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": \"PRODUCT_ID_HERE\",\n  \"productName\": \"Fresh Maize\",\n  \"quantity\": 10,\n  \"pickupLocation\": \"Kaduna Farm\",\n  \"deliveryLocation\": \"Lagos Market\",\n  \"pickupDate\": \"2024-01-15\",\n  \"negotiable\": true,\n  \"proposedPrice\": 15000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/shipping",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shipping"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Users",
+      "item": [
+        {
+          "name": "PATCH User Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"suspended\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/USER_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "USER_ID",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Onboard User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/USER_ID/onboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "USER_ID",
+                "onboard"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Users by Profession",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/buyer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "users",
+                "buyer"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Transactions",
+      "item": [
+        {
+          "name": "POST Refund (by ID)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate\",\n  \"refundAmount\": 1000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/transactions/TRANSACTION_ID/refund",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "transactions",
+                "TRANSACTION_ID",
+                "refund"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transporter Marketplace",
+      "item": [
+        {
+          "name": "GET Transporters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Transporter Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Swift Logistics\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/TRANSPORTER_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "TRANSPORTER_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/TRANSPORTER_ID/reviews",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "TRANSPORTER_ID",
+                "reviews"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Trucks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/trucks?status=all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "trucks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Trucks (Empty)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/trucks/empty",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "trucks",
+                "empty"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Trucks (Almost Full)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/trucks/almost-full",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "trucks",
+                "almost-full"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Truck (by ID)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/trucks/TRUCK_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "trucks",
+                "TRUCK_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/recommendations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "recommendations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET Transporter Reviews (self)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transporters/reviews",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "reviews"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "POST Review Reply",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Thanks!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reviews/REVIEW_ID/reply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "reviews",
+                "REVIEW_ID",
+                "reply"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST Review Like",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/reviews/REVIEW_ID/like",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "reviews",
+                "REVIEW_ID",
+                "like"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transporter Transactions",
+      "item": [
+        {
+          "name": "PATCH Transporter Transaction Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transporters/transactions/TRANSACTION_ID/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "transporters",
+                "transactions",
+                "TRANSACTION_ID",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customer Chat",
+      "item": [
+        {
+          "name": "POST Customer Chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"initialMessage\": \"Hello\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/customers/CUSTOMER_ID/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "CUSTOMER_ID",
+                "chat"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Approvals",
+      "item": [
+        {
+          "name": "PATCH Agent Approval (by ID)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"approved\", \"reason\": \"OK\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/approvals/agents/AGENT_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "approvals",
+                "agents",
+                "AGENT_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH Farmer Approval (by ID)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"approved\", \"reason\": \"OK\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/approvals/farmers/FARMER_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "approvals",
+                "farmers",
+                "FARMER_ID"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Help",
+      "item": [
+        {
+          "name": "DELETE Help Ticket (by ID)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/help/TICKET_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "help",
+                "TICKET_ID"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "PATCH Chat Message",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"text\": \"Updated message\" }"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat/CONVERSATION_ID/messages/MESSAGE_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "CONVERSATION_ID",
+                "messages",
+                "MESSAGE_ID"
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE Chat Message",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/chat/CONVERSATION_ID/messages/MESSAGE_ID",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "CONVERSATION_ID",
+                "messages",
+                "MESSAGE_ID"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "GET Customers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/customers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

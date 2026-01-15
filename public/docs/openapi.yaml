@@ -1,159 +1,626 @@
-openapi: 3.0.3
+openapi: 3.0.0
 info:
   title: Tractive API
-  description: API documentation for the Tractive project
   version: 1.0.0
+  description: API documentation for Tractive backend
+
 servers:
   - url: http://localhost:3000
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        activeRole:
+          type: string
+        isVerified:
+          type: boolean
+    Product:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        quantity:
+          type: number
+    Farmer:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+    Order:
+      type: object
+      properties:
+        buyer:
+          type: string
+        products:
+          type: array
+          items:
+            type: object
+        totalAmount:
+          type: number
+        status:
+          type: string
+        transportStatus:
+          type: string
+        transporter:
+          type: string
+    Transaction:
+      type: object
+      properties:
+        order:
+          type: string
+        buyer:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+
+security:
+  - bearerAuth: []
+
 paths:
   /api/auth/register:
     post:
-      summary: Register a user (name, email, password only)
+      summary: Register a user
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - name
-                - email
-                - password
-              properties:
-                name:
-                  type: string
-                  example: "Agbe Buyer"
-                email:
-                  type: string
-                  example: "caspar.georgiy@freedrops.org"
-                password:
-                  type: string
-                  example: "Password123!"
+              $ref: '#/components/schemas/User'
       responses:
         '201':
-          description: User registered, verification code sent via email
-  /api/auth/verify-code:
-    post:
-      summary: Verify email with code
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - email
-                - code
-              properties:
-                email:
-                  type: string
-                  example: "caspar.georgiy@freedrops.org"
-                code:
-                  type: string
-                  example: "123456"
-      responses:
-        '200':
-          description: Email verified
+          description: User registered
   /api/auth/login:
     post:
       summary: Login and get JWT token
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - email
-                - password
               properties:
                 email:
                   type: string
-                  example: "caspar.georgiy@freedrops.org"
                 password:
                   type: string
-                  example: "Password123!"
       responses:
         '200':
           description: JWT token
-  /api/auth/forgot-password:
+  /api/auth/verify-code:
     post:
-      summary: Request password reset
+      summary: Verify email with code
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - email
               properties:
                 email:
                   type: string
-                  example: "caspar.georgiy@freedrops.org"
+                code:
+                  type: string
       responses:
         '200':
-          description: Reset link sent if email exists
-  /api/auth/reset-password:
-    post:
-      summary: Reset password using token
+          description: Email verified
+  /api/orders/{id}/status:
+    patch:
+      summary: Update order status or transport status
+      description: Requires buyer/agent/transporter/admin with proper ownership. Uses activeRole.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - token
-                - password
               properties:
-                token:
+                status:
                   type: string
-                  example: "<reset-token-from-email>"
-                password:
+                  enum: [pending, paid, delivered]
+                transportStatus:
                   type: string
-                  example: "NewPassword123!"
+                  enum: [pending, picked, on_transit, delivered]
+                transporter:
+                  type: string
       responses:
         '200':
-          description: Password reset successful
-  /api/auth/add-account:
-    post:
-      summary: Add account type and extra info after verification/login
-      security:
-        - bearerAuth: []
+          description: Updated order
+  /api/orders/{id}/parties:
+    get:
+      summary: Get buyer/seller/transporter parties for an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Parties info
+  /api/transactions/{id}/status:
+    patch:
+      summary: Admin updates transaction status
+      description: Canonical transaction status update endpoint.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - role
               properties:
-                role:
+                status:
                   type: string
-                  enum: [buyer, agent, transporter, admin]
-                  example: "agent"
-                businessName:
+                  enum: [approved, rejected, pending]
+      responses:
+        '200':
+          description: Updated transaction
+  /api/transactions/{id}/contact-customer-care:
+    post:
+      summary: Create support ticket linked to transaction
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
                   type: string
-                  example: "Doe Farms"
-                villageOrLocalMarket:
+                message:
                   type: string
-                  example: "Sabon Gari"
-                phone:
+      responses:
+        '201':
+          description: Ticket created
+  /api/products/{id}/status:
+    patch:
+      summary: Update product status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
                   type: string
-                  example: "08012345678"
-                nin:
-                  type: string
-                  example: "12345678901"
-                interests:
+                  enum: [available, out_of_stock, discontinued]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Updated product
+  /api/products/out-of-stock:
+    get:
+      summary: List out-of-stock products
+      responses:
+        '200':
+          description: Out of stock list
+  /api/products/bulk/delete:
+    post:
+      summary: Bulk delete products
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productIds:
                   type: array
                   items:
                     type: string
-                  example: ["Grains", "Livestock"]
       responses:
         '200':
-          description: Account type and info updated
+          description: Delete count
+  /api/products/bulk/status:
+    patch:
+      summary: Bulk update product status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productIds:
+                  type: array
+                  items:
+                    type: string
+                status:
+                  type: string
+                  enum: [available, out_of_stock, discontinued]
+      responses:
+        '200':
+          description: Updated count
+  /api/transporters/fleet:
+    get:
+      summary: List transporter fleet
+      responses:
+        '200':
+          description: Fleet list
+    post:
+      summary: Create fleet truck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plateNumber: { type: string }
+                model: { type: string }
+                capacity: { type: string }
+      responses:
+        '201':
+          description: Truck created
+  /api/transporters/fleet/{id}:
+    patch:
+      summary: Update truck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Updated truck
+    delete:
+      summary: Delete truck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/transporters/fleet/{id}/status:
+    patch:
+      summary: Update truck status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [available, on_transit, under_maintenance]
+      responses:
+        '200':
+          description: Updated truck
+  /api/transporters/drivers:
+    get:
+      summary: List drivers
+      responses:
+        '200':
+          description: Driver list
+    post:
+      summary: Create driver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                licenseNumber: { type: string }
+      responses:
+        '201':
+          description: Driver created
+  /api/transporters/drivers/{id}:
+    patch:
+      summary: Update driver
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete driver
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/transporters/drivers/{id}/assign-fleet:
+    post:
+      summary: Assign driver to truck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                truckId: { type: string }
+      responses:
+        '200':
+          description: Assigned
+  /api/transporters/negotiations:
+    get:
+      summary: List transporter negotiations
+      responses:
+        '200':
+          description: Negotiations list
+  /api/transporters/negotiations/{id}/respond:
+    post:
+      summary: Respond to negotiation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [accept, reject, counter]
+                amount:
+                  type: number
+      responses:
+        '200':
+          description: Updated negotiation
+  /api/transporters/orders/{orderId}/status:
+    patch:
+      summary: Update transport status for assigned order
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transportStatus:
+                  type: string
+                  enum: [pending, picked, on_transit, delivered]
+      responses:
+        '200':
+          description: Updated order
+  /api/transporters/orders/{orderId}/tracking:
+    get:
+      summary: Get tracking timeline for assigned order
+      description: Returns transportStatus plus timeline of tracking events (status, timestamp, note, location).
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tracking info with timeline
+  /api/transporters/orders/{orderId}/buyer:
+    get:
+      summary: Get buyer info for assigned order
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Buyer info
+  /api/transporters/orders/{orderId}/product:
+    get:
+      summary: Get ordered products for assigned order
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product summary
+  /api/admin/queries:
+    get:
+      summary: Admin list support tickets
+      responses:
+        '200':
+          description: Tickets
+  /api/admin/queries/{id}/status:
+    patch:
+      summary: Update ticket status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Updated ticket
+  /api/admin/queries/{id}/reply:
+    post:
+      summary: Reply to support ticket
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reply:
+                  type: string
+      responses:
+        '200':
+          description: Replied
+  /api/admin/queries/{id}:
+    delete:
+      summary: Delete support ticket
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/admin/live-chats:
+    get:
+      summary: Admin list live chats
+      responses:
+        '200':
+          description: Conversations
+  /api/admin/live-chats/{conversationId}:
+    get:
+      summary: Get conversation and messages
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation detail
+    delete:
+      summary: Delete conversation
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/admin/live-chats/{conversationId}/messages:
+    post:
+      summary: Admin send message to conversation
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        '201':
+          description: Message sent
+  /api/admin/live-chats/{conversationId}/close:
+    patch:
+      summary: Close conversation
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Closed
   /api/products:
     get:
       summary: List products
@@ -161,7 +628,9 @@ paths:
         '200':
           description: List of products
     post:
-      summary: Create product (admin/agent only)
+      summary: Create product
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -184,7 +653,9 @@ paths:
         '200':
           description: Product details
     patch:
-      summary: Update product (admin/agent only)
+      summary: Update product
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -203,11 +674,15 @@ paths:
   /api/farmers:
     get:
       summary: List farmers created by you
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: List of farmers
     post:
-      summary: Create farmer (agent/admin only)
+      summary: Create farmer
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -220,6 +695,8 @@ paths:
   /api/farmers/{id}:
     get:
       summary: Get farmer by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -229,8 +706,10 @@ paths:
       responses:
         '200':
           description: Farmer details
-    patch:
-      summary: Update farmer (agent only)
+    put:
+      summary: Replace/update farmer
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -246,14 +725,50 @@ paths:
       responses:
         '200':
           description: Farmer updated
+    patch:
+      summary: Update farmer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Farmer'
+      responses:
+        '200':
+          description: Farmer updated
+    delete:
+      summary: Delete farmer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Farmer deleted
   /api/orders:
     get:
       summary: List your orders
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: List of orders
     post:
       summary: Create order
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -266,6 +781,8 @@ paths:
   /api/orders/{id}:
     get:
       summary: Get order by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -277,6 +794,8 @@ paths:
           description: Order details
     patch:
       summary: Update order status/transport
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -292,14 +811,31 @@ paths:
       responses:
         '200':
           description: Order updated
+    delete:
+      summary: Delete order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order deleted
   /api/transactions:
     get:
       summary: List your transactions
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: List of transactions
     post:
       summary: Create transaction for paid order
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -312,6 +848,8 @@ paths:
   /api/transactions/{id}:
     get:
       summary: Get transaction by ID
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -322,7 +860,11 @@ paths:
         '200':
           description: Transaction details
     patch:
-      summary: Approve transaction (admin only)
+      summary: Legacy transaction update (admin only)
+      description: Legacy endpoint. Prefer PATCH /api/transactions/{id}/status for status updates.
+      deprecated: true
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -342,18 +884,15 @@ paths:
       responses:
         '200':
           description: Transaction approved
-  /api/drivers:
-    get:
-      summary: List drivers onboarded by transporter
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of drivers
-    post:
-      summary: Onboard a new driver (transporter only)
-      security:
-        - bearerAuth: []
+  /api/admin/users/{id}/status:
+    patch:
+      summary: Update user status (active/suspended)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -361,25 +900,617 @@ paths:
             schema:
               type: object
               properties:
+                status:
+                  type: string
+                  enum: [active, suspended]
+      responses:
+        '200':
+          description: User status updated
+  /api/admin/transactions/{id}/refund:
+    post:
+      summary: Process refund by transaction id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                refundAmount:
+                  type: number
+      responses:
+        '200':
+          description: Refund processed
+  /api/transporters:
+    get:
+      summary: List transporters
+      responses:
+        '200':
+          description: Transporter list
+    post:
+      summary: Create/update transporter profile
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
                 name:
                   type: string
                 phone:
                   type: string
-                licenseNumber:
+                businessName:
                   type: string
       responses:
         '201':
-          description: Driver onboarded
-  /api/trucks:
+          description: Transporter profile saved
+  /api/transporters/{id}:
     get:
-      summary: List trucks owned by transporter
+      summary: Get transporter by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transporter details
+  /api/transporters/{id}/reviews:
+    get:
+      summary: Get reviews for transporter
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reviews list
+  /api/transporters/trucks:
+    get:
+      summary: List transporter trucks with filters
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [all, empty, almost_full]
+        - in: query
+          name: fromState
+          schema:
+            type: string
+        - in: query
+          name: toState
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trucks list
+  /api/transporters/transactions/{id}/status:
+    patch:
+      summary: Transporter updates transaction status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, pending]
+      responses:
+        '200':
+          description: Transaction updated
+  /api/reviews/{id}/reply:
+    post:
+      summary: Agent replies to review
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Review replied
+  /api/reviews/{id}/like:
+    post:
+      summary: Buyer likes a review
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Review liked
+  /api/customers/{id}/chat:
+    post:
+      summary: Create or reuse customer chat
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                initialMessage:
+                  type: string
+      responses:
+        '200':
+          description: Conversation reused
+        '201':
+          description: Conversation created
+  /api/buyers/top-sellers:
+    get:
+      summary: Buyer top sellers
+      responses:
+        '200':
+          description: Top sellers list
+  /api/buyers/top-selling:
+    get:
+      summary: Buyer top selling products
+      responses:
+        '200':
+          description: Top products list
+  /api/buyers/recommendations:
+    get:
+      summary: Buyer recommendations
+      responses:
+        '200':
+          description: Recommended products
+  /api/buyers/categories/{categoryId}/{subcategoryId}/farmers:
+    get:
+      summary: Farmers by category/subcategory
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: subcategoryId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Farmers list
+  /api/buyers/wishlist:
+    get:
+      summary: Buyer wishlist
+      responses:
+        '200':
+          description: Wishlist items
+  /api/buyers/wishlist/{productId}:
+    post:
+      summary: Add product to wishlist
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Added to wishlist
+    delete:
+      summary: Remove product from wishlist
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Removed from wishlist
+  /api/buyers/biddings:
+    get:
+      summary: Buyer bids
+      responses:
+        '200':
+          description: Buyer bids list
+  /api/buyers/biddings/won:
+    get:
+      summary: Buyer accepted bids
+      responses:
+        '200':
+          description: Accepted bids list
+  /api/buyers/biddings/won/checkout:
+    get:
+      summary: Buyer checkout summary for won bids
+      responses:
+        '200':
+          description: Checkout summary
+  /api/buyers/products/{productId}/bid:
+    post:
+      summary: Place bid on product
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Bid created
+  /api/buyers/farmers/{farmerId}/follow:
+    post:
+      summary: Follow farmer
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Followed
+    delete:
+      summary: Unfollow farmer
+      parameters:
+        - in: path
+          name: farmerId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Unfollowed
+  /api/sellers:
+    get:
+      summary: List sellers
+      responses:
+        '200':
+          description: Sellers list
+  /api/sellers/{id}:
+    get:
+      summary: Seller details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller detail
+  /api/sellers/{id}/products:
+    get:
+      summary: Seller products
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller products
+  /api/sellers/products/{id}:
+    get:
+      summary: Seller product detail
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product detail
+  /api/transporters/dashboard/revenue:
+    get:
+      summary: Transporter revenue
+      responses:
+        '200':
+          description: Revenue stats
+  /api/transporters/dashboard/customers:
+    get:
+      summary: Transporter customers
+      responses:
+        '200':
+          description: Customer stats
+  /api/transporters/dashboard/fleet:
+    get:
+      summary: Transporter fleet stats
+      responses:
+        '200':
+          description: Fleet stats
+  /api/transporters/dashboard/drivers:
+    get:
+      summary: Transporter drivers list
+      responses:
+        '200':
+          description: Drivers list
+  /api/transporters/dashboard/revenue-chart:
+    get:
+      summary: Transporter revenue chart
+      responses:
+        '200':
+          description: Revenue chart
+  /api/transporters/dashboard/top-fleet:
+    get:
+      summary: Transporter top fleet
+      responses:
+        '200':
+          description: Top fleet
+  /api/transporters/dashboard/top-customers:
+    get:
+      summary: Transporter top customers
+      responses:
+        '200':
+          description: Top customers
+  /api/transporters/dashboard/trucks-on-transit:
+    get:
+      summary: Transporter trucks on transit
+      responses:
+        '200':
+          description: Trucks on transit
+  /api/admin/dashboard/registered-users:
+    get:
+      summary: Admin registered users stats
+      responses:
+        '200':
+          description: User stats
+  /api/admin/dashboard/received-payments:
+    get:
+      summary: Admin received payments stats
+      responses:
+        '200':
+          description: Payments stats
+  /api/admin/dashboard/orders:
+    get:
+      summary: Admin orders stats
+      responses:
+        '200':
+          description: Orders stats
+  /api/admin/dashboard/visitors:
+    get:
+      summary: Admin visitors stats
+      responses:
+        '200':
+          description: Visitors stats
+  /api/admin/dashboard/revenue-chart:
+    get:
+      summary: Admin revenue chart
+      responses:
+        '200':
+          description: Revenue chart
+  /api/admin/top-buyers:
+    get:
+      summary: Admin top buyers
+      responses:
+        '200':
+          description: Top buyers
+  /api/admin/top-agents:
+    get:
+      summary: Admin top agents
+      responses:
+        '200':
+          description: Top agents
+  /api/admin/top-transporters:
+    get:
+      summary: Admin top transporters
+      responses:
+        '200':
+          description: Top transporters
+  /api/admin/approvals/agents/{id}:
+    patch:
+      summary: Approve or reject agent by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Agent updated
+  /api/admin/approvals/farmers/{id}:
+    patch:
+      summary: Approve or reject farmer by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Farmer updated
+  /api/notifications/{id}/read:
+    patch:
+      summary: Mark notification as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notification updated
+  /api/help/{id}:
+    delete:
+      summary: Close support ticket by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket closed
+  /api/chat/{conversationId}/messages/{messageId}:
+    patch:
+      summary: Update message in conversation
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Message updated
+    delete:
+      summary: Delete message in conversation
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: messageId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted
+  /api/transporters/trucks/almost-full:
+    get:
+      summary: List almost full trucks
+      responses:
+        '200':
+          description: Trucks list
+  /api/transporters/trucks/empty:
+    get:
+      summary: List empty trucks
+      responses:
+        '200':
+          description: Trucks list
+  /api/transporters/trucks/{id}:
+    get:
+      summary: Get truck by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Truck details
+  /api/transporters/recommendations:
+    get:
+      summary: Recommended transporters
+      responses:
+        '200':
+          description: Recommendations list
+  /api/transporters/reviews:
+    get:
+      summary: Transporter review list (self or admin)
+      responses:
+        '200':
+          description: Reviews list
+  /api/admin/users/{id}/onboard:
+    post:
+      summary: Onboard user (reactivate)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User onboarded
+  /api/customers:
+    get:
+      summary: List customers (buyers)
+      responses:
+        '200':
+          description: Customers list
+
+  /api/admin/approvals/agents:
+    get:
+      summary: GET /api/admin/approvals/agents
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: List of trucks
-    post:
-      summary: Onboard a new truck (transporter only)
+          description: Success
+    patch:
+      summary: PATCH /api/admin/approvals/agents
       security:
         - bearerAuth: []
       requestBody:
@@ -388,19 +1519,394 @@ paths:
           application/json:
             schema:
               type: object
-              properties:
-                plateNumber:
-                  type: string
-                model:
-                  type: string
-                capacity:
-                  type: string
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/approvals/farmers:
+    get:
+      summary: GET /api/admin/approvals/farmers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/admin/approvals/farmers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/dashboard:
+    get:
+      summary: GET /api/admin/dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/transactions:
+    get:
+      summary: GET /api/admin/transactions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/transactions/refund:
+    post:
+      summary: POST /api/admin/transactions/refund
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '201':
-          description: Truck onboarded
+          description: Success
+
+  /api/admin/users:
+    get:
+      summary: GET /api/admin/users
+      security:
+        - bearerAuth: []
+      description: "Use the profession query param instead of a path segment. Example: /api/admin/users?profession=buyer"
+      parameters:
+        - in: query
+          name: profession
+          schema:
+            type: string
+            enum: [buyer, agent, transporter, admin]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, suspended, removed]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/users/{id}:
+    get:
+      summary: GET /api/admin/users/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/admin/users/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/users/{id}/reactivate:
+    post:
+      summary: POST /api/admin/users/{id}/reactivate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/admin/users/removed:
+    get:
+      summary: GET /api/admin/users/removed
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/users/stats:
+    get:
+      summary: GET /api/admin/users/stats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/auth/add-account:
+    post:
+      summary: POST /api/auth/add-account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/auth/change-password:
+    post:
+      summary: POST /api/auth/change-password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/auth/forgot-password:
+    post:
+      summary: POST /api/auth/forgot-password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/auth/request-verification:
+    post:
+      summary: POST /api/auth/request-verification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/auth/resend-verification:
+    post:
+      summary: POST /api/auth/resend-verification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/auth/reset-password:
+    post:
+      summary: POST /api/auth/reset-password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/bids:
+    get:
+      summary: GET /api/bids
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/bids
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/bids/{id}:
+    get:
+      summary: GET /api/bids/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/bids/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/chat:
+    get:
+      summary: GET /api/chat
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/chat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/chat/{conversationId}:
+    get:
+      summary: GET /api/chat/{conversationId}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/chat/{conversationId}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/drivers:
+    get:
+      summary: GET /api/drivers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/drivers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
   /api/drivers/assign-truck:
     post:
-      summary: Assign a truck to a driver (transporter only)
+      summary: POST /api/drivers/assign-truck
       security:
         - bearerAuth: []
       requestBody:
@@ -409,144 +1915,336 @@ paths:
           application/json:
             schema:
               type: object
-              properties:
-                driverId:
-                  type: string
-                truckId:
-                  type: string
+      responses:
+        '201':
+          description: Success
+
+  /api/help:
+    delete:
+      summary: DELETE /api/help
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: Truck assigned to driver
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-  schemas:
-    User:
-      type: object
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-        name:
-          type: string
-        roles:
-          type: array
-          items:
+          description: Success
+    get:
+      summary: GET /api/help
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/help
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/negotiations:
+    get:
+      summary: GET /api/negotiations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/negotiations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/negotiations/{id}/accept:
+    post:
+      summary: POST /api/negotiations/{id}/accept
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
             type: string
-        activeRole:
-          type: string
-        isVerified:
-          type: boolean
-        interests:
-          type: array
-          items:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/negotiations/{id}/reject:
+    post:
+      summary: POST /api/negotiations/{id}/reject
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
             type: string
-    Product:
-      type: object
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        quantity:
-          type: number
-        images:
-          type: array
-          items:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/notifications:
+    get:
+      summary: GET /api/notifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/notifications
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/notifications/{id}:
+    delete:
+      summary: DELETE /api/notifications/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
             type: string
-        videos:
-          type: array
-          items:
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/notifications/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
             type: string
-        categories:
-          type: array
-          items:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/profile:
+    get:
+      summary: GET /api/profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/profile/switch-role:
+    get:
+      summary: GET /api/profile/switch-role
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/profile/switch-role
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Success
+
+  /api/reviews:
+    get:
+      summary: GET /api/reviews
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/reviews
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/shipping:
+    get:
+      summary: GET /api/shipping
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/shipping
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/shipping/{id}:
+    get:
+      summary: GET /api/shipping/{id}
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
             type: string
-    Farmer:
-      type: object
-      properties:
-        name:
-          type: string
-        phone:
-          type: string
-        businessName:
-          type: string
-        nin:
-          type: string
-        businessCAC:
-          type: string
-        address:
-          type: string
-        country:
-          type: string
-        state:
-          type: string
-        lga:
-          type: string
-        villageOrLocalMarket:
-          type: string
-    Order:
-      type: object
-      properties:
-        buyer:
-          type: string
-        products:
-          type: array
-          items:
-            type: object
-            properties:
-              product:
-                type: string
-              quantity:
-                type: number
-        totalAmount:
-          type: number
-        status:
-          type: string
-        transportStatus:
-          type: string
-        transporter:
-          type: string
-        address:
-          type: string
-    Transaction:
-      type: object
-      properties:
-        order:
-          type: string
-        buyer:
-          type: string
-        amount:
-          type: number
-        status:
-          type: string
-        paymentMethod:
-          type: string
-        approvedBy:
-          type: string
-    Truck:
-      type: object
-      properties:
-        plateNumber:
-          type: string
-        model:
-          type: string
-        capacity:
-          type: string
-        transporter:
-          type: string
-        assignedDriver:
-          type: string
-        route:
-          type: object
-          properties:
-            fromState:
-              type: string
-            toState:
-              type: string
+      responses:
+        '200':
+          description: Success
+
+  /api/transporters/customers:
+    get:
+      summary: GET /api/transporters/customers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/transporters/dashboard:
+    get:
+      summary: GET /api/transporters/dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/transporters/transactions:
+    get:
+      summary: GET /api/transporters/transactions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+
+  /api/trucks:
+    get:
+      summary: GET /api/trucks
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/trucks
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success
+
+  /api/wishlist:
+    delete:
+      summary: DELETE /api/wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    get:
+      summary: GET /api/wishlist
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+    post:
+      summary: POST /api/wishlist
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Success

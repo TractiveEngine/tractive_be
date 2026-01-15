@@ -1,65 +1,121 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Farmer from '@/models/farmer';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
+import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import mongoose from 'mongoose';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const UPDATABLE_FIELDS = [
+  'name',
+  'phone',
+  'businessName',
+  'nin',
+  'businessCAC',
+  'address',
+  'country',
+  'state',
+  'lga',
+  'villageOrLocalMarket'
+] as const;
 
-// Define the shape your JWT actually has
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-// Type guard for JwtUserPayload
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-// Verify + return a typed payload (or null)
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+// GET /api/farmers/:id
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   await dbConnect();
-  const { id } = await params;
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+  }
+  if (!ensureActiveRole(user, 'agent') && !ensureActiveRole(user, 'admin')) {
+    return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
+  }
+
+  const { id } = params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
+  }
+
   const farmer = await Farmer.findById(id);
   if (!farmer) {
-    return NextResponse.json({ error: 'Farmer not found' }, { status: 404 });
+    return NextResponse.json({ success: false, message: 'Farmer not found' }, { status: 404 });
   }
-  return NextResponse.json({ farmer }, { status: 200 });
+
+  if (!ensureActiveRole(user, 'admin') && farmer.createdBy.toString() !== user._id.toString()) {
+    return NextResponse.json({ success: false, message: 'Not authorized' }, { status: 403 });
+  }
+
+  return NextResponse.json({ success: true, data: farmer }, { status: 200 });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function updateFarmer(request: Request, params: { id: string }) {
   await dbConnect();
-  const { id } = await params;
-  const userData = getUserFromRequest(request);
-  if (!userData) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-  const user = await User.findById(userData.userId);
-  if (!user || user.role !== 'agent') {
-    return NextResponse.json({ error: 'Only agents can update farmers' }, { status: 403 });
+  if (!ensureActiveRole(user, 'agent') && !ensureActiveRole(user, 'admin')) {
+    return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
   }
 
-  const body = await request.json();
-  const farmer = await Farmer.findByIdAndUpdate(id, body, { new: true });
-  if (!farmer) {
-    return NextResponse.json({ error: 'Farmer not found' }, { status: 404 });
+  const { id } = params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
   }
-  return NextResponse.json({ farmer }, { status: 200 });
+
+  const farmer = await Farmer.findById(id);
+  if (!farmer) {
+    return NextResponse.json({ success: false, message: 'Farmer not found' }, { status: 404 });
+  }
+
+  if (!ensureActiveRole(user, 'admin') && farmer.createdBy.toString() !== user._id.toString()) {
+    return NextResponse.json({ success: false, message: 'Not authorized' }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  for (const field of UPDATABLE_FIELDS) {
+    if (body[field] !== undefined) {
+      (farmer as any)[field] = body[field];
+    }
+  }
+
+  await farmer.save();
+
+  return NextResponse.json({ success: true, data: farmer, message: 'Farmer updated' }, { status: 200 });
+}
+
+// PUT /api/farmers/:id
+export async function PUT(request: Request, { params }: { params: { id: string } }) {
+  return updateFarmer(request, params);
+}
+
+// PATCH /api/farmers/:id
+export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+  return updateFarmer(request, params);
+}
+
+// DELETE /api/farmers/:id
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  await dbConnect();
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+  }
+  if (!ensureActiveRole(user, 'agent') && !ensureActiveRole(user, 'admin')) {
+    return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
+  }
+
+  const { id } = params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
+  }
+
+  const farmer = await Farmer.findById(id);
+  if (!farmer) {
+    return NextResponse.json({ success: false, message: 'Farmer not found' }, { status: 404 });
+  }
+
+  if (!ensureActiveRole(user, 'admin') && farmer.createdBy.toString() !== user._id.toString()) {
+    return NextResponse.json({ success: false, message: 'Not authorized' }, { status: 403 });
+  }
+
+  await farmer.deleteOne();
+  return NextResponse.json({ success: true, message: 'Farmer deleted' }, { status: 200 });
 }
