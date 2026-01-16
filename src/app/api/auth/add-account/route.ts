@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 import type { NextRequest } from 'next/server';
+import sendEmail from '@/lib/sendSmtpMail';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -60,6 +61,23 @@ export async function POST(request: NextRequest) {
   Object.assign(user, sanitized);
 
   await user.save();
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.FRONTEND_ORIGIN || 'https://tractive-be.vercel.app';
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: `Your ${role} account is ready`,
+      template: 'role-added',
+      replacements: {
+        name: user.name || user.businessName || 'there',
+        role,
+        email: user.email,
+        appUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error sending role-added email:', error);
+  }
 
   return NextResponse.json({
     message: 'Account type and info updated.',
