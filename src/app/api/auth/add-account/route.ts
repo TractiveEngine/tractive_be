@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
   if (phone) user.phone = phone;
   if (nin) user.nin = nin;
   if (interests) user.interests = interests;
-  Object.assign(user, rest as Record<string, unknown>);
+  const sanitized = { ...rest } as Record<string, unknown>;
+  delete sanitized.roles;
+  delete sanitized.activeRole;
+  Object.assign(user, sanitized);
 
   await user.save();
 
