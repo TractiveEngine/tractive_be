@@ -91,6 +91,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/User'
+            example:
+              name: "Enrico Tester"
+              email: "enrico.jeiren@flyovertrees.com"
+              password: "SecurePass123!"
       responses:
         '201':
           description: User registered
@@ -109,6 +113,9 @@ paths:
                   type: string
                 password:
                   type: string
+            example:
+              email: "enrico.jeiren@flyovertrees.com"
+              password: "SecurePass123!"
       responses:
         '200':
           description: JWT token
@@ -127,6 +134,9 @@ paths:
                   type: string
                 code:
                   type: string
+            example:
+              email: "enrico.jeiren@flyovertrees.com"
+              code: "123456"
       responses:
         '200':
           description: Email verified
@@ -155,6 +165,10 @@ paths:
                   enum: [pending, picked, on_transit, delivered]
                 transporter:
                   type: string
+            example:
+              status: "paid"
+              transportStatus: "picked"
+              transporter: "507f1f77bcf86cd799439015"
       responses:
         '200':
           description: Updated order
@@ -190,6 +204,8 @@ paths:
                 status:
                   type: string
                   enum: [approved, rejected, pending]
+            example:
+              status: "approved"
       responses:
         '200':
           description: Updated transaction
@@ -213,6 +229,9 @@ paths:
                   type: string
                 message:
                   type: string
+            example:
+              subject: "Payment issue"
+              message: "I was charged twice."
       responses:
         '201':
           description: Ticket created
@@ -229,6 +248,8 @@ paths:
                 status:
                   type: string
                   enum: [available, out_of_stock, discontinued]
+            example:
+              status: "out_of_stock"
       parameters:
         - in: path
           name: id
@@ -258,6 +279,8 @@ paths:
                   type: array
                   items:
                     type: string
+            example:
+              productIds: ["ID1", "ID2"]
       responses:
         '200':
           description: Delete count
@@ -278,6 +301,9 @@ paths:
                 status:
                   type: string
                   enum: [available, out_of_stock, discontinued]
+            example:
+              productIds: ["ID1", "ID2"]
+              status: "available"
       responses:
         '200':
           description: Updated count
@@ -299,6 +325,10 @@ paths:
                 plateNumber: { type: string }
                 model: { type: string }
                 capacity: { type: string }
+            example:
+              plateNumber: "ABC-123"
+              model: "Volvo"
+              capacity: "20 tons"
       responses:
         '201':
           description: Truck created
@@ -311,6 +341,15 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              model: "MAN"
+              capacity: "18 tons"
       responses:
         '200':
           description: Updated truck
@@ -344,6 +383,8 @@ paths:
                 status:
                   type: string
                   enum: [available, on_transit, under_maintenance]
+            example:
+              status: "under_maintenance"
       responses:
         '200':
           description: Updated truck
@@ -364,6 +405,9 @@ paths:
               properties:
                 name: { type: string }
                 licenseNumber: { type: string }
+            example:
+              name: "Driver John"
+              licenseNumber: "LIC123"
       responses:
         '201':
           description: Driver created
@@ -376,6 +420,14 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              phone: "080123456"
       responses:
         '200':
           description: Updated
@@ -407,6 +459,8 @@ paths:
               type: object
               properties:
                 truckId: { type: string }
+            example:
+              truckId: "FLEET_ID"
       responses:
         '200':
           description: Assigned
@@ -437,6 +491,9 @@ paths:
                   enum: [accept, reject, counter]
                 amount:
                   type: number
+            example:
+              action: "accept"
+              amount: 12000
       responses:
         '200':
           description: Updated negotiation
@@ -459,6 +516,8 @@ paths:
                 transportStatus:
                   type: string
                   enum: [pending, picked, on_transit, delivered]
+            example:
+              transportStatus: "on_transit"
       responses:
         '200':
           description: Updated order
@@ -637,6 +696,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Product'
+            example:
+              name: "Fresh Maize"
+              description: "High quality yellow maize from Kaduna farms"
+              price: 5000
+              quantity: 100
+              unit: "kg"
+              categories: ["Grains"]
+              images: ["https://example.com/maize1.jpg"]
+              farmer: "507f1f77bcf86cd799439012"
       responses:
         '201':
           description: Product created
@@ -668,6 +736,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Product'
+            example:
+              price: 5500
+              quantity: 150
       responses:
         '200':
           description: Product updated
@@ -689,6 +760,15 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Farmer'
+            example:
+              name: "Farmer John"
+              phone: "+2348055555555"
+              businessName: "John Farms"
+              address: "Farm Village, Kaduna"
+              country: "Nigeria"
+              state: "Kaduna"
+              lga: "Ikeja"
+              villageOrLocalMarket: "Sabon Gari Market"
       responses:
         '201':
           description: Farmer created
@@ -722,6 +802,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Farmer'
+            example:
+              name: "Farmer John"
+              phone: "+2348055555556"
       responses:
         '200':
           description: Farmer updated
@@ -741,6 +824,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Farmer'
+            example:
+              phone: "+2348055555556"
+              businessName: "John Farms Ltd"
       responses:
         '200':
           description: Farmer updated
@@ -775,6 +861,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Order'
+            example:
+              products:
+                - product: "507f1f77bcf86cd799439013"
+                  quantity: 10
+              totalAmount: 50000
+              address: "123 Delivery Street, Abuja"
+              phone: "+2348011223344"
+              notes: "Please deliver in the morning"
       responses:
         '201':
           description: Order created
@@ -808,6 +902,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Order'
+            example:
+              status: "paid"
+              transportStatus: "on_transit"
+              transporter: "507f1f77bcf86cd799439015"
       responses:
         '200':
           description: Order updated
@@ -842,6 +940,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Transaction'
+            example:
+              order: "507f1f77bcf86cd799439014"
+              amount: 50000
+              paymentMethod: "bank_transfer"
+              paymentReference: "TRX123456789"
       responses:
         '201':
           description: Transaction created
@@ -881,6 +984,8 @@ paths:
                 status:
                   type: string
                   enum: [approved]
+            example:
+              status: "approved"
       responses:
         '200':
           description: Transaction approved
@@ -903,6 +1008,8 @@ paths:
                 status:
                   type: string
                   enum: [active, suspended]
+            example:
+              status: "suspended"
       responses:
         '200':
           description: User status updated
@@ -926,6 +1033,9 @@ paths:
                   type: string
                 refundAmount:
                   type: number
+            example:
+              reason: "Duplicate charge"
+              refundAmount: 1000
       responses:
         '200':
           description: Refund processed
@@ -952,6 +1062,12 @@ paths:
                   type: string
                 businessName:
                   type: string
+            example:
+              businessName: "Swift Logistics"
+              phone: "+2348098765432"
+              address: "45 Transport Avenue, Lagos"
+              country: "Nigeria"
+              state: "Lagos"
       responses:
         '201':
           description: Transporter profile saved
@@ -1018,6 +1134,8 @@ paths:
                 status:
                   type: string
                   enum: [approved, pending]
+            example:
+              status: "approved"
       responses:
         '200':
           description: Transaction updated
@@ -1039,6 +1157,8 @@ paths:
               properties:
                 message:
                   type: string
+            example:
+              message: "Thanks for the feedback!"
       responses:
         '200':
           description: Review replied
@@ -1072,6 +1192,8 @@ paths:
               properties:
                 initialMessage:
                   type: string
+            example:
+              initialMessage: "Hello, I need help with my order."
       responses:
         '200':
           description: Conversation reused
@@ -1168,6 +1290,15 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              amount: 4500
+              message: "Interested in bulk purchase"
       responses:
         '201':
           description: Bid created
@@ -1353,6 +1484,9 @@ paths:
                   enum: [approved, rejected]
                 reason:
                   type: string
+            example:
+              status: "approved"
+              reason: "Verified documents"
       responses:
         '200':
           description: Agent updated
@@ -1377,6 +1511,9 @@ paths:
                   enum: [approved, rejected]
                 reason:
                   type: string
+            example:
+              status: "approved"
+              reason: "Verified farm details"
       responses:
         '200':
           description: Farmer updated
@@ -1519,6 +1656,10 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              agentId: "507f1f77bcf86cd799439011"
+              status: "approved"
+              reason: "Verified documents"
       responses:
         '200':
           description: Success
@@ -1541,6 +1682,10 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              farmerId: "507f1f77bcf86cd799439012"
+              status: "approved"
+              reason: "Verified farm details"
       responses:
         '200':
           description: Success
@@ -1574,6 +1719,9 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              transactionId: "507f1f77bcf86cd799439016"
+              reason: "Duplicate charge"
       responses:
         '201':
           description: Success
@@ -1641,6 +1789,9 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              status: "suspended"
+              profession: "buyer"
       responses:
         '200':
           description: Success
@@ -1656,12 +1807,6 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
       responses:
         '201':
           description: Success
@@ -1695,6 +1840,12 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              role: "buyer"
+              phone: "+2348011223344"
+              address: "78 Market Street, Abuja"
+              country: "Nigeria"
+              state: "Abuja"
       responses:
         '201':
           description: Success
@@ -1710,6 +1861,9 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              currentPassword: "SecurePass123!"
+              newPassword: "NewSecurePass456!"
       responses:
         '201':
           description: Success
@@ -1724,6 +1878,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              email: "enrico.jeiren@flyovertrees.com"
       responses:
         '201':
           description: Success
@@ -1738,6 +1894,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              email: "enrico.jeiren@flyovertrees.com"
       responses:
         '201':
           description: Success
@@ -1752,6 +1910,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              email: "enrico.jeiren@flyovertrees.com"
       responses:
         '201':
           description: Success
@@ -1766,6 +1926,10 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              token: "reset-token-from-email"
+              password: "NewSecurePass456!"
+              confirmPassword: "NewSecurePass456!"
       responses:
         '201':
           description: Success
@@ -1788,6 +1952,11 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              product: "507f1f77bcf86cd799439013"
+              proposedPrice: 4500
+              quantity: 20
+              message: "Interested in bulk purchase"
       responses:
         '201':
           description: Success
@@ -1822,6 +1991,9 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              status: "accepted"
+              counterOffer: 4700
       responses:
         '200':
           description: Success
@@ -1844,6 +2016,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              initialMessage: "Hello, I need help with my order."
       responses:
         '201':
           description: Success
@@ -1878,6 +2052,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              text: "Hello, is this product still available?"
       responses:
         '201':
           description: Success
@@ -1900,6 +2076,11 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              name: "Driver John"
+              phone: "+2348077777777"
+              licenseNumber: "DRV123456"
+              licenseExpiry: "2025-12-31"
       responses:
         '201':
           description: Success
@@ -1915,6 +2096,9 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              driverId: "507f1f77bcf86cd799439019"
+              truckId: "507f1f77bcf86cd799439018"
       responses:
         '201':
           description: Success
@@ -1944,6 +2128,12 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              subject: "Payment issue"
+              message: "I was charged twice."
+              priority: "high"
+              linkedOrderId: "507f1f77bcf86cd799439014"
+              linkedTransactionId: "507f1f77bcf86cd799439016"
       responses:
         '201':
           description: Success
@@ -1966,6 +2156,12 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              shippingRequestId: "507f1f77bcf86cd799439020"
+              amount: 12000
+              weightInKG: 500
+              routeFrom: "Kaduna"
+              routeTo: "Lagos"
       responses:
         '201':
           description: Success
@@ -1981,12 +2177,6 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
       responses:
         '201':
           description: Success
@@ -2002,12 +2192,6 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
       responses:
         '201':
           description: Success
@@ -2030,6 +2214,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              isRead: true
       responses:
         '200':
           description: Success
@@ -2064,6 +2250,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              isRead: true
       responses:
         '200':
           description: Success
@@ -2086,6 +2274,13 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              name: "Enrico Tester"
+              phone: "+2348011223344"
+              address: "78 Market Street, Abuja"
+              country: "Nigeria"
+              state: "Abuja"
+              interests: ["Grains", "Vegetables"]
       responses:
         '200':
           description: Success
@@ -2108,6 +2303,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              activeRole: "buyer"
       responses:
         '200':
           description: Success
@@ -2130,6 +2327,10 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              agent: "507f1f77bcf86cd799439011"
+              rating: 5
+              comment: "Excellent service and quality products!"
       responses:
         '201':
           description: Success
@@ -2152,6 +2353,15 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              product: "507f1f77bcf86cd799439013"
+              productName: "Fresh Maize"
+              quantity: 10
+              pickupLocation: "Kaduna Farm"
+              deliveryLocation: "Lagos Market"
+              pickupDate: "2026-01-15"
+              negotiable: true
+              proposedPrice: 15000
       responses:
         '201':
           description: Success
@@ -2216,6 +2426,13 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              plateNumber: "ABC123XYZ"
+              model: "MAN Diesel"
+              capacity: "20 tons"
+              route:
+                fromState: "Kaduna"
+                toState: "Lagos"
       responses:
         '201':
           description: Success
@@ -2225,6 +2442,14 @@ paths:
       summary: DELETE /api/wishlist
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              productId: "507f1f77bcf86cd799439013"
       responses:
         '200':
           description: Success
@@ -2245,6 +2470,8 @@ paths:
           application/json:
             schema:
               type: object
+            example:
+              productId: "507f1f77bcf86cd799439013"
       responses:
         '201':
           description: Success
