@@ -22,10 +22,10 @@
     "firebase-admin": "^13.6.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.0",
-    "next": "15.5.4",
+    "next": "16.1.1",
     "nodemailer": "^7.0.5",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
     "redoc": "^2.5.0",
     "swagger-ui-react": "^5.28.0",
     "zod": "^4.1.1"

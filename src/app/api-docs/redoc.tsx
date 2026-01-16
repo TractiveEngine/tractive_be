@@ -7,7 +7,7 @@ const RedocStandalone = dynamic(() => import('redoc').then((mod) => mod.RedocSta
 const callouts = [
   {
     title: 'Base URL',
-    body: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
+    body: process.env.NEXT_PUBLIC_API_BASE_URL || 'https://tractive-be.vercel.app',
   },
   {
     title: 'Auth',
