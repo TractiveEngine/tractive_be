@@ -6,7 +6,7 @@ export interface CreateNotificationParams {
   type?: string;
   title: string;
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**

@@ -21,9 +21,9 @@ const transporter = nodemailer.createTransport({
   debug: true,
 });
 
-// Verify SMTP connection configuration (skip in test environment)
-if (process.env.NODE_ENV !== 'test') {
-  transporter.verify(function (error, success) {
+// Verify SMTP connection configuration (development only)
+if (process.env.NODE_ENV === 'development' && passKey) {
+  transporter.verify(function (error) {
     if (error) {
       console.error("SMTP connection error:", error);
     } else {

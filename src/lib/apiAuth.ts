@@ -23,6 +23,6 @@ export async function getAuthUser(request: Request) {
   }
 }
 
-export function ensureActiveRole(user: any, role: Role) {
+export function ensureActiveRole(user: { activeRole?: Role } | null | undefined, role: Role) {
   return user?.activeRole === role;
 }

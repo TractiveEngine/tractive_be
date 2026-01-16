@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 const allowedOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
 
-export function middleware(request: Request) {
+export function middleware(_request: Request) {
   const response = NextResponse.next();
   response.headers.set("Access-Control-Allow-Origin", allowedOrigin);
   response.headers.set(

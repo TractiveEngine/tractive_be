@@ -107,9 +107,9 @@ export async function POST(request: Request) {
       data: wishlistItem 
     }, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle duplicate key error (11000)
-    if (error.code === 11000) {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: number }).code === 11000) {
       return NextResponse.json({ 
         error: 'Product already in wishlist' 
       }, { status: 409 });

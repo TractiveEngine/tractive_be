@@ -119,7 +119,6 @@ async function seed() {
     // Create Products (5 per farmer)
     console.log('📦 Creating products...');
     const allProducts = [];
-    const productNames = ['Maize', 'Rice', 'Beans', 'Yam', 'Cassava', 'Tomatoes', 'Pepper', 'Onions'];
     for (const farmer of allFarmers) {
       const products = await createProducts(5, farmer.createdBy, {
         categories: ['grain', 'vegetables'],
