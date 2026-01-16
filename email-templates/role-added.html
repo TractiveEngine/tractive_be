@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
+    @media only screen and (max-width: 600px) {
+      table { width: 100% !important; }
+      div { padding: 2% !important; }
+      h1 { font-size: 20px !important; }
+    }
+  </style>
+</head>
+<body>
+  <table cellspacing="0" cellpadding="0" style="background-color:#f3f4f6;width:100%;font-family:Arial,sans-serif;">
+    <tbody>
+      <tr>
+        <td align="center">
+          <div style="max-width:670px;width:100%;padding:5%;margin:0 auto;">
+            <div style="background-color:white;border-radius:12px;overflow:hidden;margin:30px 0;">
+              <div style="background-color:#0ea5e9;padding:20px;text-align:center;">
+                <h1 style="color:white;margin:0;font-size:24px;">Your {{role}} account is ready</h1>
+              </div>
+              <div style="padding:5%;text-align:left;">
+                <p style="color:#121212;line-height:1.6;">
+                  Hi <strong>{{name}}</strong>,
+                </p>
+                <p style="color:#121212;line-height:1.6;">
+                  We have added the <strong>{{role}}</strong> role to your Tractive account ({{email}}).
+                </p>
+                <p style="color:#121212;line-height:1.6;">
+                  Next steps:
+                </p>
+                <ol style="color:#121212;line-height:1.6;">
+                  <li>Sign in to your account.</li>
+                  <li>Switch your active role to <strong>{{role}}</strong>.</li>
+                  <li>Complete any required profile details.</li>
+                </ol>
+                <p style="color:#121212;line-height:1.6;">
+                  You can sign in here: <a href="{{appUrl}}" target="_blank">{{appUrl}}</a>
+                </p>
+                <p style="color:#121212;line-height:1.6;">
+                  If you did not request this change, please contact support.
+                </p>
+                <p style="color:#121212;line-height:1.6;">
+                  Best regards,<br />
+                  The Tractive Engine Team
+                </p>
+              </div>
+            </div>
+            <div style="text-align:center;padding:20px 0;">
+              <div style="color:#949494;margin-top:20px;">&copy; 2026 Tractive Engine. All Rights Reserved.</div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>
