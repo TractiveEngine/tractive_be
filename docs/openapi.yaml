@@ -90,14 +90,25 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/User'
+              type: object
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - name
+                - password
             example:
               name: "Enrico Tester"
               email: "enrico.jeiren@flyovertrees.com"
               password: "SecurePass123!"
       responses:
         '201':
-          description: User registered
+          description: User registered (roles default to [] and activeRole is null until account selection)
   /api/auth/login:
     post:
       summary: Login and get JWT token
