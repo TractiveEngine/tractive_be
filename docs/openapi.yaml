@@ -758,9 +758,25 @@ paths:
       summary: List farmers created by you
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by farmer name, phone, or business name
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: Filter revenue/orders by year (required if month is provided)
+        - in: query
+          name: month
+          schema:
+            type: integer
+          description: Filter revenue/orders by month (1-12, requires year)
       responses:
         '200':
-          description: List of farmers
+          description: List of farmers with revenue and ordersCount stats
     post:
       summary: Create farmer
       security:
@@ -783,6 +799,40 @@ paths:
       responses:
         '201':
           description: Farmer created
+  /api/farmers/revenue:
+    get:
+      summary: Get revenue and orders count for all farmers under the agent
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Farmer revenue stats
+  /api/farmers/orders:
+    get:
+      summary: Get orders for all farmers under the agent
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Orders list
   /api/farmers/{id}:
     get:
       summary: Get farmer by ID
@@ -799,6 +849,7 @@ paths:
           description: Farmer details
     put:
       summary: Replace/update farmer
+      description: Replaces all farmer fields. Omitted fields are cleared.
       security:
         - bearerAuth: []
       parameters:
@@ -815,7 +866,15 @@ paths:
               $ref: '#/components/schemas/Farmer'
             example:
               name: "Farmer John"
-              phone: "+2348055555556"
+              phone: "+2348055555555"
+              businessName: "John Farms"
+              nin: "A1234567890"
+              businessCAC: "RC1234567"
+              address: "Farm Village, Kaduna"
+              country: "Nigeria"
+              state: "Kaduna"
+              lga: "Ikeja"
+              villageOrLocalMarket: "Sabon Gari Market"
       responses:
         '200':
           description: Farmer updated
@@ -854,6 +913,50 @@ paths:
       responses:
         '200':
           description: Farmer deleted
+  /api/farmers/{id}/revenue:
+    get:
+      summary: Get revenue and orders count for a specific farmer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Farmer revenue stats
+  /api/farmers/{id}/orders:
+    get:
+      summary: Get orders for a specific farmer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Orders list
   /api/orders:
     get:
       summary: List your orders
