@@ -45,7 +45,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
   return NextResponse.json({ success: true, data: farmer }, { status: 200 });
 }
 
-async function updateFarmer(request: Request, params: { id: string }) {
+async function updateFarmer(
+  request: Request,
+  params: { id: string },
+  options: { replaceAll: boolean }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
@@ -70,8 +74,14 @@ async function updateFarmer(request: Request, params: { id: string }) {
   }
 
   const body = await request.json().catch(() => ({}));
+  if (options.replaceAll && (body.name === undefined || body.name === null || body.name === '')) {
+    return NextResponse.json({ success: false, message: 'Farmer name required' }, { status: 400 });
+  }
+
   for (const field of UPDATABLE_FIELDS) {
-    if (body[field] !== undefined) {
+    if (options.replaceAll) {
+      (farmer as any)[field] = body[field] ?? null;
+    } else if (body[field] !== undefined) {
       (farmer as any)[field] = body[field];
     }
   }
@@ -83,12 +93,12 @@ async function updateFarmer(request: Request, params: { id: string }) {
 
 // PUT /api/farmers/:id
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
-  return updateFarmer(request, params);
+  return updateFarmer(request, params, { replaceAll: true });
 }
 
 // PATCH /api/farmers/:id
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  return updateFarmer(request, params);
+  return updateFarmer(request, params, { replaceAll: false });
 }
 
 // DELETE /api/farmers/:id
