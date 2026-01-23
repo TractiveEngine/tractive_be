@@ -2016,12 +2016,47 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - role
+                - phone
+                - address
+                - country
+                - state
+                - lga
+              properties:
+                role:
+                  type: string
+                  enum: [buyer, agent, transporter, admin]
+                name:
+                  type: string
+                businessName:
+                  type: string
+                phone:
+                  type: string
+                address:
+                  type: string
+                country:
+                  type: string
+                state:
+                  type: string
+                lga:
+                  type: string
+                villageOrLocalMarket:
+                  type: string
+                nin:
+                  type: string
+                interests:
+                  type: array
+                  items:
+                    type: string
             example:
               role: "buyer"
+              name: "Enrico Tester"
               phone: "+2348011223344"
               address: "78 Market Street, Abuja"
               country: "Nigeria"
               state: "Abuja"
+              lga: "Municipal"
       responses:
         '201':
           description: Success
