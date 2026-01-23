@@ -20,8 +20,20 @@ export async function POST(request: Request) {
     country, state, lga, villageOrLocalMarket
   } = await request.json();
 
-  if (!name) {
-    return NextResponse.json({ error: 'Farmer name required' }, { status: 400 });
+  const requiredFields = [
+    { key: 'name', value: name },
+    { key: 'phone', value: phone },
+    { key: 'address', value: address },
+    { key: 'state', value: state },
+    { key: 'lga', value: lga },
+    { key: 'villageOrLocalMarket', value: villageOrLocalMarket }
+  ];
+  const missing = requiredFields.filter((field) => !field.value);
+  if (missing.length > 0) {
+    return NextResponse.json({
+      success: false,
+      message: `Missing required fields: ${missing.map((field) => field.key).join(', ')}`
+    }, { status: 400 });
   }
 
   const farmer = await Farmer.create({

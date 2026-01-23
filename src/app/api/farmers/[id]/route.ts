@@ -74,8 +74,22 @@ async function updateFarmer(
   }
 
   const body = await request.json().catch(() => ({}));
-  if (options.replaceAll && (body.name === undefined || body.name === null || body.name === '')) {
-    return NextResponse.json({ success: false, message: 'Farmer name required' }, { status: 400 });
+  if (options.replaceAll) {
+    const requiredFields = [
+      { key: 'name', value: body.name },
+      { key: 'phone', value: body.phone },
+      { key: 'address', value: body.address },
+      { key: 'state', value: body.state },
+      { key: 'lga', value: body.lga },
+      { key: 'villageOrLocalMarket', value: body.villageOrLocalMarket }
+    ];
+    const missing = requiredFields.filter((field) => !field.value);
+    if (missing.length > 0) {
+      return NextResponse.json({
+        success: false,
+        message: `Missing required fields: ${missing.map((field) => field.key).join(', ')}`
+      }, { status: 400 });
+    }
   }
 
   for (const field of UPDATABLE_FIELDS) {
