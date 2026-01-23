@@ -36,10 +36,37 @@ export async function POST(request: NextRequest) {
   }
 
   const payload: AddAccountPayload = await request.json();
-  const { role, businessName, villageOrLocalMarket, phone, nin, interests, ...rest } = payload;
+  const {
+    role,
+    businessName,
+    villageOrLocalMarket,
+    phone,
+    nin,
+    interests,
+    address,
+    country,
+    state,
+    lga,
+    name,
+    ...rest
+  } = payload;
 
   if (!role || !['buyer', 'agent', 'transporter', 'admin'].includes(role)) {
     return NextResponse.json({ error: 'Valid account type required' }, { status: 400 });
+  }
+
+  const missing: string[] = [];
+  if (!phone) missing.push('phone');
+  if (!address) missing.push('address');
+  if (!country) missing.push('country');
+  if (!state) missing.push('state');
+  if (!lga) missing.push('lga');
+  if (!name && !businessName) missing.push('nameOrBusinessName');
+
+  if (missing.length > 0) {
+    return NextResponse.json({
+      error: `Missing required fields: ${missing.join(', ')}`
+    }, { status: 400 });
   }
 
   // Add role if not present
@@ -49,7 +76,12 @@ export async function POST(request: NextRequest) {
   user.activeRole = role;
 
   // Update extra info
+  if (name) user.name = name;
   if (businessName) user.businessName = businessName;
+  if (address) user.address = address;
+  if (country) user.country = country;
+  if (state) user.state = state;
+  if (lga) user.lga = lga;
   if (villageOrLocalMarket) user.villageOrLocalMarket = villageOrLocalMarket;
   if (phone) user.phone = phone;
   if (nin) user.nin = nin;
