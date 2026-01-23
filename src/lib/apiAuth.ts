@@ -1,8 +1,6 @@
-import jwt from 'jsonwebtoken';
 import dbConnect from './dbConnect';
 import User from '@/models/user';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+import { verifyToken } from './auth';
 
 export type Role = 'buyer' | 'agent' | 'transporter' | 'admin';
 
@@ -13,14 +11,14 @@ export async function getAuthUser(request: Request) {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
 
   const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string } | string;
-    if (!decoded || typeof decoded === 'string' || !decoded.userId) return null;
-    const user = await User.findById(decoded.userId);
-    return user;
-  } catch {
+  const decoded = verifyToken(token);
+  if (!decoded?.userId) return null;
+  const user = await User.findById(decoded.userId);
+  if (!user) return null;
+  if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
     return null;
   }
+  return user;
 }
 
 export function ensureActiveRole(user: { activeRole?: Role } | null | undefined, role: Role) {

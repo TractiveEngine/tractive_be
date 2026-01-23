@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { compare } from "bcryptjs";
-import jwt from "jsonwebtoken";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/models/user";
-
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
+import { signRefreshToken, signToken } from "@/lib/auth";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -27,12 +25,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, {
-    expiresIn: "1h",
-  });
+  const tokenVersion = user.tokenVersion ?? 0;
+  const token = signToken({ userId: user._id, email: user.email, tokenVersion });
+  const refreshToken = signRefreshToken({ userId: user._id, email: user.email, tokenVersion });
+  user.refreshToken = refreshToken;
+  user.refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await user.save();
 
   return NextResponse.json({ 
     token,
+    refreshToken,
     user: {
       id: user._id,
       email: user.email,

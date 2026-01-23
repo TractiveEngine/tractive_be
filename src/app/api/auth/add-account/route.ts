@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
-import jwt from 'jsonwebtoken';
 import type { NextRequest } from 'next/server';
 import sendEmail from '@/lib/sendSmtpMail';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+import { verifyToken } from '@/lib/auth';
 
 interface AddAccountPayload {
   role: 'buyer' | 'agent' | 'transporter' | 'admin';
@@ -24,16 +22,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   const token = authHeader.slice('Bearer '.length).trim();
-  let decoded: { userId: string } | null;
-  try {
-    decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-  } catch {
+  const decoded = verifyToken(token);
+  if (!decoded?.userId) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
   const user = await User.findById(decoded.userId);
   if (!user) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+  if ((decoded.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
+    return NextResponse.json({ error: 'Token revoked' }, { status: 401 });
   }
 
   const payload: AddAccountPayload = await request.json();

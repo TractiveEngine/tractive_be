@@ -7,10 +7,16 @@ export function signToken(payload: object) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
 }
 
+export function signRefreshToken(payload: object) {
+  return jwt.sign({ ...payload, type: 'refresh' }, JWT_SECRET, { expiresIn: '30d' });
+}
+
 export interface TokenPayload extends JwtPayload {
   userId: string;
   email?: string;
   role?: string;
+  type?: string;
+  tokenVersion?: number;
 }
 
 export function verifyToken(token: string): TokenPayload | null {
@@ -23,4 +29,12 @@ export function verifyToken(token: string): TokenPayload | null {
   } catch {
     return null;
   }
+}
+
+export function verifyRefreshToken(token: string): TokenPayload | null {
+  const decoded = verifyToken(token);
+  if (!decoded || decoded.type !== 'refresh') {
+    return null;
+  }
+  return decoded;
 }
