@@ -2,15 +2,15 @@ import mongoose from 'mongoose';
 
 const FarmerSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  phone: { type: String },
+  phone: { type: String, required: true },
   businessName: { type: String },
   nin: { type: String },
   businessCAC: { type: String },
-  address: { type: String },
+  address: { type: String, required: true },
   country: { type: String },
-  state: { type: String },
-  lga: { type: String },
-  villageOrLocalMarket: { type: String },
+  state: { type: String, required: true },
+  lga: { type: String, required: true },
+  villageOrLocalMarket: { type: String, required: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // agent who created
   
   // Approval fields

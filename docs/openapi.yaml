@@ -48,6 +48,29 @@ components:
           type: string
         phone:
           type: string
+        businessName:
+          type: string
+        nin:
+          type: string
+        businessCAC:
+          type: string
+        address:
+          type: string
+        country:
+          type: string
+        state:
+          type: string
+        lga:
+          type: string
+        villageOrLocalMarket:
+          type: string
+      required:
+        - name
+        - phone
+        - address
+        - state
+        - lga
+        - villageOrLocalMarket
     Order:
       type: object
       properties:
