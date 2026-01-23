@@ -18,7 +18,7 @@ const UPDATABLE_FIELDS = [
 ] as const;
 
 // GET /api/farmers/:id
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
   }
@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 async function updateFarmer(
   request: Request,
-  params: { id: string },
+  params: Promise<{ id: string }>,
   options: { replaceAll: boolean }
 ) {
   await dbConnect();
@@ -59,7 +59,7 @@ async function updateFarmer(
     return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
   }
@@ -92,17 +92,17 @@ async function updateFarmer(
 }
 
 // PUT /api/farmers/:id
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return updateFarmer(request, params, { replaceAll: true });
 }
 
 // PATCH /api/farmers/:id
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   return updateFarmer(request, params, { replaceAll: false });
 }
 
 // DELETE /api/farmers/:id
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
@@ -112,7 +112,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ success: false, message: 'Agent or admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid farmer id' }, { status: 400 });
   }

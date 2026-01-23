@@ -38,6 +38,9 @@ const UserSchema = new mongoose.Schema({
   interests: [{ type: String }],
   resetPasswordToken: { type: String },
   resetPasswordTokenExpiry: { type: Date },
+  refreshToken: { type: String },
+  refreshTokenExpiry: { type: Date },
+  tokenVersion: { type: Number, default: 0 },
   
   // Admin management fields
   status: {
