@@ -63,6 +63,11 @@ export async function GET(request: Request) {
   const search = searchParams.get('search');
   const yearParam = searchParams.get('year');
   const monthParam = searchParams.get('month');
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const page = Math.max(1, Number(pageParam) || 1);
+  const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+  const skip = (page - 1) * limit;
 
   const query: Record<string, unknown> = { createdBy: user._id };
   if (search) {
@@ -98,9 +103,16 @@ export async function GET(request: Request) {
     }
   }
 
-  const farmers = await Farmer.find(query).lean();
+  const [farmers, total] = await Promise.all([
+    Farmer.find(query).skip(skip).limit(limit).lean(),
+    Farmer.countDocuments(query)
+  ]);
   if (!farmers.length) {
-    return NextResponse.json({ farmers: [] }, { status: 200 });
+    return NextResponse.json({
+      success: true,
+      data: [],
+      pagination: { page, limit, total }
+    }, { status: 200 });
   }
 
   const farmerIds = farmers.map((farmer) => farmer._id);
@@ -155,5 +167,9 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ farmers: enriched }, { status: 200 });
+  return NextResponse.json({
+    success: true,
+    data: enriched,
+    pagination: { page, limit, total }
+  }, { status: 200 });
 }

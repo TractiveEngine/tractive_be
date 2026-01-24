@@ -98,7 +98,21 @@ export async function GET(request: Request) {
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  // Get orders for the authenticated user
-  const orders = await Order.find({ buyer: userData.userId }).populate('products.product');
-  return NextResponse.json({ orders }, { status: 200 });
+  const { searchParams } = new URL(request.url);
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const page = Math.max(1, Number(pageParam) || 1);
+  const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+  const skip = (page - 1) * limit;
+
+  const [orders, total] = await Promise.all([
+    Order.find({ buyer: userData.userId }).populate('products.product').skip(skip).limit(limit),
+    Order.countDocuments({ buyer: userData.userId })
+  ]);
+
+  return NextResponse.json({
+    success: true,
+    data: orders,
+    pagination: { page, limit, total }
+  }, { status: 200 });
 }

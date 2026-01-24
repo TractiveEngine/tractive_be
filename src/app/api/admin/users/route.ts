@@ -98,14 +98,12 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: {
-        users: usersDto,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit)
-        }
+      data: usersDto,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
       }
     }, { status: 200 });
 

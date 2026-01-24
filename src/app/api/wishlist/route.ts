@@ -47,13 +47,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    const wishlistItems = await WishlistItem.find({ buyer: user._id })
-      .populate('product')
-      .sort({ createdAt: -1 });
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get('page');
+    const limitParam = searchParams.get('limit');
+    const page = Math.max(1, Number(pageParam) || 1);
+    const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+    const skip = (page - 1) * limit;
+
+    const [wishlistItems, total] = await Promise.all([
+      WishlistItem.find({ buyer: user._id })
+        .populate('product')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      WishlistItem.countDocuments({ buyer: user._id })
+    ]);
 
     return NextResponse.json({ 
       success: true, 
-      data: wishlistItems 
+      data: wishlistItems,
+      pagination: { page, limit, total }
     }, { status: 200 });
   } catch (error) {
     console.error('Error fetching wishlist:', error);

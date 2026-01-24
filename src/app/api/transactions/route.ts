@@ -69,7 +69,21 @@ export async function GET(request: Request) {
   if (!userData) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  // Get transactions for the authenticated user
-  const transactions = await Transaction.find({ buyer: userData.userId }).populate('order');
-  return NextResponse.json({ transactions }, { status: 200 });
+  const { searchParams } = new URL(request.url);
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const page = Math.max(1, Number(pageParam) || 1);
+  const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+  const skip = (page - 1) * limit;
+
+  const [transactions, total] = await Promise.all([
+    Transaction.find({ buyer: userData.userId }).populate('order').skip(skip).limit(limit),
+    Transaction.countDocuments({ buyer: userData.userId })
+  ]);
+
+  return NextResponse.json({
+    success: true,
+    data: transactions,
+    pagination: { page, limit, total }
+  }, { status: 200 });
 }
