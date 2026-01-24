@@ -41,6 +41,18 @@ components:
           type: number
         quantity:
           type: number
+        discount:
+          type: number
+        images:
+          type: array
+          items:
+            type: string
+          description: Image URLs (Cloudinary/S3). No base64 data.
+        videos:
+          type: array
+          items:
+            type: string
+          description: Video URLs (Cloudinary/S3). No base64 data.
     Farmer:
       type: object
       properties:
@@ -756,9 +768,76 @@ paths:
   /api/products:
     get:
       summary: List products
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, out_of_stock, discontinued]
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: farmer
+          schema:
+            type: string
+        - in: query
+          name: owner
+          schema:
+            type: string
+        - in: query
+          name: minPrice
+          schema:
+            type: number
+        - in: query
+          name: maxPrice
+          schema:
+            type: number
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+        - in: query
+          name: full
+          schema:
+            type: boolean
+          description: Return full product documents (default is compact list)
+        - in: query
+          name: includeMedia
+          schema:
+            type: boolean
+          description: Include images/videos in compact list (default true)
       responses:
         '200':
-          description: List of products
+          description: Paginated list of products
     post:
       summary: Create product
       security:
@@ -812,6 +891,25 @@ paths:
             example:
               price: 5500
               quantity: 150
+      responses:
+        '200':
+          description: Product updated
+    put:
+      summary: Replace/update product
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
       responses:
         '200':
           description: Product updated

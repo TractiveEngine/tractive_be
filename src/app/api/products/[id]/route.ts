@@ -62,12 +62,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const body = await request.json();
+  const isStringArray = (value: unknown) => Array.isArray(value) && value.every((item) => typeof item === 'string');
+  const hasDataUri = (items: string[]) => items.some((item) => item.trim().toLowerCase().startsWith('data:'));
+
+  if (body.images !== undefined) {
+    if (!isStringArray(body.images)) {
+      return NextResponse.json({ error: 'Images must be an array of URL strings' }, { status: 400 });
+    }
+    if (hasDataUri(body.images)) {
+      return NextResponse.json({ error: 'Images must be URL links, not base64 data' }, { status: 400 });
+    }
+  }
+
+  if (body.videos !== undefined) {
+    if (!isStringArray(body.videos)) {
+      return NextResponse.json({ error: 'Videos must be an array of URL strings' }, { status: 400 });
+    }
+    if (hasDataUri(body.videos)) {
+      return NextResponse.json({ error: 'Videos must be URL links, not base64 data' }, { status: 400 });
+    }
+  }
   const product = await Product.findByIdAndUpdate(id, body, { new: true });
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
 
   return NextResponse.json({ product }, { status: 200 });
+}
+
+// PUT /api/products/[id]
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  return PATCH(request, { params });
 }
 
 // DELETE /api/products/[id]
