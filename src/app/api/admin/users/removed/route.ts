@@ -8,6 +8,21 @@ export async function GET(request: Request) {
   if (error) return error;
 
   await dbConnect();
-  const users = await User.find({ status: 'removed' });
-  return NextResponse.json({ success: true, data: users }, { status: 200 });
+  const { searchParams } = new URL(request.url);
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const page = Math.max(1, Number(pageParam) || 1);
+  const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+  const skip = (page - 1) * limit;
+
+  const [users, total] = await Promise.all([
+    User.find({ status: 'removed' }).skip(skip).limit(limit),
+    User.countDocuments({ status: 'removed' })
+  ]);
+
+  return NextResponse.json({
+    success: true,
+    data: users,
+    pagination: { page, limit, total }
+  }, { status: 200 });
 }

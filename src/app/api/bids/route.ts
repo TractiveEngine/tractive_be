@@ -91,14 +91,34 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   const user = await User.findById(userData.userId);
+  const { searchParams } = new URL(request.url);
+  const pageParam = searchParams.get('page');
+  const limitParam = searchParams.get('limit');
+  const page = Math.max(1, Number(pageParam) || 1);
+  const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
+  const skip = (page - 1) * limit;
 
   // If agent, get all bids for their products
   if (user && user.roles.includes('agent')) {
-    const bids = await Bid.find({ agent: user._id }).populate('product buyer');
-    return NextResponse.json({ bids }, { status: 200 });
+    const [bids, total] = await Promise.all([
+      Bid.find({ agent: user._id }).populate('product buyer').skip(skip).limit(limit),
+      Bid.countDocuments({ agent: user._id })
+    ]);
+    return NextResponse.json({
+      success: true,
+      data: bids,
+      pagination: { page, limit, total }
+    }, { status: 200 });
   }
 
   // If buyer, get their own bids
-  const bids = await Bid.find({ buyer: user._id }).populate('product agent');
-  return NextResponse.json({ bids }, { status: 200 });
+  const [bids, total] = await Promise.all([
+    Bid.find({ buyer: user._id }).populate('product agent').skip(skip).limit(limit),
+    Bid.countDocuments({ buyer: user._id })
+  ]);
+  return NextResponse.json({
+    success: true,
+    data: bids,
+    pagination: { page, limit, total }
+  }, { status: 200 });
 }
