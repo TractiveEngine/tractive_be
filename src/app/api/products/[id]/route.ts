@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
 import User from '@/models/user';
+import '@/models/farmer';
+import Review from '@/models/review';
+import Bid from '@/models/bid';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
@@ -39,10 +42,68 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
-  const product = await Product.findById(id);
-  if (!product) {
+  const productDoc = await Product.findById(id)
+    .populate({
+      path: 'owner',
+      select: '_id name email phone businessName address country state lga activeRole roles'
+    })
+    .populate({
+      path: 'farmer',
+      select: '_id name phone businessName address country state lga villageOrLocalMarket approvalStatus'
+    });
+  if (!productDoc) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
+
+  const ownerId = (productDoc.owner as any)?._id ?? productDoc.owner;
+  const [reviewStats, recentReviews, leadingBidDoc, bidsCount] = await Promise.all([
+    Review.aggregate([
+      { $match: { agent: ownerId } },
+      {
+        $group: {
+          _id: '$agent',
+          count: { $sum: 1 },
+          averageRating: { $avg: '$rating' }
+        }
+      }
+    ]),
+    Review.find({ agent: ownerId })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate({ path: 'buyer', select: '_id name email' })
+      .select('_id rating comment reply likes createdAt buyer'),
+    Bid.findOne({ product: productDoc._id })
+      .sort({ amount: -1, createdAt: 1 })
+      .populate({ path: 'buyer', select: '_id name email' })
+      .select('_id amount status createdAt buyer'),
+    Bid.countDocuments({ product: productDoc._id })
+  ]);
+
+  const stats = reviewStats[0];
+  const reviewSummary = {
+    count: stats?.count ?? 0,
+    averageRating: stats?.averageRating ?? 0
+  };
+
+  const bidSummary = {
+    count: bidsCount,
+    leadingBid: leadingBidDoc
+      ? {
+          _id: leadingBidDoc._id,
+          amount: leadingBidDoc.amount,
+          status: leadingBidDoc.status,
+          createdAt: leadingBidDoc.createdAt,
+          buyer: leadingBidDoc.buyer
+        }
+      : null
+  };
+
+  const product = {
+    ...productDoc.toObject(),
+    reviewSummary,
+    recentReviews,
+    bidSummary
+  };
   return NextResponse.json({ product }, { status: 200 });
 }
 

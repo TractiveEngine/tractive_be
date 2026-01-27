@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import User from '@/models/user';
 import Product from '@/models/product';
+import Bid from '@/models/bid';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
 
@@ -43,9 +44,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
-  const { products, totalAmount, address, transportStatus } = await request.json();
+  const { products, totalAmount, address, transportStatus, bidIds } = await request.json();
   if (!products || !Array.isArray(products) || products.length === 0 || !totalAmount) {
     return NextResponse.json({ error: 'Products and totalAmount required' }, { status: 400 });
+  }
+
+  const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('idempotency-key');
+  if (idempotencyKey) {
+    const existingByKey = await Order.findOne({ buyer: user._id, idempotencyKey });
+    if (existingByKey) {
+      return NextResponse.json({
+        success: true,
+        data: existingByKey,
+        message: 'Existing order returned for idempotency key'
+      }, { status: 200 });
+    }
+  }
+
+  const normalizeProducts = products
+    .map((item: any) => ({
+      product: item.product?.toString?.() ?? String(item.product),
+      quantity: Number(item.quantity)
+    }))
+    .sort((a: any, b: any) => (a.product > b.product ? 1 : -1));
+  const normalizedBidIds = Array.isArray(bidIds)
+    ? bidIds.map((id: any) => String(id)).sort()
+    : [];
+  const orderSignature = JSON.stringify({ products: normalizeProducts, bidIds: normalizedBidIds });
+
+  const existingPending = await Order.findOne({
+    buyer: user._id,
+    status: 'pending',
+    orderSignature
+  });
+  if (existingPending) {
+    return NextResponse.json({
+      success: true,
+      data: existingPending,
+      message: 'Existing pending order returned'
+    }, { status: 200 });
+  }
+
+  if (Array.isArray(bidIds) && bidIds.length > 0) {
+    const bids = await Bid.find({ _id: { $in: bidIds }, buyer: user._id });
+    const missing = bidIds.filter((id: string) => !bids.some((b) => b._id.toString() === id));
+    if (missing.length > 0) {
+      return NextResponse.json({ error: 'One or more bids not found for buyer' }, { status: 400 });
+    }
+    const invalidStatus = bids.find((bid) => bid.status !== 'accepted');
+    if (invalidStatus) {
+      return NextResponse.json({ error: 'All bids must be accepted before creating an order' }, { status: 400 });
+    }
+    const expectedTotal = bids.reduce((sum, bid) => sum + (bid.amount || 0), 0);
+    if (Number(totalAmount) !== expectedTotal) {
+      return NextResponse.json({ error: 'Total amount does not match accepted bids' }, { status: 400 });
+    }
   }
 
   const order = await Order.create({
@@ -54,7 +107,9 @@ export async function POST(request: Request) {
     totalAmount,
     address,
     status: 'pending',
-    transportStatus: transportStatus || 'pending'
+    transportStatus: transportStatus || 'pending',
+    idempotencyKey: idempotencyKey || undefined,
+    orderSignature
   });
 
   // Notify buyer about order creation

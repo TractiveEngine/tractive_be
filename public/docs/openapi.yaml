@@ -863,6 +863,7 @@ paths:
   /api/products/{id}:
     get:
       summary: Get product by ID
+      description: Returns product with populated owner (agent), farmer, reviewSummary/recentReviews, and bidSummary (leading bid).
       parameters:
         - name: id
           in: path
@@ -913,6 +914,39 @@ paths:
       responses:
         '200':
           description: Product updated
+  /api/products/{id}/bids:
+    get:
+      summary: List bids for a product
+      description: Owner/admin can view all bids; buyer sees only their bids on the product. Each bid includes isLeading and meta.leadingAmount.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted, rejected]
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: Product bids
   /api/farmers:
     get:
       summary: List farmers created by you
@@ -1146,6 +1180,12 @@ paths:
       summary: Create order
       security:
         - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          description: Prevent duplicate orders on retry. Reuse the same key to get the existing order.
       requestBody:
         required: true
         content:
@@ -1160,6 +1200,8 @@ paths:
               address: "123 Delivery Street, Abuja"
               phone: "+2348011223344"
               notes: "Please deliver in the morning"
+              bidIds:
+                - "507f1f77bcf86cd799439099"
       responses:
         '201':
           description: Order created
@@ -2292,6 +2334,11 @@ paths:
           name: limit
           schema:
             type: integer
+        - in: query
+          name: groupByProduct
+          schema:
+            type: boolean
+          description: Agent view only. When true, returns one entry per product with bidders and leadingBid.
       responses:
         '200':
           description: Success
@@ -2305,9 +2352,22 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                productId:
+                  type: string
+                product:
+                  type: string
+                amount:
+                  type: number
+                proposedPrice:
+                  type: number
+                quantity:
+                  type: number
+                message:
+                  type: string
             example:
-              product: "507f1f77bcf86cd799439013"
-              proposedPrice: 4500
+              productId: "507f1f77bcf86cd799439013"
+              amount: 4500
               quantity: 20
               message: "Interested in bulk purchase"
       responses:

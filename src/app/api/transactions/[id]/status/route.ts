@@ -10,7 +10,7 @@ import mongoose from 'mongoose';
 
 const ALLOWED_STATUS = ['approved', 'rejected', 'pending'] as const;
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid transaction id' }, { status: 400 });
   }

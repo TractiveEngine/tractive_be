@@ -15,6 +15,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Only buyers can view bids' }, { status: 403 });
   }
 
-  const bids = await Bid.find({ buyer: user._id }).populate('product agent');
+  const bids = await Bid.find({ buyer: user._id })
+    .populate('product')
+    .populate({
+      path: 'agent',
+      select: '_id name email phone businessName address country state lga activeRole roles'
+    });
   return NextResponse.json({ success: true, data: bids }, { status: 200 });
 }
