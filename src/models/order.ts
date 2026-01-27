@@ -13,6 +13,8 @@ const OrderSchema = new mongoose.Schema({
   transportStatus: { type: String, enum: ['pending', 'picked', 'on_transit', 'delivered'], default: 'pending' },
   transporter: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // transporter user reference
   address: { type: String },
+  idempotencyKey: { type: String, index: true, sparse: true },
+  orderSignature: { type: String, index: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

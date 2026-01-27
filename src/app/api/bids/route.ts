@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
 import Product from '@/models/product';
 import User from '@/models/user';
+import '@/models/farmer';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
 
@@ -43,8 +44,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Only buyers can place bids' }, { status: 403 });
   }
 
-  const { productId, amount, message } = await request.json();
-  if (!productId || !amount) {
+  const body = await request.json();
+  const productId = body.productId || body.product;
+  const amount = body.amount ?? body.proposedPrice;
+  const message = body.message;
+  if (!productId || amount === undefined || amount === null) {
     return NextResponse.json({ error: 'Product and amount required' }, { status: 400 });
   }
 
@@ -94,19 +98,84 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
   const limitParam = searchParams.get('limit');
+  const groupByProductParam = (searchParams.get('groupByProduct') || '').toLowerCase();
+  const groupByProduct = groupByProductParam === 'true' || groupByProductParam === '1';
   const page = Math.max(1, Number(pageParam) || 1);
   const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
   const skip = (page - 1) * limit;
 
+  const activeRole = user?.activeRole;
+
   // If agent, get all bids for their products
-  if (user && user.roles.includes('agent')) {
+  if (activeRole === 'agent') {
+    const baseQuery = { agent: user._id };
     const [bids, total] = await Promise.all([
-      Bid.find({ agent: user._id }).populate('product buyer').skip(skip).limit(limit),
-      Bid.countDocuments({ agent: user._id })
+      Bid.find(baseQuery)
+        .populate({
+          path: 'product',
+          populate: { path: 'farmer', select: '_id name businessName' }
+        })
+        .populate({ path: 'buyer', select: '_id name email' })
+        .sort({ createdAt: -1 }),
+      Bid.countDocuments(baseQuery)
     ]);
+
+    if (groupByProduct) {
+      const groupedMap = new Map<string, any>();
+
+      for (const bid of bids) {
+        const bidObj = bid.toObject();
+        const product = bidObj.product;
+        const productId = product?._id?.toString?.() ?? String(product);
+        if (!groupedMap.has(productId)) {
+          const farmerName =
+            product?.farmer?.name ||
+            product?.farmer?.businessName ||
+            null;
+          groupedMap.set(productId, {
+            product,
+            farmerName,
+            bidsCount: 0,
+            leadingBid: null,
+            bidders: []
+          });
+        }
+
+        const entry = groupedMap.get(productId);
+        entry.bidsCount += 1;
+        entry.bidders.push({
+          bidId: bidObj._id,
+          amount: bidObj.amount,
+          status: bidObj.status,
+          createdAt: bidObj.createdAt,
+          buyer: bidObj.buyer
+        });
+
+        if (!entry.leadingBid || bidObj.amount > entry.leadingBid.amount) {
+          entry.leadingBid = {
+            bidId: bidObj._id,
+            amount: bidObj.amount,
+            buyer: bidObj.buyer
+          };
+        }
+      }
+
+      const grouped = Array.from(groupedMap.values())
+        .sort((a, b) => (b.leadingBid?.amount || 0) - (a.leadingBid?.amount || 0));
+
+      const paged = grouped.slice(skip, skip + limit);
+
+      return NextResponse.json({
+        success: true,
+        data: paged,
+        pagination: { page, limit, total: grouped.length }
+      }, { status: 200 });
+    }
+
+    const pagedBids = bids.slice(skip, skip + limit);
     return NextResponse.json({
       success: true,
-      data: bids,
+      data: pagedBids,
       pagination: { page, limit, total }
     }, { status: 200 });
   }
