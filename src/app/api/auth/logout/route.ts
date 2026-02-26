@@ -25,5 +25,13 @@ export async function POST(request: Request) {
   user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
 
-  return NextResponse.json({ success: true, message: 'Logged out' }, { status: 200 });
+  const response = NextResponse.json({ success: true, message: 'Logged out' }, { status: 200 });
+  response.cookies.set('refreshToken', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0
+  });
+  return response;
 }

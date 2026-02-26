@@ -5,7 +5,14 @@ import { signRefreshToken, signToken, verifyRefreshToken } from '@/lib/auth';
 
 export async function POST(request: Request) {
   await dbConnect();
-  const { refreshToken } = await request.json().catch(() => ({}));
+  const body = await request.json().catch(() => ({}));
+  const cookieHeader = request.headers.get('cookie') || '';
+  const cookieToken = cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('refreshToken='))
+    ?.split('=')[1];
+  const refreshToken = body.refreshToken || cookieToken;
 
   if (!refreshToken || typeof refreshToken !== 'string') {
     return NextResponse.json({ error: 'Refresh token required' }, { status: 400 });
@@ -40,5 +47,13 @@ export async function POST(request: Request) {
   user.refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await user.save();
 
-  return NextResponse.json({ token, refreshToken: newRefreshToken }, { status: 200 });
+  const response = NextResponse.json({ token, refreshToken: newRefreshToken }, { status: 200 });
+  response.cookies.set('refreshToken', newRefreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60
+  });
+  return response;
 }

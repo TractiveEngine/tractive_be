@@ -17,7 +17,8 @@ export async function POST(request: Request) {
 
   const {
     name, phone, businessName, nin, businessCAC, address,
-    country, state, lga, villageOrLocalMarket
+    country, state, lga, villageOrLocalMarket,
+    bankName, bankAccountName, bankAccountNumber
   } = await request.json();
 
   const requiredFields = [
@@ -42,6 +43,9 @@ export async function POST(request: Request) {
     businessName,
     nin,
     businessCAC,
+    bankName,
+    bankAccountName,
+    bankAccountNumber,
     address,
     country,
     state,

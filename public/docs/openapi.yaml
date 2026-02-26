@@ -66,6 +66,12 @@ components:
           type: string
         businessCAC:
           type: string
+        bankName:
+          type: string
+        bankAccountName:
+          type: string
+        bankAccountNumber:
+          type: string
         address:
           type: string
         country:
@@ -164,7 +170,7 @@ paths:
               password: "SecurePass123!"
       responses:
         '200':
-          description: JWT access token + refresh token
+          description: JWT access token + refresh token (also set as httpOnly cookie)
           content:
             application/json:
               schema:
@@ -210,8 +216,7 @@ paths:
               properties:
                 refreshToken:
                   type: string
-              required:
-                - refreshToken
+            description: Body refreshToken is optional if httpOnly cookie is used
             example:
               refreshToken: "eyJhbGciOi..."
       responses:
@@ -269,6 +274,23 @@ paths:
       responses:
         '200':
           description: Parties info
+  /api/orders/{id}/transporters:
+    get:
+      summary: List available transporters for a paid or payment-initiated order
+      description: Buyer (order owner), agent, or admin can fetch transporters when order is paid/delivered OR when a pending payment transaction exists (manual approval flow).
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transporters list for the order
+        '400':
+          description: Payment has not been initiated yet
+        '403':
+          description: Forbidden for non-owner buyer or unsupported role
   /api/transactions/{id}/status:
     patch:
       summary: Admin updates transaction status
@@ -408,12 +430,58 @@ paths:
               type: object
               properties:
                 plateNumber: { type: string }
+                fleetName: { type: string }
+                fleetNumber: { type: string }
+                iot: { type: string }
                 model: { type: string }
+                size: { type: string }
                 capacity: { type: string }
+                price: { type: number }
+                priceNegotiation: { type: boolean }
+                images:
+                  type: array
+                  items: { type: string }
+                fleetDescription: { type: string }
+                fleetStates: { type: string }
+                route:
+                  type: object
+                  properties:
+                    fromState: { type: string }
+                    toState: { type: string }
             example:
-              plateNumber: "ABC-123"
+              fleetName: "North Route Fleet"
+              fleetNumber: "ABC-123"
+              iot: "IOT-TRK-001"
               model: "Volvo"
-              capacity: "20 tons"
+              size: "20 tons"
+              price: 250000
+              priceNegotiation: true
+              images:
+                - "https://example.com/truck1.jpg"
+              fleetDescription: "Primary interstate fleet"
+              fleetStates: "Active"
+              route:
+                fromState: "Kaduna"
+                toState: "Lagos"
+      responses:
+        '201':
+          description: Truck created
+  /api/transporters/fleets:
+    get:
+      summary: Alias of /api/transporters/fleet (list transporter fleet)
+      description: Backward-compatible alias route.
+      responses:
+        '200':
+          description: Fleet list
+    post:
+      summary: Alias of /api/transporters/fleet (create fleet truck)
+      description: Backward-compatible alias route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '201':
           description: Truck created
@@ -449,6 +517,37 @@ paths:
       responses:
         '200':
           description: Deleted
+  /api/transporters/fleets/{id}:
+    patch:
+      summary: Alias of /api/transporters/fleet/{id} (update truck)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated truck
+    delete:
+      summary: Alias of /api/transporters/fleet/{id} (delete truck)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
   /api/transporters/fleet/{id}/status:
     patch:
       summary: Update truck status
@@ -473,6 +572,29 @@ paths:
       responses:
         '200':
           description: Updated truck
+  /api/transporters/fleets/{id}/status:
+    patch:
+      summary: Alias of /api/transporters/fleet/{id}/status (update truck status)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [available, on_transit, under_maintenance]
+      responses:
+        '200':
+          description: Updated truck
   /api/transporters/drivers:
     get:
       summary: List drivers
@@ -489,9 +611,13 @@ paths:
               type: object
               properties:
                 name: { type: string }
+                fullName: { type: string }
+                phone: { type: string }
+                phoneNumber: { type: string }
                 licenseNumber: { type: string }
             example:
-              name: "Driver John"
+              fullName: "Driver John"
+              phoneNumber: "+2348000000000"
               licenseNumber: "LIC123"
       responses:
         '201':
@@ -768,6 +894,7 @@ paths:
   /api/products:
     get:
       summary: List products
+      description: Public list endpoint. If authenticated with activeRole=agent and owner is not provided, results are scoped to that agent's own products.
       parameters:
         - in: query
           name: page
@@ -947,6 +1074,23 @@ paths:
       responses:
         '200':
           description: Product bids
+  /api/products/{id}/similar:
+    get:
+      summary: List similar products
+      description: Returns available products similar to the current product, primarily by category.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Similar products
   /api/farmers:
     get:
       summary: List farmers created by you
@@ -993,6 +1137,9 @@ paths:
               name: "Farmer John"
               phone: "+2348055555555"
               businessName: "John Farms"
+              bankName: "First Bank"
+              bankAccountName: "John Farms Ltd"
+              bankAccountNumber: "0123456789"
               address: "Farm Village, Kaduna"
               country: "Nigeria"
               state: "Kaduna"
@@ -1072,6 +1219,9 @@ paths:
               businessName: "John Farms"
               nin: "A1234567890"
               businessCAC: "RC1234567"
+              bankName: "First Bank"
+              bankAccountName: "John Farms Ltd"
+              bankAccountNumber: "0123456789"
               address: "Farm Village, Kaduna"
               country: "Nigeria"
               state: "Kaduna"
@@ -1623,6 +1773,11 @@ paths:
       responses:
         '200':
           description: Checkout summary
+    post:
+      summary: Buyer checkout summary for won bids (alias)
+      responses:
+        '200':
+          description: Checkout summary
   /api/buyers/products/{productId}/bid:
     post:
       summary: Place bid on product
@@ -1644,32 +1799,57 @@ paths:
       responses:
         '201':
           description: Bid created
-  /api/buyers/farmers/{farmerId}/follow:
+  /api/buyers/sellers/{sellerId}/follow:
     post:
-      summary: Follow farmer
+      summary: Follow seller (agent)
       parameters:
         - in: path
-          name: farmerId
+          name: sellerId
           required: true
           schema:
             type: string
       responses:
         '201':
-          description: Followed
+          description: Seller followed
     delete:
-      summary: Unfollow farmer
+      summary: Unfollow seller (agent)
       parameters:
         - in: path
-          name: farmerId
+          name: sellerId
           required: true
           schema:
             type: string
       responses:
         '200':
-          description: Unfollowed
+          description: Seller unfollowed
   /api/sellers:
     get:
       summary: List sellers
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: rating
+          schema:
+            type: number
       responses:
         '200':
           description: Sellers list
@@ -1685,9 +1865,9 @@ paths:
       responses:
         '200':
           description: Seller detail
-  /api/sellers/{id}/products:
+  /api/sellers/{id}/reviews:
     get:
-      summary: Seller products
+      summary: Seller reviews and ratings summary
       parameters:
         - in: path
           name: id
@@ -1696,7 +1876,49 @@ paths:
             type: string
       responses:
         '200':
+          description: Seller review summary
+  /api/sellers/{id}/products:
+    get:
+      summary: Seller products
+      description: Returns products owned by this seller only.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, out_of_stock, discontinued]
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
           description: Seller products
+  /api/sellers/{id}/recommendations:
+    get:
+      summary: Seller recommendations
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller recommendations
   /api/sellers/products/{id}:
     get:
       summary: Seller product detail
@@ -1976,6 +2198,31 @@ paths:
   /api/customers:
     get:
       summary: List customers (buyers)
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
       responses:
         '200':
           description: Customers list
@@ -2220,6 +2467,16 @@ paths:
                   type: string
                 nin:
                   type: string
+                bankName:
+                  type: string
+                bankAccountName:
+                  type: string
+                bankAccountNumber:
+                  type: string
+                image:
+                  type: string
+                bio:
+                  type: string
                 interests:
                   type: array
                   items:
@@ -2232,6 +2489,9 @@ paths:
               country: "Nigeria"
               state: "Abuja"
               lga: "Municipal"
+              bankName: "GTBank"
+              bankAccountName: "Enrico Tester"
+              bankAccountNumber: "0012345678"
       responses:
         '201':
           description: Success
@@ -2687,12 +2947,43 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                name:
+                  type: string
+                image:
+                  type: string
+                bio:
+                  type: string
+                phone:
+                  type: string
+                address:
+                  type: string
+                country:
+                  type: string
+                state:
+                  type: string
+                lga:
+                  type: string
+                bankName:
+                  type: string
+                bankAccountName:
+                  type: string
+                bankAccountNumber:
+                  type: string
+                interests:
+                  type: array
+                  items:
+                    type: string
             example:
               name: "Enrico Tester"
+              image: "https://res.cloudinary.com/demo/image/upload/v1/profile.jpg"
               phone: "+2348011223344"
               address: "78 Market Street, Abuja"
               country: "Nigeria"
               state: "Abuja"
+              bankName: "GTBank"
+              bankAccountName: "Enrico Tester"
+              bankAccountNumber: "0012345678"
               interests: ["Grains", "Vegetables"]
       responses:
         '200':

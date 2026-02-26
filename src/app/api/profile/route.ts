@@ -31,6 +31,11 @@ const ProfileUpdateSchema = z
     villageOrLocalMarket: z.string().optional(),
     businessName: z.string().optional(),
     businessCAC: z.string().optional(),
+    bankName: z.string().optional(),
+    bankAccountName: z.string().optional(),
+    bankAccountNumber: z.string().optional(),
+    image: z.string().optional(),
+    bio: z.string().optional(),
     interests: z.array(z.string()).optional(),
     activeRole: z.enum(ROLE_ENUM).optional(),
   })

@@ -5,7 +5,10 @@ import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 // PATCH /api/admin/approvals/agents/:id - Approve or reject agent
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
@@ -15,7 +18,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const resolvedParams = await Promise.resolve(params);
+  const { id } = resolvedParams;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid agent id' }, { status: 400 });
   }

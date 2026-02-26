@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   user.refreshTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   await user.save();
 
-  return NextResponse.json({ 
+  const response = NextResponse.json({ 
     token,
     refreshToken,
     user: {
@@ -43,4 +43,14 @@ export async function POST(request: Request) {
       activeRole: user.activeRole
     }
   }, { status: 200 });
+
+  response.cookies.set('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 30 * 24 * 60 * 60
+  });
+
+  return response;
 }

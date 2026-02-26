@@ -16,6 +16,9 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search');
+  const name = searchParams.get('name');
+  const state = searchParams.get('state');
+  const year = searchParams.get('year');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
@@ -28,6 +31,17 @@ export async function GET(request: Request) {
       { phone: { $regex: search, $options: 'i' } }
     ];
   }
+  if (name) query.name = { $regex: name, $options: 'i' };
+  if (state) query.state = { $regex: state, $options: 'i' };
+  if (year) {
+    const y = Number(year);
+    if (!Number.isNaN(y)) {
+      query.createdAt = {
+        $gte: new Date(Date.UTC(y, 0, 1)),
+        $lt: new Date(Date.UTC(y + 1, 0, 1))
+      };
+    }
+  }
 
   const customers = await User.find(query)
     .select('_id name email phone image businessName createdAt')
@@ -37,11 +51,11 @@ export async function GET(request: Request) {
 
   const total = await User.countDocuments(query);
 
+  const pagination = { page, limit, total };
   return NextResponse.json({
     success: true,
-    data: {
-      customers,
-      pagination: { page, limit, total }
-    }
+    data: { customers, pagination },
+    customers,
+    pagination
   }, { status: 200 });
 }
