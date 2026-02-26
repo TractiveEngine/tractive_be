@@ -7,7 +7,11 @@ export async function GET(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user || !ensureActiveRole(user, 'transporter')) {
-    return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
+    return NextResponse.json({
+      success: false,
+      message: 'Transporter access required',
+      currentRole: user?.activeRole || null
+    }, { status: 403 });
   }
 
   const drivers = await Driver.find({ transporter: user._id }).sort({ createdAt: -1 });
@@ -18,10 +22,18 @@ export async function POST(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user || !ensureActiveRole(user, 'transporter')) {
-    return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
+    return NextResponse.json({
+      success: false,
+      message: 'Transporter access required',
+      currentRole: user?.activeRole || null
+    }, { status: 403 });
   }
 
-  const { name, phone, licenseNumber, trackingNumber } = await request.json();
+  const body = await request.json();
+  const name = body.name || body.fullName;
+  const phone = body.phone || body.phoneNumber;
+  const licenseNumber = body.licenseNumber;
+  const trackingNumber = body.trackingNumber;
   if (!name || !licenseNumber) {
     return NextResponse.json({ success: false, message: 'Name and license number required' }, { status: 400 });
   }

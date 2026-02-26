@@ -197,9 +197,12 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request?: Request) {
   await dbConnect();
-  const { searchParams } = new URL(request.url);
+  const effectiveRequest = request ?? new Request('http://localhost:3000/api/products');
+  const authUserData = getUserFromRequest(effectiveRequest);
+  const authUser = authUserData?.userId ? await User.findById(authUserData.userId).select('_id activeRole') : null;
+  const { searchParams } = new URL(effectiveRequest.url);
   const pageParam = searchParams.get("page");
   const limitParam = searchParams.get("limit");
   const search = searchParams.get("search");
@@ -238,6 +241,9 @@ export async function GET(request: Request) {
   }
   if (owner) {
     query.owner = owner;
+  } else if (authUser?.activeRole === 'agent') {
+    // Agent product management view should be scoped to products they own.
+    query.owner = authUser._id;
   }
   if (minPrice || maxPrice) {
     const min = minPrice ? Number(minPrice) : undefined;
@@ -292,6 +298,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     data: normalized,
+    products: normalized, // legacy compatibility
     pagination: { page, limit, total }
   }, { status: 200 });
 }

@@ -3,8 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
-// GET /api/buyers/biddings/won/checkout - summary of accepted bids for checkout
-export async function GET(request: Request) {
+async function getCheckoutSummary(request: Request) {
   await dbConnect();
 
   const user = await getAuthUser(request);
@@ -24,4 +23,14 @@ export async function GET(request: Request) {
   const totalAmount = bids.reduce((sum, b) => sum + (b.amount || 0), 0);
 
   return NextResponse.json({ success: true, data: { bids, totalAmount } }, { status: 200 });
+}
+
+// GET /api/buyers/biddings/won/checkout - summary of accepted bids for checkout
+export async function GET(request: Request) {
+  return getCheckoutSummary(request);
+}
+
+// POST /api/buyers/biddings/won/checkout - alias for frontend compatibility
+export async function POST(request: Request) {
+  return getCheckoutSummary(request);
 }

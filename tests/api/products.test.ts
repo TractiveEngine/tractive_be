@@ -160,6 +160,26 @@ describe('Product CRUD Test (Agent Role)', () => {
     expect(createResponse.status).toBe(401);
     expect(createData.error).toBe('Authentication required');
   });
+
+  it('should scope authenticated agent product listing to own products', async () => {
+    const { user: agentA } = await createAgent({ email: 'agentA@example.com' });
+    const { user: agentB } = await createAgent({ email: 'agentB@example.com' });
+    await createProduct({ owner: agentA._id, name: 'AgentA Product' });
+    await createProduct({ owner: agentB._id, name: 'AgentB Product' });
+
+    const scopedReq = createAuthenticatedRequest('http://localhost:3000/api/products', agentA._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agentA.email,
+    });
+    const scopedRes = await listProductsHandler(scopedReq);
+    const scopedData = await getResponseJson(scopedRes);
+
+    expect(scopedRes.status).toBe(200);
+    expect(Array.isArray(scopedData.data)).toBe(true);
+    expect(scopedData.data.length).toBe(1);
+    expect(scopedData.data[0].name).toBe('AgentA Product');
+  });
 });
 
 describe('Product status & bulk operations (admin/agent)', () => {

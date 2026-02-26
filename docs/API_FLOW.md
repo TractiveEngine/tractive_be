@@ -36,6 +36,14 @@ Endpoints:
 - POST /api/auth/refresh
 - POST /api/auth/logout
 
+Common profile fields in onboarding/profile update include:
+- image, bio
+- bankName, bankAccountName, bankAccountNumber
+
+Refresh token storage:
+- The backend now sets refreshToken as an httpOnly cookie on login and refresh.
+- Frontend can call /api/auth/refresh without a body when using cookie storage.
+
 ## Products (Agent/Admin)
 
 Create a product
@@ -54,6 +62,7 @@ Update product
 - PUT /api/products/{id} (alias to PATCH)
 - Status update: PATCH /api/products/{id}/status
 - Product bids: GET /api/products/{id}/bids
+- Similar products: GET /api/products/{id}/similar
 
 Bulk
 - POST /api/products/bulk/delete
@@ -93,6 +102,11 @@ Update order status
 Parties
 - GET /api/orders/{id}/parties
 
+Find transporters after payment initiation
+- GET /api/orders/{id}/transporters
+- Available when order is `paid`/`delivered` OR a pending payment transaction exists (manual approval flow)
+- Buyer can fetch only for own order; agent/admin can fetch for any order
+
 ## Transactions
 
 Create transaction
@@ -113,6 +127,7 @@ Customer care
 Create farmer
 - POST /api/farmers
 - Required: name, phone, address, state, lga, villageOrLocalMarket
+- Optional: bankName, bankAccountName, bankAccountNumber
 
 List farmers
 - GET /api/farmers?page=1&limit=20
@@ -144,15 +159,18 @@ Wishlist
 - POST /api/buyers/wishlist/{productId}
 - DELETE /api/buyers/wishlist/{productId}
 
-Follow farmer
-- POST /api/buyers/farmers/{farmerId}/follow
-- DELETE /api/buyers/farmers/{farmerId}/follow
+Follow seller (agent)
+- POST /api/buyers/sellers/{sellerId}/follow
+- DELETE /api/buyers/sellers/{sellerId}/follow
+- Canonical endpoint for product-page seller follow/unfollow.
 
 ## Sellers Namespace
 
 - GET /api/sellers
 - GET /api/sellers/{id}
 - GET /api/sellers/{id}/products
+- GET /api/sellers/{id}/reviews
+- GET /api/sellers/{id}/recommendations
 - GET /api/sellers/products/{id}
 
 ## Transporters
@@ -174,7 +192,11 @@ Fleet & Drivers (activeRole=transporter)
 - PATCH /api/transporters/fleet/{id}
 - PATCH /api/transporters/fleet/{id}/status
 - DELETE /api/transporters/fleet/{id}
+- GET/POST /api/transporters/fleets (alias of /fleet)
+- PATCH/DELETE /api/transporters/fleets/{id} (alias of /fleet/{id})
+- PATCH /api/transporters/fleets/{id}/status (alias of /fleet/{id}/status)
 - GET/POST /api/transporters/drivers
+  - Driver create supports either name/phone or fullName/phoneNumber
 - PATCH /api/transporters/drivers/{id}
 - POST /api/transporters/drivers/{id}/assign-fleet
 - DELETE /api/transporters/drivers/{id}

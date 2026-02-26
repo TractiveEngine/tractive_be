@@ -44,7 +44,7 @@
 /api/buyers/biddings/won : GET
 /api/buyers/biddings/won/checkout : GET
 /api/buyers/categories/{categoryId}/{subcategoryId}/farmers : GET
-/api/buyers/farmers/{farmerId}/follow : DELETE, POST
+/api/buyers/sellers/{sellerId}/follow : DELETE, POST
 /api/buyers/products/{productId}/bid : POST
 /api/buyers/recommendations : GET
 /api/buyers/top-sellers : GET
