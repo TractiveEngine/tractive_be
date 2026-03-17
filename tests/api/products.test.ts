@@ -3,7 +3,7 @@ import { setupTest, teardownTest } from '../setup/db';
 import { POST as createProductHandler, GET as listProductsHandler } from '@/app/api/products/route';
 import { GET as getProductHandler, PATCH as updateProductHandler, DELETE as deleteProductHandler } from '@/app/api/products/[id]/route';
 import { createMockRequest, createAuthenticatedRequest, getResponseJson } from '../setup/test-server';
-import { createAgent, createBuyer, createProduct, createAdmin } from '../factories';
+import { createAgent, createBuyer, createProduct, createAdmin, createWishlistItem, createOrder } from '../factories';
 
 describe('Product CRUD Test (Agent Role)', () => {
   beforeEach(async () => {
@@ -180,6 +180,60 @@ describe('Product CRUD Test (Agent Role)', () => {
     expect(scopedData.data.length).toBe(1);
     expect(scopedData.data[0].name).toBe('AgentA Product');
   });
+
+  it('adds category fields and wishlisted flag to product responses', async () => {
+    const { user: agent } = await createAgent({ email: 'agent-categories@example.com' });
+    const { user: buyer } = await createBuyer({ email: 'buyer-categories@example.com' });
+
+    const createRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/products',
+      agent._id.toString(),
+      {
+        method: 'POST',
+        body: {
+          name: 'Premium Rice',
+          price: 7000,
+          category: 'Grains',
+          subcategory: 'Rice',
+          images: ['https://example.com/rice.jpg'],
+        },
+        email: agent.email,
+        role: 'agent',
+      }
+    );
+    const createResponse = await createProductHandler(createRequest);
+    const createData = await getResponseJson(createResponse);
+    const productId = createData.product._id.toString();
+
+    await createWishlistItem({ buyer: buyer._id, product: productId });
+
+    const listRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/products?category=Grains&subcategory=Rice',
+      buyer._id.toString(),
+      { method: 'GET', email: buyer.email, role: 'buyer' }
+    );
+    const listResponse = await listProductsHandler(listRequest);
+    const listData = await getResponseJson(listResponse);
+
+    expect(listResponse.status).toBe(200);
+    expect(listData.data.length).toBe(1);
+    expect(listData.data[0].category).toBe('Grains');
+    expect(listData.data[0].subcategory).toBe('Rice');
+    expect(listData.data[0].wishlisted).toBe(true);
+
+    const getRequest = createAuthenticatedRequest(
+      `http://localhost:3000/api/products/${productId}`,
+      buyer._id.toString(),
+      { method: 'GET', email: buyer.email, role: 'buyer' }
+    );
+    const getResponse = await getProductHandler(getRequest, { params: Promise.resolve({ id: productId }) });
+    const getData = await getResponseJson(getResponse);
+
+    expect(getResponse.status).toBe(200);
+    expect(getData.product.category).toBe('Grains');
+    expect(getData.product.subcategory).toBe('Rice');
+    expect(getData.product.wishlisted).toBe(true);
+  });
 });
 
 describe('Product status & bulk operations (admin/agent)', () => {
@@ -242,5 +296,128 @@ describe('Product status & bulk operations (admin/agent)', () => {
     const bulkDeleteData = await getResponseJson(bulkDeleteRes as unknown as Response);
     expect((bulkDeleteRes as Response).status).toBe(200);
     expect(bulkDeleteData.data.deletedCount).toBe(2);
+  });
+
+  it('returns product images in buyer top-selling responses', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const product = await createProduct({
+      owner: agent._id,
+      name: 'Top Product',
+      images: ['https://example.com/top-product.jpg'],
+      categories: ['Grains', 'Rice']
+    });
+    await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 2 }],
+      totalAmount: 15000,
+      status: 'paid'
+    });
+
+    const req = createAuthenticatedRequest('http://localhost:3000/api/buyers/top-selling', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email,
+    });
+    const res = await import('@/app/api/buyers/top-selling/route').then((m) => m.GET(req));
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(data.data[0].image).toBe('https://example.com/top-product.jpg');
+    expect(Array.isArray(data.data[0].images)).toBe(true);
+  });
+
+  it('lists available product categories', async () => {
+    const res = await import('@/app/api/categories/route').then((m) => m.GET());
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(Array.isArray(data.data)).toBe(true);
+    expect(data.data.some((item: { name: string }) => item.name === 'Grains')).toBe(true);
+  });
+
+  it('keeps wishlisted/category fields consistent across seller detail, similar products, and wishlist endpoints', async () => {
+    const { user: agent } = await createAgent({ email: 'seller-detail@example.com', name: 'Seller Detail Agent' });
+    const { user: buyer } = await createBuyer({ email: 'seller-detail-buyer@example.com' });
+
+    const rice = await createProduct({
+      owner: agent._id,
+      name: 'Filtered Rice',
+      category: 'Grains',
+      subcategory: 'Rice',
+      categories: ['Grains', 'Rice'],
+      images: ['https://example.com/rice-detail.jpg']
+    });
+    const similarRice = await createProduct({
+      owner: agent._id,
+      name: 'Second Rice',
+      category: 'Grains',
+      subcategory: 'Rice',
+      categories: ['Grains', 'Rice'],
+      images: ['https://example.com/rice-similar.jpg']
+    });
+    await createProduct({
+      owner: agent._id,
+      name: 'Yam Product',
+      category: 'Tubers',
+      subcategory: 'Yam',
+      categories: ['Tubers', 'Yam']
+    });
+
+    await createWishlistItem({ buyer: buyer._id, product: rice._id });
+
+    const sellerDetailReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/sellers/${agent._id}?category=Grains&subcategory=Rice`,
+      buyer._id.toString(),
+      { method: 'GET', role: 'buyer', email: buyer.email }
+    );
+    const sellerDetailRes = await import('@/app/api/sellers/[id]/route').then((m) =>
+      m.GET(sellerDetailReq, { params: Promise.resolve({ id: agent._id.toString() }) })
+    );
+    const sellerDetailData = await getResponseJson(sellerDetailRes as unknown as Response);
+    expect((sellerDetailRes as Response).status).toBe(200);
+    expect(sellerDetailData.data.products.length).toBe(2);
+    expect(sellerDetailData.data.products.every((item: { category: string; subcategory: string }) => item.category === 'Grains' && item.subcategory === 'Rice')).toBe(true);
+    expect(sellerDetailData.data.products[0]).toHaveProperty('wishlisted');
+    expect(Array.isArray(sellerDetailData.data.recommendations)).toBe(true);
+    expect(sellerDetailData.pagination.total).toBe(2);
+
+    const similarReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/products/${rice._id}/similar`,
+      buyer._id.toString(),
+      { method: 'GET', role: 'buyer', email: buyer.email }
+    );
+    const similarRes = await import('@/app/api/products/[id]/similar/route').then((m) =>
+      m.GET(similarReq, { params: Promise.resolve({ id: rice._id.toString() }) })
+    );
+    const similarData = await getResponseJson(similarRes as unknown as Response);
+    expect((similarRes as Response).status).toBe(200);
+    expect(similarData.data[0]).toHaveProperty('wishlisted');
+    expect(similarData.data[0]).toHaveProperty('category');
+
+    const sellerProductReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/sellers/products/${rice._id}`,
+      buyer._id.toString(),
+      { method: 'GET', role: 'buyer', email: buyer.email }
+    );
+    const sellerProductRes = await import('@/app/api/sellers/products/[id]/route').then((m) =>
+      m.GET(sellerProductReq, { params: { id: rice._id.toString() } })
+    );
+    const sellerProductData = await getResponseJson(sellerProductRes as unknown as Response);
+    expect((sellerProductRes as Response).status).toBe(200);
+    expect(sellerProductData.data.wishlisted).toBe(true);
+    expect(sellerProductData.data.category).toBe('Grains');
+
+    const wishlistReq = createAuthenticatedRequest(
+      'http://localhost:3000/api/buyers/wishlist',
+      buyer._id.toString(),
+      { method: 'GET', role: 'buyer', email: buyer.email }
+    );
+    const wishlistRes = await import('@/app/api/buyers/wishlist/route').then((m) => m.GET(wishlistReq));
+    const wishlistData = await getResponseJson(wishlistRes as unknown as Response);
+    expect((wishlistRes as Response).status).toBe(200);
+    expect(wishlistData.data[0].wishlisted).toBe(true);
+    expect(wishlistData.data[0].product.wishlisted).toBe(true);
+    expect(wishlistData.data[0].product.category).toBe('Grains');
   });
 });

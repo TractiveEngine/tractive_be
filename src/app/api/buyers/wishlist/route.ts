@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import WishlistItem from '@/models/wishlist';
-import Product from '@/models/product';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { attachWishlistedFlagToNestedProduct } from '@/lib/productPayload';
 
 // GET /api/buyers/wishlist - buyer wishlist wrapper
 export async function GET(request: Request) {
@@ -21,7 +21,12 @@ export async function GET(request: Request) {
       .populate('product')
       .sort({ createdAt: -1 });
 
-    return NextResponse.json({ success: true, data: wishlistItems }, { status: 200 });
+    const normalized = await attachWishlistedFlagToNestedProduct(
+      wishlistItems.map((item) => item.toObject()),
+      { userId: user._id.toString() }
+    );
+
+    return NextResponse.json({ success: true, data: normalized }, { status: 200 });
   } catch (error) {
     console.error('Error fetching buyer wishlist:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });

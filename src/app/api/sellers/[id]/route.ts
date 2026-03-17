@@ -7,10 +7,13 @@ import Review from '@/models/review';
 import SellerFollow from '@/models/sellerFollow';
 import Order from '@/models/order';
 import mongoose from 'mongoose';
+import { getAuthUser } from '@/lib/apiAuth';
+import { attachWishlistedFlag } from '@/lib/productPayload';
 
 // GET /api/sellers/:id - seller profile
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const authUser = await getAuthUser(request);
 
   const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -23,8 +26,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   const farmers = await Farmer.find({ createdBy: id });
-  const productsCount = await Product.countDocuments({ owner: id });
   const followersCount = await SellerFollow.countDocuments({ seller: seller._id });
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
+  const skip = (page - 1) * limit;
+  const status = searchParams.get('status');
+  const search = searchParams.get('search');
+  const category = searchParams.get('category');
+  const subcategory = searchParams.get('subcategory');
+
+  const productQuery: Record<string, unknown> = { owner: id };
+  if (status) productQuery.status = status;
+  if (search) {
+    const regex = new RegExp(search, 'i');
+    productQuery.$or = [{ name: regex }, { description: regex }];
+  }
+  if (category && subcategory) {
+    productQuery.categories = { $all: [category, subcategory] };
+  } else if (category) {
+    productQuery.categories = category;
+  } else if (subcategory) {
+    productQuery.categories = subcategory;
+  }
 
   const ratingAgg = await Review.aggregate([
     { $match: { agent: seller._id } },
@@ -77,13 +101,31 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const customerNumber = salesAgg[0]?.customers ?? 0;
   const amountOfSales = salesAgg[0]?.amountOfSales ?? 0;
 
-  const recommendations = await Product.find({
-    owner: seller._id,
-    status: 'available'
-  })
-    .select('_id name images price')
-    .sort({ createdAt: -1 })
-    .limit(8);
+  const [productsCount, filteredProductsCount, products, recommendations] = await Promise.all([
+    Product.countDocuments({ owner: id }),
+    Product.countDocuments(productQuery),
+    Product.find(productQuery)
+      .select('_id name description price quantity unit images status createdAt discount categories category subcategory')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Product.find({
+      owner: seller._id,
+      status: 'available'
+    })
+      .select('_id name images price categories category subcategory')
+      .sort({ createdAt: -1 })
+      .limit(8)
+  ]);
+
+  const normalizedProducts = await attachWishlistedFlag(
+    products.map((product) => product.toObject()),
+    authUser ? { userId: authUser._id.toString() } : null
+  );
+  const normalizedRecommendations = await attachWishlistedFlag(
+    recommendations.map((product) => product.toObject()),
+    authUser ? { userId: authUser._id.toString() } : null
+  );
 
   return NextResponse.json(
     {
@@ -111,8 +153,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         activeRole: seller.activeRole,
         productsCount,
         farmersCount: farmers.length,
-        recommendations
-      }
+        recommendations: normalizedRecommendations,
+        products: normalizedProducts,
+        productFilters: {
+          category,
+          subcategory,
+          search,
+          status,
+        }
+      },
+      pagination: {
+        total: filteredProductsCount,
+        page,
+        limit
+      },
     },
     { status: 200 }
   );

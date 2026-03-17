@@ -33,6 +33,8 @@ components:
     Product:
       type: object
       properties:
+        _id:
+          type: string
         name:
           type: string
         description:
@@ -53,6 +55,91 @@ components:
           items:
             type: string
           description: Video URLs (Cloudinary/S3). No base64 data.
+        category:
+          type: string
+          nullable: true
+        subcategory:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+          description: Normalized category list including category and subcategory.
+        wishlisted:
+          type: boolean
+          description: True when the authenticated buyer has wishlisted the product.
+    CategoryNode:
+      type: object
+      properties:
+        name:
+          type: string
+        subcategories:
+          type: array
+          items:
+            type: string
+    Truck:
+      type: object
+      properties:
+        _id:
+          type: string
+        plateNumber:
+          type: string
+        fleetName:
+          type: string
+        fleetNumber:
+          type: string
+        iot:
+          type: string
+          nullable: true
+        model:
+          type: string
+        size:
+          type: string
+        capacity:
+          type: string
+        price:
+          type: number
+        priceNegotiation:
+          type: boolean
+        fleetDescription:
+          type: string
+        fleetStates:
+          type: string
+        status:
+          type: string
+          enum: [available, on_transit, under_maintenance]
+        images:
+          type: array
+          items:
+            type: string
+        route:
+          type: object
+          properties:
+            fromState:
+              type: string
+              nullable: true
+            toState:
+              type: string
+              nullable: true
+    Driver:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        licenseNumber:
+          type: string
+        trackingNumber:
+          type: string
+          nullable: true
+        assignedTruck:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/Truck'
     Farmer:
       type: object
       properties:
@@ -122,6 +209,24 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/categories:
+    get:
+      summary: List supported product categories and subcategories
+      security: []
+      responses:
+        '200':
+          description: Category tree for buyer and seller filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryNode'
   /api/auth/register:
     post:
       summary: Register a user
@@ -287,6 +392,33 @@ paths:
       responses:
         '200':
           description: Transporters list for the order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                      orderStatus:
+                        type: string
+                      paymentPendingApproval:
+                        type: boolean
+                      transportStatus:
+                        type: string
+                      assignedTransporter:
+                        type: string
+                        nullable: true
+                      transporters:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
         '400':
           description: Payment has not been initiated yet
         '403':
@@ -417,9 +549,40 @@ paths:
   /api/transporters/fleet:
     get:
       summary: List transporter fleet
+      description: Requires activeRole `transporter`.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by plate number, fleet name, fleet number, model, or IoT id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Fleet list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Truck'
     post:
       summary: Create fleet truck
       requestBody:
@@ -470,6 +633,24 @@ paths:
     get:
       summary: Alias of /api/transporters/fleet (list transporter fleet)
       description: Backward-compatible alias route.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Fleet list
@@ -598,9 +779,35 @@ paths:
   /api/transporters/drivers:
     get:
       summary: List drivers
+      description: Returns driver records with populated `assignedTruck` details when assigned.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name, phone, license number, or tracking number.
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Driver list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Driver'
     post:
       summary: Create driver
       requestBody:
@@ -615,10 +822,16 @@ paths:
                 phone: { type: string }
                 phoneNumber: { type: string }
                 licenseNumber: { type: string }
+                trackingNumber: { type: string }
+                assignedTruck: { type: string }
+                truckId: { type: string }
+                fleetId: { type: string }
             example:
               fullName: "Driver John"
               phoneNumber: "+2348000000000"
               licenseNumber: "LIC123"
+              trackingNumber: "TRK-001"
+              fleetId: "FLEET_ID"
       responses:
         '201':
           description: Driver created
@@ -638,7 +851,12 @@ paths:
             schema:
               type: object
             example:
+              name: "Driver John Doe"
               phone: "080123456"
+              licenseNumber: "LIC456"
+              trackingNumber: "TRK-445"
+              fleetId: "FLEET_ID"
+              iot: "IOT-TRK-001"
       responses:
         '200':
           description: Updated
@@ -670,6 +888,8 @@ paths:
               type: object
               properties:
                 truckId: { type: string }
+                fleetId: { type: string }
+                assignedTruck: { type: string }
             example:
               truckId: "FLEET_ID"
       responses:
@@ -918,6 +1138,10 @@ paths:
           schema:
             type: string
         - in: query
+          name: subcategory
+          schema:
+            type: string
+        - in: query
           name: farmer
           schema:
             type: string
@@ -965,6 +1189,28 @@ paths:
       responses:
         '200':
           description: Paginated list of products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
     post:
       summary: Create product
       security:
@@ -981,7 +1227,9 @@ paths:
               price: 5000
               quantity: 100
               unit: "kg"
-              categories: ["Grains"]
+              category: "Grains"
+              subcategory: "Maize"
+              categories: ["Grains", "Maize"]
               images: ["https://example.com/maize1.jpg"]
               farmer: "507f1f77bcf86cd799439012"
       responses:
@@ -990,7 +1238,7 @@ paths:
   /api/products/{id}:
     get:
       summary: Get product by ID
-      description: Returns product with populated owner (agent), farmer, reviewSummary/recentReviews, and bidSummary (leading bid).
+      description: Returns product with populated owner (agent), farmer, reviewSummary, recentReviews, bidSummary, category fields, and `wishlisted` for authenticated buyers.
       parameters:
         - name: id
           in: path
@@ -1000,6 +1248,35 @@ paths:
       responses:
         '200':
           description: Product details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    allOf:
+                      - $ref: '#/components/schemas/Product'
+                      - type: object
+                        properties:
+                          reviewSummary:
+                            type: object
+                            properties:
+                              count:
+                                type: integer
+                              averageRating:
+                                type: number
+                          recentReviews:
+                            type: array
+                            items:
+                              type: object
+                          bidSummary:
+                            type: object
+                            properties:
+                              count:
+                                type: integer
+                              leadingBid:
+                                type: object
+                                nullable: true
     patch:
       summary: Update product
       security:
@@ -1077,7 +1354,7 @@ paths:
   /api/products/{id}/similar:
     get:
       summary: List similar products
-      description: Returns available products similar to the current product, primarily by category.
+      description: Returns available products similar to the current product, primarily by category, with normalized category fields and `wishlisted` for authenticated buyers.
       parameters:
         - in: path
           name: id
@@ -1091,6 +1368,17 @@ paths:
       responses:
         '200':
           description: Similar products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
   /api/farmers:
     get:
       summary: List farmers created by you
@@ -1534,9 +1822,67 @@ paths:
   /api/transporters:
     get:
       summary: List transporters
+      description: Buyer/admin transporter discovery endpoint. Returns transporter profile plus summary metrics like rating, reviewsCount, totalSales, deliveriesCount, and location.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by transporter name, business name, or email.
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Transporter list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/User'
+                        - type: object
+                          properties:
+                            businessName:
+                              type: string
+                            phone:
+                              type: string
+                            image:
+                              type: string
+                            bio:
+                              type: string
+                            address:
+                              type: string
+                            country:
+                              type: string
+                            state:
+                              type: string
+                            location:
+                              type: string
+                              nullable: true
+                            rating:
+                              type: number
+                            reviewsCount:
+                              type: integer
+                            totalSales:
+                              type: number
+                            deliveriesCount:
+                              type: integer
     post:
       summary: Create/update transporter profile
       requestBody:
@@ -1566,6 +1912,7 @@ paths:
   /api/transporters/{id}:
     get:
       summary: Get transporter by id
+      description: Returns transporter profile plus rating, reviewsCount, totalSales, deliveriesCount, driversCount, fleetCount, and location.
       parameters:
         - in: path
           name: id
@@ -1575,6 +1922,51 @@ paths:
       responses:
         '200':
           description: Transporter details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      phone:
+                        type: string
+                      businessName:
+                        type: string
+                      image:
+                        type: string
+                      bio:
+                        type: string
+                      address:
+                        type: string
+                      country:
+                        type: string
+                      state:
+                        type: string
+                      location:
+                        type: string
+                        nullable: true
+                      rating:
+                        type: number
+                      reviewsCount:
+                        type: integer
+                      totalSales:
+                        type: number
+                      deliveriesCount:
+                        type: integer
+                      driversCount:
+                        type: integer
+                      fleetCount:
+                        type: integer
   /api/transporters/{id}/reviews:
     get:
       summary: Get reviews for transporter
@@ -1700,9 +2092,35 @@ paths:
   /api/buyers/top-selling:
     get:
       summary: Buyer top selling products
+      description: Returns top-selling products with image/media, normalized category fields, and `wishlisted` for authenticated buyers.
       responses:
         '200':
           description: Top products list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Product'
+                        - type: object
+                          properties:
+                            productId:
+                              type: string
+                            image:
+                              type: string
+                              nullable: true
+                            ordersCount:
+                              type: integer
+                            totalQuantity:
+                              type: number
+                            totalAmount:
+                              type: number
   /api/buyers/recommendations:
     get:
       summary: Buyer recommendations
@@ -1729,6 +2147,7 @@ paths:
   /api/buyers/wishlist:
     get:
       summary: Buyer wishlist
+      description: Returns wishlist items with nested normalized product payloads. Nested `product.wishlisted` is always true for the owning buyer.
       responses:
         '200':
           description: Wishlist items
@@ -1856,31 +2275,7 @@ paths:
   /api/sellers/{id}:
     get:
       summary: Seller details
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Seller detail
-  /api/sellers/{id}/reviews:
-    get:
-      summary: Seller reviews and ratings summary
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Seller review summary
-  /api/sellers/{id}/products:
-    get:
-      summary: Seller products
-      description: Returns products owned by this seller only.
+      description: Returns seller profile plus embedded products and recommendations. Supports product filtering via `search`, `status`, `category`, `subcategory`, `page`, and `limit`.
       parameters:
         - in: path
           name: id
@@ -1904,9 +2299,143 @@ paths:
           name: search
           schema:
             type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: subcategory
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      sellerId:
+                        type: string
+                      name:
+                        type: string
+                      followersCount:
+                        type: integer
+                      yearsOfExperience:
+                        type: integer
+                      rating:
+                        type: number
+                      totalReviews:
+                        type: integer
+                      amountOfSales:
+                        type: number
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                      recommendations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                      productFilters:
+                        type: object
+                        properties:
+                          category:
+                            type: string
+                            nullable: true
+                          subcategory:
+                            type: string
+                            nullable: true
+                          search:
+                            type: string
+                            nullable: true
+                          status:
+                            type: string
+                            nullable: true
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+  /api/sellers/{id}/reviews:
+    get:
+      summary: Seller reviews and ratings summary
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller review summary
+  /api/sellers/{id}/products:
+    get:
+      summary: Seller products
+      description: Returns products owned by this seller only, with optional search and category/subcategory filters plus `wishlisted` for authenticated buyers.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, out_of_stock, discontinued]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: subcategory
+          schema:
+            type: string
       responses:
         '200':
           description: Seller products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
   /api/sellers/{id}/recommendations:
     get:
       summary: Seller recommendations
@@ -1922,6 +2451,7 @@ paths:
   /api/sellers/products/{id}:
     get:
       summary: Seller product detail
+      description: Returns a normalized seller product payload with `wishlisted` for authenticated buyers.
       parameters:
         - in: path
           name: id
@@ -1931,6 +2461,15 @@ paths:
       responses:
         '200':
           description: Product detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Product'
   /api/transporters/dashboard/revenue:
     get:
       summary: Transporter revenue

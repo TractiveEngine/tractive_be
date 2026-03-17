@@ -20,14 +20,15 @@ export async function connectTestDB() {
  * Clear all collections in the test database
  */
 export async function clearTestDB() {
-  const collections = mongoose.connection.collections;
-  
-  // Clear collections in parallel for faster cleanup
-  const clearPromises = Object.keys(collections).map(key => 
-    collections[key].deleteMany({})
+  if (!mongoose.connection.db) {
+    return;
+  }
+  const collections = await mongoose.connection.db.listCollections().toArray();
+  await Promise.all(
+    collections.map((collection) =>
+      mongoose.connection.db!.collection(collection.name).deleteMany({})
+    )
   );
-  
-  await Promise.all(clearPromises);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { setupTest, teardownTest } from '../setup/db';
 import { createAuthenticatedRequest, getResponseJson } from '../setup/test-server';
-import { createTransporter, createBuyer, createAgent, createProduct, createOrder, createNegotiationOffer, createShippingRequest, createTransaction } from '../factories';
+import { createTransporter, createBuyer, createAgent, createProduct, createOrder, createNegotiationOffer, createShippingRequest, createTransaction, createReview } from '../factories';
 
 describe('Transporter operations namespace', () => {
   beforeEach(async () => {
@@ -137,6 +137,67 @@ describe('Transporter operations namespace', () => {
     const assignData = await getResponseJson(assignRes as unknown as Response);
     expect(assignData.success).toBe(true);
     expect(assignData.data.driver.assignedTruck.toString()).toBe(truckData.data._id.toString());
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/drivers?search=John', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email,
+    });
+    const listRes = await import('@/app/api/transporters/drivers/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.data.length).toBe(1);
+    expect(listData.data[0].assignedTruck._id.toString()).toBe(truckData.data._id.toString());
+
+    const patchReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/drivers/${driverData.data._id}`,
+      transporter._id.toString(),
+      { method: 'PATCH', body: { fullName: 'John Updated', phoneNumber: '+2348000000000', truckId: truckData.data._id }, role: 'transporter', email: transporter.email }
+    );
+    const patchRes = await import('@/app/api/transporters/drivers/[id]/route').then((m) =>
+      m.PATCH(patchReq, { params: { id: driverData.data._id } })
+    );
+    const patchData = await getResponseJson(patchRes as unknown as Response);
+    expect((patchRes as Response).status).toBe(200);
+    expect(patchData.data.name).toBe('John Updated');
+    expect(patchData.data.assignedTruck._id.toString()).toBe(truckData.data._id.toString());
+  });
+
+  it('filters fleet list and returns enriched transporter summaries', async () => {
+    const { user: transporter } = await createTransporter({ state: 'Kaduna', name: 'Road King' });
+    const { user: buyer } = await createBuyer();
+
+    const fleetReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleet', transporter._id.toString(), {
+      method: 'POST',
+      body: { fleetName: 'Northern Route', fleetNumber: 'KD-100', Iot: 'IOT-777', status: 'available', route: { fromState: 'Kaduna', toState: 'Lagos' } },
+      role: 'transporter',
+      email: transporter.email,
+    });
+    await import('@/app/api/transporters/fleet/route').then((m) => m.POST(fleetReq));
+
+    const filteredFleetReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleet?search=North&status=available', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email,
+    });
+    const filteredFleetRes = await import('@/app/api/transporters/fleet/route').then((m) => m.GET(filteredFleetReq));
+    const filteredFleetData = await getResponseJson(filteredFleetRes as unknown as Response);
+    expect((filteredFleetRes as Response).status).toBe(200);
+    expect(filteredFleetData.data.length).toBe(1);
+    expect(filteredFleetData.data[0].iot).toBe('IOT-777');
+
+    const transporterListReq = createAuthenticatedRequest('http://localhost:3000/api/transporters?search=Road&state=Kaduna', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email,
+    });
+    const transporterListRes = await import('@/app/api/transporters/route').then((m) => m.GET(transporterListReq));
+    const transporterListData = await getResponseJson(transporterListRes as unknown as Response);
+    expect((transporterListRes as Response).status).toBe(200);
+    expect(transporterListData.data.length).toBeGreaterThan(0);
+    expect(transporterListData.data[0]).toHaveProperty('rating');
+    expect(transporterListData.data[0]).toHaveProperty('reviewsCount');
+    expect(transporterListData.data[0]).toHaveProperty('totalSales');
   });
 
   it('allows transporter to update order transport status and view buyer/product', async () => {
@@ -290,5 +351,37 @@ describe('Transporter operations namespace', () => {
       m.GET(otherBuyerReq, { params: Promise.resolve({ id: order._id.toString() }) })
     );
     expect((otherBuyerRes as Response).status).toBe(403);
+  });
+
+  it('returns enriched transporter detail summary', async () => {
+    const { user: transporter } = await createTransporter({ name: 'Detail Transporter', state: 'Lagos' });
+    const { user: buyer } = await createBuyer();
+    const product = await createProduct({ owner: transporter._id });
+    await createReview({ agent: transporter._id, buyer: buyer._id, rating: 4 });
+    await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 12000,
+      transporter: transporter._id,
+      status: 'delivered',
+    });
+
+    const detailReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/${transporter._id}`,
+      buyer._id.toString(),
+      { method: 'GET', role: 'buyer', email: buyer.email }
+    );
+    const detailRes = await import('@/app/api/transporters/[id]/route').then((m) =>
+      m.GET(detailReq, { params: { id: transporter._id.toString() } })
+    );
+    const detailData = await getResponseJson(detailRes as unknown as Response);
+    expect((detailRes as Response).status).toBe(200);
+    expect(detailData.data.rating).toBeGreaterThan(0);
+    expect(detailData.data.reviewsCount).toBe(1);
+    expect(detailData.data.totalSales).toBe(12000);
+    expect(detailData.data.deliveriesCount).toBe(1);
+    expect(detailData.data).toHaveProperty('driversCount');
+    expect(detailData.data).toHaveProperty('fleetCount');
+    expect(detailData.data.location).toBe('Lagos');
   });
 });

@@ -1,47 +1,17 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
-import User from '@/models/user';
 import '@/models/farmer';
 import Review from '@/models/review';
 import Bid from '@/models/bid';
-import jwt, { JwtPayload } from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-// Shape of the JWT you issue (adjust if you use `sub` instead of `userId`)
-type JwtUserPayload = JwtPayload & {
-  userId: string;
-  email?: string;
-  role?: string;
-};
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization') ?? '';
-  if (!authHeader.startsWith('Bearer ')) return null;
-
-  const token = authHeader.slice('Bearer '.length).trim();
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string') return null;
-
-    // If you use `sub` in your tokens, uncomment the 3 lines below:
-    // const idFromSub = typeof decoded.sub === 'string' ? decoded.sub : undefined;
-    // const uid = (decoded as JwtUserPayload).userId ?? idFromSub;
-    // if (!uid) return null;
-
-    if (typeof (decoded as JwtUserPayload).userId !== 'string') return null; // guard
-    return decoded as JwtUserPayload;
-  } catch {
-    return null;
-  }
-}
+import { attachWishlistedFlag, buildCategoryFields } from '@/lib/productPayload';
+import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
 // GET /api/products/[id]
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
+  const authUser = await getAuthUser(_request);
   const productDoc = await Product.findById(id)
     .populate({
       path: 'owner',
@@ -55,7 +25,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
 
-  const ownerId = (productDoc.owner as any)?._id ?? productDoc.owner;
+  const populatedOwner = productDoc.owner as { _id?: string } | string | null;
+  const ownerId = typeof populatedOwner === 'object' && populatedOwner !== null && '_id' in populatedOwner
+    ? populatedOwner._id
+    : populatedOwner;
   const [reviewStats, recentReviews, leadingBidDoc, bidsCount] = await Promise.all([
     Review.aggregate([
       { $match: { agent: ownerId } },
@@ -98,8 +71,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       : null
   };
 
+  const [productWithWishlist] = await attachWishlistedFlag([
+    {
+      ...productDoc.toObject(),
+      reviewSummary,
+      recentReviews,
+      bidSummary
+    }
+  ], authUser ? { userId: authUser._id.toString() } : null);
+
   const product = {
-    ...productDoc.toObject(),
+    ...productWithWishlist,
     reviewSummary,
     recentReviews,
     bidSummary
@@ -112,13 +94,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   await dbConnect();
   const { id } = await params;
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.some((r: string) => ['admin', 'agent'].includes(r))) {
+  if (!ensureActiveRole(user, 'admin') && !ensureActiveRole(user, 'agent')) {
     return NextResponse.json({ error: 'Only admin or agent can update products' }, { status: 403 });
   }
 
@@ -143,7 +123,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Videos must be URL links, not base64 data' }, { status: 400 });
     }
   }
-  const product = await Product.findByIdAndUpdate(id, body, { new: true });
+  const categoryFields = buildCategoryFields(body);
+  const product = await Product.findByIdAndUpdate(id, { ...body, ...categoryFields }, { new: true });
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
@@ -161,13 +142,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   await dbConnect();
   const { id } = await params;
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.some((r: string) => ['admin', 'agent'].includes(r))) {
+  if (!ensureActiveRole(user, 'admin') && !ensureActiveRole(user, 'agent')) {
     return NextResponse.json({ error: 'Only admin or agent can delete products' }, { status: 403 });
   }
 

@@ -21,7 +21,8 @@ export async function POST(
     return NextResponse.json({ success: false, message: 'Invalid driver id' }, { status: 400 });
   }
 
-  const { truckId } = await request.json();
+  const body: any = await request.json().catch(() => ({}));
+  const truckId = body.truckId || body.fleetId || body.assignedTruck;
   if (!truckId || !mongoose.Types.ObjectId.isValid(truckId)) {
     return NextResponse.json({ success: false, message: 'Invalid truck id' }, { status: 400 });
   }
@@ -41,9 +42,20 @@ export async function POST(
   if (truck.transporter?.toString() !== user._id.toString()) {
     return NextResponse.json({ success: false, message: 'Not authorized for this truck' }, { status: 403 });
   }
+  if (truck.assignedDriver && truck.assignedDriver.toString() !== driver._id.toString()) {
+    return NextResponse.json({ success: false, message: 'Truck is already assigned to another driver' }, { status: 409 });
+  }
+
+  if (driver.assignedTruck && driver.assignedTruck.toString() !== truck._id.toString()) {
+    await Truck.updateOne(
+      { _id: driver.assignedTruck, transporter: user._id },
+      { $unset: { assignedDriver: 1 }, $set: { updatedAt: new Date() } }
+    );
+  }
 
   driver.assignedTruck = truck._id;
   truck.assignedDriver = driver._id;
+  truck.updatedAt = new Date();
   await driver.save();
   await truck.save();
 

@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
 import mongoose from 'mongoose';
+import { getAuthUser } from '@/lib/apiAuth';
+import { attachWishlistedFlag } from '@/lib/productPayload';
 
 // GET /api/products/:id/similar
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
+  const authUser = await getAuthUser(request);
 
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid product id' }, { status: 400 });
@@ -38,6 +41,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .sort({ createdAt: -1 })
     .limit(limit);
 
-  return NextResponse.json({ success: true, data: similar }, { status: 200 });
-}
+  const normalized = await attachWishlistedFlag(
+    similar.map((item) => item.toObject()),
+    authUser ? { userId: authUser._id.toString() } : null
+  );
 
+  return NextResponse.json({ success: true, data: normalized }, { status: 200 });
+}
