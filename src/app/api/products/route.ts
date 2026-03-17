@@ -1,61 +1,18 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import Product from "@/models/product";
-import User from "@/models/user";
-import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
-
-// 1) Define the shape your JWT actually has
-type JwtUserPayload = {
-  userId: string;
-  email: string;
-  iat?: number;
-  exp?: number;
-};
-
-// 2) Tiny type guard
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return (
-    typeof p === "object" &&
-    p !== null &&
-    "userId" in p &&
-    typeof (p as JwtUserPayload).userId === "string"
-  );
-}
-
-// 3) Verify + return a typed payload (or null)
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-
-  const token = authHeader.slice("Bearer ".length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === "string" || !isJwtUserPayload(decoded)) return null;
-    return decoded; // typed as JwtUserPayload
-  } catch {
-    return null;
-  }
-}
+import { attachWishlistedFlag, buildCategoryFields } from "@/lib/productPayload";
+import { getAuthUser } from "@/lib/apiAuth";
 
 export async function POST(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json(
       { error: "Authentication required" },
       { status: 401 }
-    );
-  }
-
-  const user = await User.findById(userData.userId);
-  if (!user) {
-    return NextResponse.json(
-      { error: "User not found" },
-      { status: 404 }
     );
   }
 
@@ -91,7 +48,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, description, price, quantity, unit, images, videos, categories, farmer, discount } = body;
+  const { name, description, price, quantity, unit, images, videos, categories, category, subcategory, farmer, discount } = body;
   
   if (!name || !price) {
     return NextResponse.json(
@@ -168,6 +125,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const categoryFields = buildCategoryFields({ category, subcategory, categories });
+
   try {
     const product = await Product.create({
       name,
@@ -177,7 +136,7 @@ export async function POST(request: Request) {
       unit: unit || "kg",
       images: images || [],
       videos: videos || [],
-      categories: categories || [],
+      ...categoryFields,
       farmer: farmer || null,
       owner: user._id,
       status: "available",
@@ -200,14 +159,14 @@ export async function POST(request: Request) {
 export async function GET(request?: Request) {
   await dbConnect();
   const effectiveRequest = request ?? new Request('http://localhost:3000/api/products');
-  const authUserData = getUserFromRequest(effectiveRequest);
-  const authUser = authUserData?.userId ? await User.findById(authUserData.userId).select('_id activeRole') : null;
+  const authUser = await getAuthUser(effectiveRequest);
   const { searchParams } = new URL(effectiveRequest.url);
   const pageParam = searchParams.get("page");
   const limitParam = searchParams.get("limit");
   const search = searchParams.get("search");
   const status = searchParams.get("status");
   const category = searchParams.get("category");
+  const subcategory = searchParams.get("subcategory");
   const farmer = searchParams.get("farmer");
   const owner = searchParams.get("owner");
   const minPrice = searchParams.get("minPrice");
@@ -233,8 +192,12 @@ export async function GET(request?: Request) {
   if (status) {
     query.status = status;
   }
-  if (category) {
+  if (category && subcategory) {
+    query.categories = { $all: [category, subcategory] };
+  } else if (category) {
     query.categories = category;
+  } else if (subcategory) {
+    query.categories = subcategory;
   }
   if (farmer) {
     query.farmer = farmer;
@@ -280,21 +243,10 @@ export async function GET(request?: Request) {
     Product.countDocuments(query)
   ]);
 
-  const sanitizeMedia = (items: unknown) => {
-    if (!Array.isArray(items)) return items;
-    return items.filter((item) => {
-      if (typeof item !== "string") return false;
-      const trimmed = item.trim().toLowerCase();
-      return trimmed.startsWith("http://") || trimmed.startsWith("https://");
-    });
-  };
-
-  const normalized = products.map((product: any) => {
-    const next = { ...product };
-    if ("images" in next) next.images = sanitizeMedia(next.images);
-    if ("videos" in next) next.videos = sanitizeMedia(next.videos);
-    return next;
-  });
+  const normalized = await attachWishlistedFlag(
+    products,
+    authUser ? { userId: authUser._id.toString() } : null
+  );
 
   return NextResponse.json({
     data: normalized,

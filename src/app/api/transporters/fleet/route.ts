@@ -10,7 +10,43 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
   }
 
-  const trucks = await Truck.find({ transporter: user._id }).sort({ createdAt: -1 });
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search');
+  const status = searchParams.get('status');
+  const year = searchParams.get('year');
+  const month = searchParams.get('month');
+
+  const query: Record<string, unknown> = { transporter: user._id };
+  if (search) {
+    const regex = new RegExp(search, 'i');
+    query.$or = [
+      { plateNumber: regex },
+      { fleetName: regex },
+      { fleetNumber: regex },
+      { model: regex },
+      { iot: regex }
+    ];
+  }
+  if (status) {
+    query.status = status;
+  }
+  if (year || month) {
+    const createdAt: Record<string, Date> = {};
+    const parsedYear = year ? Number(year) : undefined;
+    const parsedMonth = month ? Number(month) : undefined;
+    if (parsedYear && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12) {
+      createdAt.$gte = new Date(parsedYear, parsedMonth - 1, 1);
+      createdAt.$lt = new Date(parsedYear, parsedMonth, 1);
+    } else if (parsedYear) {
+      createdAt.$gte = new Date(parsedYear, 0, 1);
+      createdAt.$lt = new Date(parsedYear + 1, 0, 1);
+    }
+    if (Object.keys(createdAt).length > 0) {
+      query.createdAt = createdAt;
+    }
+  }
+
+  const trucks = await Truck.find(query).sort({ createdAt: -1 });
   return NextResponse.json({ success: true, data: trucks }, { status: 200 });
 }
 

@@ -9,6 +9,9 @@ export interface CreateProductOptions {
   owner?: mongoose.Types.ObjectId | string;
   images?: string[];
   videos?: string[];
+  status?: 'available' | 'out_of_stock' | 'discontinued';
+  category?: string;
+  subcategory?: string;
   categories?: string[];
 }
 
@@ -24,6 +27,9 @@ export async function createProduct(options: CreateProductOptions = {}) {
     owner,
     images = [],
     videos = [],
+    status = 'available',
+    category,
+    subcategory,
     categories = ['grain'],
   } = options;
 
@@ -39,6 +45,9 @@ export async function createProduct(options: CreateProductOptions = {}) {
     owner,
     images,
     videos,
+    status,
+    category,
+    subcategory,
     categories,
   });
 

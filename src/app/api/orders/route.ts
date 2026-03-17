@@ -1,47 +1,19 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
-import User from '@/models/user';
 import Product from '@/models/product';
 import Bid from '@/models/bid';
-import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
   await dbConnect();
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const user = await User.findById(userData.userId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
   }
 
   const { products, totalAmount, address, transportStatus, bidIds } = await request.json();
@@ -149,9 +121,12 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   await dbConnect();
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
   }
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
@@ -161,8 +136,8 @@ export async function GET(request: Request) {
   const skip = (page - 1) * limit;
 
   const [orders, total] = await Promise.all([
-    Order.find({ buyer: userData.userId }).populate('products.product').skip(skip).limit(limit),
-    Order.countDocuments({ buyer: userData.userId })
+    Order.find({ buyer: user._id }).populate('products.product').skip(skip).limit(limit),
+    Order.countDocuments({ buyer: user._id })
   ]);
 
   return NextResponse.json({

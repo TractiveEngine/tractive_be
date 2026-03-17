@@ -5,14 +5,17 @@ import ShippingRequest from '@/models/shipping';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user || !ensureActiveRole(user, 'transporter')) {
     return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid negotiation id' }, { status: 400 });
   }

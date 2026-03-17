@@ -15,14 +15,17 @@ function buyerDto(u: any) {
   };
 }
 
-export async function GET(request: Request, { params }: { params: { orderId: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ orderId: string }> | { orderId: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user || !ensureActiveRole(user, 'transporter')) {
     return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
   }
 
-  const { orderId } = params;
+  const { orderId } = await Promise.resolve(params);
   if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
     return NextResponse.json({ success: false, message: 'Invalid order id' }, { status: 400 });
   }

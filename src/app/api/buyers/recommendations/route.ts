@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { attachWishlistedFlag } from '@/lib/productPayload';
 
 // Simple recommendation: popular/available products ordered by recency
 export async function GET(request: Request) {
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Only buyers can view recommendations' }, { status: 403 });
   }
 
-  const products = await Product.find({ status: 'available' }).sort({ createdAt: -1 }).limit(12);
-  return NextResponse.json({ success: true, data: products }, { status: 200 });
+  const products = await Product.find({ status: 'available' }).sort({ createdAt: -1 }).limit(12).lean();
+  const normalized = await attachWishlistedFlag(products, { userId: user._id.toString() });
+  return NextResponse.json({ success: true, data: normalized }, { status: 200 });
 }

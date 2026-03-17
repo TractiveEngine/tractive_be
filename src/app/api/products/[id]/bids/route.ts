@@ -2,35 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
 import Bid from '@/models/bid';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
@@ -45,19 +18,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
   }
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
-  const user = await User.findById(userData.userId);
-  if (!user) {
-    return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
-  }
-
-  const isOwner = product.owner?.toString() === user._id.toString();
-  const isAdmin = user.activeRole === 'admin';
-  const isBuyer = user.activeRole === 'buyer';
+  const isOwner = ensureActiveRole(user, 'agent') && product.owner?.toString() === user._id.toString();
+  const isAdmin = ensureActiveRole(user, 'admin');
+  const isBuyer = ensureActiveRole(user, 'buyer');
   if (!isOwner && !isAdmin && !isBuyer) {
     return NextResponse.json({ success: false, message: 'Not authorized to view bids for this product' }, { status: 403 });
   }

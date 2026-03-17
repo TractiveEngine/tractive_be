@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import Product from '@/models/product';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { attachWishlistedFlag } from '@/lib/productPayload';
 
 export async function GET(request: Request) {
   await dbConnect();
@@ -35,14 +36,22 @@ export async function GET(request: Request) {
       return {
         productId: p._id?.toString(),
         name: product?.name || 'Unknown',
+        image: product?.images?.[0] || null,
         ordersCount: p.ordersCount,
         totalQuantity: p.totalQuantity,
         totalAmount: p.totalAmount,
         price: product?.price,
-        unit: product?.unit
+        unit: product?.unit,
+        images: Array.isArray(product?.images) ? product.images : [],
+        category: product?.category || product?.categories?.[0] || null,
+        subcategory: product?.subcategory || product?.categories?.[1] || null,
+        categories: Array.isArray(product?.categories) ? product.categories : [],
+        _id: product?._id
       };
     })
   );
 
-  return NextResponse.json({ success: true, data }, { status: 200 });
+  const normalized = await attachWishlistedFlag(data, { userId: user._id.toString() });
+
+  return NextResponse.json({ success: true, data: normalized }, { status: 200 });
 }

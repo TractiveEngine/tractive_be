@@ -3,10 +3,13 @@ import dbConnect from '@/lib/dbConnect';
 import Product from '@/models/product';
 import User from '@/models/user';
 import mongoose from 'mongoose';
+import { getAuthUser } from '@/lib/apiAuth';
+import { attachWishlistedFlag } from '@/lib/productPayload';
 
 // GET /api/sellers/:id/products - products owned by seller
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
+  const authUser = await getAuthUser(request);
 
   const { id } = await params;
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
@@ -24,6 +27,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const skip = (page - 1) * limit;
   const status = searchParams.get('status');
   const search = searchParams.get('search');
+  const category = searchParams.get('category');
+  const subcategory = searchParams.get('subcategory');
 
   // Critical scope: seller catalog is products owned by this seller only.
   const query: Record<string, unknown> = { owner: id };
@@ -32,19 +37,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const regex = new RegExp(search, 'i');
     query.$or = [{ name: regex }, { description: regex }];
   }
+  if (category && subcategory) {
+    query.categories = { $all: [category, subcategory] };
+  } else if (category) {
+    query.categories = category;
+  } else if (subcategory) {
+    query.categories = subcategory;
+  }
 
   const [products, total] = await Promise.all([
     Product.find(query)
-      .select('_id name description price quantity unit images status createdAt discount categories')
+      .select('_id name description price quantity unit images status createdAt discount categories category subcategory')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
     Product.countDocuments(query)
   ]);
 
+  const normalized = await attachWishlistedFlag(products.map((product) => product.toObject()), authUser ? { userId: authUser._id.toString() } : null);
+
   return NextResponse.json({
     success: true,
-    data: products,
+    data: normalized,
     pagination: { total, page, limit }
   }, { status: 200 });
 }
