@@ -42,7 +42,7 @@
 /api/bids/{id} : GET, PATCH
 /api/buyers/biddings : GET
 /api/buyers/biddings/won : GET
-/api/buyers/biddings/won/checkout : GET
+/api/buyers/biddings/won/checkout : GET, POST
 /api/buyers/categories/{categoryId}/{subcategoryId}/farmers : GET
 /api/buyers/sellers/{sellerId}/follow : DELETE, POST
 /api/buyers/products/{productId}/bid : POST
@@ -106,11 +106,21 @@
 /api/transporters/dashboard/top-customers : GET
 /api/transporters/dashboard/top-fleet : GET
 /api/transporters/dashboard/trucks-on-transit : GET
+/api/transporters/driver : GET, POST
+/api/transporters/driver/{id} : DELETE, PATCH
+/api/transporters/driver/{id}/assign-fleet : POST
 /api/transporters/drivers : GET, POST
 /api/transporters/drivers/{id} : DELETE, PATCH
 /api/transporters/drivers/{id}/assign-fleet : POST
 /api/transporters/fleet : GET, POST
-/api/transporters/fleet/{id} : DELETE, PATCH
+/api/transporters/fleet/{id} : DELETE, GET, PATCH
+/api/transporters/fleet/{id}/bids : GET, POST
+/api/transporters/fleet/{id}/bids/{bidId}/buyer-respond : POST
+/api/transporters/fleet/{id}/bids/{bidId}/respond : POST
+/api/transporters/fleets/{id} : DELETE, GET, PATCH
+/api/transporters/fleets/{id}/bids : GET, POST
+/api/transporters/fleets/{id}/bids/{bidId}/buyer-respond : POST
+/api/transporters/fleets/{id}/bids/{bidId}/respond : POST
 /api/transporters/fleet/{id}/status : PATCH
 /api/transporters/negotiations : GET
 /api/transporters/negotiations/{id}/respond : POST

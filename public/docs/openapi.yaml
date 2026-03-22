@@ -33,6 +33,8 @@ components:
     Product:
       type: object
       properties:
+        _id:
+          type: string
         name:
           type: string
         description:
@@ -53,6 +55,91 @@ components:
           items:
             type: string
           description: Video URLs (Cloudinary/S3). No base64 data.
+        category:
+          type: string
+          nullable: true
+        subcategory:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            type: string
+          description: Normalized category list including category and subcategory.
+        wishlisted:
+          type: boolean
+          description: True when the authenticated buyer has wishlisted the product.
+    CategoryNode:
+      type: object
+      properties:
+        name:
+          type: string
+        subcategories:
+          type: array
+          items:
+            type: string
+    Truck:
+      type: object
+      properties:
+        _id:
+          type: string
+        plateNumber:
+          type: string
+        fleetName:
+          type: string
+        fleetNumber:
+          type: string
+        iot:
+          type: string
+          nullable: true
+        model:
+          type: string
+        size:
+          type: string
+        capacity:
+          type: string
+        price:
+          type: number
+        priceNegotiation:
+          type: boolean
+        fleetDescription:
+          type: string
+        fleetStates:
+          type: string
+        status:
+          type: string
+          enum: [available, on_transit, under_maintenance]
+        images:
+          type: array
+          items:
+            type: string
+        route:
+          type: object
+          properties:
+            fromState:
+              type: string
+              nullable: true
+            toState:
+              type: string
+              nullable: true
+    Driver:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        licenseNumber:
+          type: string
+        trackingNumber:
+          type: string
+          nullable: true
+        assignedTruck:
+          oneOf:
+            - type: string
+            - $ref: '#/components/schemas/Truck'
     Farmer:
       type: object
       properties:
@@ -122,6 +209,24 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/categories:
+    get:
+      summary: List supported product categories and subcategories
+      security: []
+      responses:
+        '200':
+          description: Category tree for buyer and seller filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CategoryNode'
   /api/auth/register:
     post:
       summary: Register a user
@@ -206,9 +311,10 @@ paths:
   /api/auth/refresh:
     post:
       summary: Refresh access token using refresh token
+      description: Accepts `refreshToken` in the JSON body or the `refreshToken` httpOnly cookie. No bearer token is required.
       security: []
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -216,7 +322,7 @@ paths:
               properties:
                 refreshToken:
                   type: string
-            description: Body refreshToken is optional if httpOnly cookie is used
+            description: Optional when the browser already sends the `refreshToken` cookie.
             example:
               refreshToken: "eyJhbGciOi..."
       responses:
@@ -287,6 +393,33 @@ paths:
       responses:
         '200':
           description: Transporters list for the order
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                      orderStatus:
+                        type: string
+                      paymentPendingApproval:
+                        type: boolean
+                      transportStatus:
+                        type: string
+                      assignedTransporter:
+                        type: string
+                        nullable: true
+                      transporters:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/User'
         '400':
           description: Payment has not been initiated yet
         '403':
@@ -417,9 +550,61 @@ paths:
   /api/transporters/fleet:
     get:
       summary: List transporter fleet
+      description: Requires activeRole `transporter`. Use `search`, `status`, `year`, and `month` to filter the authenticated transporter's fleet list.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by plate number, fleet name, fleet number, model, or IoT id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Fleet list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Truck'
+              example:
+                success: true
+                data:
+                  - _id: "67de1234abcd5678ef901234"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
+                    fleetNumber: "ABC-123"
+                    iot: "IOT-TRK-001"
+                    model: "Volvo"
+                    size: "20 tons"
+                    capacity: "20 tons"
+                    price: 250000
+                    priceNegotiation: true
+                    fleetDescription: "Primary interstate fleet"
+                    fleetStates: "Active"
+                    status: "available"
+                    images:
+                      - "https://example.com/truck1.jpg"
+                    route:
+                      fromState: "Kaduna"
+                      toState: "Lagos"
     post:
       summary: Create fleet truck
       requestBody:
@@ -470,6 +655,24 @@ paths:
     get:
       summary: Alias of /api/transporters/fleet (list transporter fleet)
       description: Backward-compatible alias route.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Fleet list
@@ -482,10 +685,75 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                plateNumber: { type: string }
+                fleetName: { type: string }
+                name: { type: string }
+                fleetNumber: { type: string }
+                iot: { type: string }
+                Iot: { type: string }
+                tracker: { type: string }
+                model: { type: string }
+                size: { type: string }
+                capacity: { type: string }
+                price: { type: number }
+                priceNegotiation: { type: boolean }
+                images:
+                  type: array
+                  items: { type: string }
+                fleetDescription: { type: string }
+                fleetStates: { type: string }
+                route:
+                  type: object
+                  properties:
+                    fromState: { type: string }
+                    toState: { type: string }
       responses:
         '201':
           description: Truck created
   /api/transporters/fleet/{id}:
+    get:
+      summary: Get single truck
+      description: Requires activeRole `transporter`. Returns one fleet/truck owned by the authenticated transporter.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Truck details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Truck'
+              example:
+                success: true
+                data:
+                  _id: "67de1234abcd5678ef901234"
+                  plateNumber: "ABC-123"
+                  fleetName: "North Route Fleet"
+                  fleetNumber: "ABC-123"
+                  iot: "IOT-TRK-001"
+                  model: "Volvo"
+                  size: "20 tons"
+                  capacity: "20 tons"
+                  price: 250000
+                  priceNegotiation: true
+                  fleetDescription: "Primary interstate fleet"
+                  fleetStates: "Active"
+                  status: "available"
+                  images:
+                    - "https://example.com/truck1.jpg"
+                  route:
+                    fromState: "Kaduna"
+                    toState: "Lagos"
     patch:
       summary: Update truck
       parameters:
@@ -500,6 +768,28 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                plateNumber: { type: string }
+                fleetName: { type: string }
+                name: { type: string }
+                fleetNumber: { type: string }
+                iot: { type: string }
+                Iot: { type: string }
+                model: { type: string }
+                size: { type: string }
+                capacity: { type: string }
+                price: { type: number }
+                priceNegotiation: { type: boolean }
+                images:
+                  type: array
+                  items: { type: string }
+                fleetDescription: { type: string }
+                fleetStates: { type: string }
+                route:
+                  type: object
+                  properties:
+                    fromState: { type: string }
+                    toState: { type: string }
             example:
               model: "MAN"
               capacity: "18 tons"
@@ -517,7 +807,98 @@ paths:
       responses:
         '200':
           description: Deleted
+  /api/transporters/fleet/{id}/bids:
+    get:
+      summary: List fleet price bids
+      description: Buyers see only their own bids for the fleet. The owning transporter sees all bids for that fleet.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet bids list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetbid1234567890abc"
+                    amount: 180000
+                    counterAmount: null
+                    message: "Can you do 180k for this route?"
+                    responseMessage: null
+                    status: "pending"
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
+                    fleet:
+                      _id: "67de1234abcd5678ef901234"
+                      plateNumber: "ABC-123"
+                      fleetName: "North Route Fleet"
+                      fleetNumber: "ABC-123"
+                      model: "Volvo"
+                      price: 250000
+    post:
+      summary: Create fleet price bid
+      description: Requires activeRole `buyer`. Creates a price bid against a fleet/truck on the transporter page.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                proposedPrice:
+                  type: number
+                message:
+                  type: string
+            example:
+              amount: 180000
+              message: "Can you do 180k for this route?"
+      responses:
+        '201':
+          description: Fleet bid created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67defleetbid1234567890abc"
+                  amount: 180000
+                  status: "pending"
+                  message: "Can you do 180k for this route?"
+                  buyer:
+                    _id: "67debuyer1234567890abc1"
+                    name: "Buyer One"
+                  fleet:
+                    _id: "67de1234abcd5678ef901234"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
   /api/transporters/fleets/{id}:
+    get:
+      summary: Alias of /api/transporters/fleet/{id} (get single truck)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Truck details
     patch:
       summary: Alias of /api/transporters/fleet/{id} (update truck)
       description: Backward-compatible alias route.
@@ -533,6 +914,28 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                plateNumber: { type: string }
+                fleetName: { type: string }
+                name: { type: string }
+                fleetNumber: { type: string }
+                iot: { type: string }
+                Iot: { type: string }
+                model: { type: string }
+                size: { type: string }
+                capacity: { type: string }
+                price: { type: number }
+                priceNegotiation: { type: boolean }
+                images:
+                  type: array
+                  items: { type: string }
+                fleetDescription: { type: string }
+                fleetStates: { type: string }
+                route:
+                  type: object
+                  properties:
+                    fromState: { type: string }
+                    toState: { type: string }
       responses:
         '200':
           description: Updated truck
@@ -548,6 +951,176 @@ paths:
       responses:
         '200':
           description: Deleted
+  /api/transporters/fleets/{id}/bids:
+    get:
+      summary: Alias of /api/transporters/fleet/{id}/bids (list fleet price bids)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet bids list
+    post:
+      summary: Alias of /api/transporters/fleet/{id}/bids (create fleet price bid)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Fleet bid created
+  /api/transporters/fleet/{id}/bids/{bidId}/respond:
+    post:
+      summary: Respond to fleet price bid
+      description: Requires activeRole `transporter` and ownership of the fleet. Supports `accept`, `reject`, or `counter`.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: bidId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [accept, reject, counter]
+                counterAmount:
+                  type: number
+                amount:
+                  type: number
+                message:
+                  type: string
+            example:
+              action: "counter"
+              counterAmount: 210000
+              message: "Best I can do is 210k"
+      responses:
+        '200':
+          description: Fleet bid updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67defleetbid1234567890abc"
+                  amount: 180000
+                  counterAmount: 210000
+                  status: "countered"
+                  responseMessage: "Best I can do is 210k"
+  /api/transporters/fleet/{id}/bids/{bidId}/buyer-respond:
+    post:
+      summary: Buyer responds to countered fleet price bid
+      description: Requires activeRole `buyer`. Used after a transporter sends a counter offer. Supports `accept` or `reject` only.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: bidId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [accept, reject]
+                message:
+                  type: string
+            example:
+              action: "accept"
+              message: "Accepted your counter offer"
+      responses:
+        '200':
+          description: Fleet bid updated by buyer
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67defleetbid1234567890abc"
+                  amount: 180000
+                  counterAmount: 210000
+                  status: "accepted"
+                  responseMessage: "Accepted your counter offer"
+  /api/transporters/fleets/{id}/bids/{bidId}/respond:
+    post:
+      summary: Alias of /api/transporters/fleet/{id}/bids/{bidId}/respond (respond to fleet price bid)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: bidId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Fleet bid updated
+  /api/transporters/fleets/{id}/bids/{bidId}/buyer-respond:
+    post:
+      summary: Alias of /api/transporters/fleet/{id}/bids/{bidId}/buyer-respond (buyer responds to countered fleet price bid)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: bidId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Fleet bid updated by buyer
   /api/transporters/fleet/{id}/status:
     patch:
       summary: Update truck status
@@ -598,9 +1171,52 @@ paths:
   /api/transporters/drivers:
     get:
       summary: List drivers
+      description: Requires activeRole `transporter`. Returns driver records with populated `assignedTruck` details when assigned.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name, phone, license number, or tracking number.
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Driver list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Driver'
+              example:
+                success: true
+                data:
+                  - _id: "67de5678abcd1234ef901999"
+                    name: "Driver John"
+                    phone: "+2348000000000"
+                    licenseNumber: "LIC123"
+                    trackingNumber: "TRK-001"
+                    assignedTruck:
+                      _id: "67de1234abcd5678ef901234"
+                      plateNumber: "ABC-123"
+                      fleetName: "North Route Fleet"
+                      fleetNumber: "ABC-123"
+                      model: "Volvo"
+                      size: "20 tons"
+                      capacity: "20 tons"
+                      status: "available"
     post:
       summary: Create driver
       requestBody:
@@ -615,10 +1231,73 @@ paths:
                 phone: { type: string }
                 phoneNumber: { type: string }
                 licenseNumber: { type: string }
+                trackingNumber: { type: string }
+                assignedTruck: { type: string }
+                truckId: { type: string }
+                fleetId: { type: string }
             example:
               fullName: "Driver John"
               phoneNumber: "+2348000000000"
               licenseNumber: "LIC123"
+              trackingNumber: "TRK-001"
+              fleetId: "FLEET_ID"
+      responses:
+        '201':
+          description: Driver created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67de5678abcd1234ef901999"
+                  name: "Driver John"
+                  phone: "+2348000000000"
+                  licenseNumber: "LIC123"
+                  trackingNumber: "TRK-001"
+                  assignedTruck:
+                    _id: "67de1234abcd5678ef901234"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
+  /api/transporters/driver:
+    get:
+      summary: Alias of /api/transporters/drivers (list drivers)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name, phone, license number, or tracking number.
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Driver list
+    post:
+      summary: Alias of /api/transporters/drivers (create driver)
+      description: Backward-compatible alias route.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                fullName: { type: string }
+                phone: { type: string }
+                phoneNumber: { type: string }
+                licenseNumber: { type: string }
+                trackingNumber: { type: string }
+                assignedTruck: { type: string }
+                truckId: { type: string }
+                fleetId: { type: string }
       responses:
         '201':
           description: Driver created
@@ -637,13 +1316,81 @@ paths:
           application/json:
             schema:
               type: object
+              properties:
+                name: { type: string }
+                fullName: { type: string }
+                phone: { type: string }
+                phoneNumber: { type: string }
+                licenseNumber: { type: string }
+                trackingNumber: { type: string }
+                assignedTruck:
+                  type: string
+                  nullable: true
+                truckId:
+                  type: string
+                  nullable: true
+                fleetId:
+                  type: string
+                  nullable: true
+                iot: { type: string }
+                Iot: { type: string }
             example:
+              name: "Driver John Doe"
               phone: "080123456"
+              licenseNumber: "LIC456"
+              trackingNumber: "TRK-445"
+              fleetId: "FLEET_ID"
+              iot: "IOT-TRK-001"
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67de5678abcd1234ef901999"
+                  name: "Driver John Doe"
+                  phone: "080123456"
+                  licenseNumber: "LIC456"
+                  trackingNumber: "TRK-445"
+                  assignedTruck:
+                    _id: "67de1234abcd5678ef901234"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
+    delete:
+      summary: Delete driver
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/transporters/driver/{id}:
+    patch:
+      summary: Alias of /api/transporters/drivers/{id} (update driver)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
           description: Updated
     delete:
-      summary: Delete driver
+      summary: Alias of /api/transporters/drivers/{id} (delete driver)
+      description: Backward-compatible alias route.
       parameters:
         - in: path
           name: id
@@ -670,8 +1417,33 @@ paths:
               type: object
               properties:
                 truckId: { type: string }
+                fleetId: { type: string }
+                assignedTruck: { type: string }
             example:
               truckId: "FLEET_ID"
+      responses:
+        '200':
+          description: Assigned
+  /api/transporters/driver/{id}/assign-fleet:
+    post:
+      summary: Alias of /api/transporters/drivers/{id}/assign-fleet (assign driver to truck)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                truckId: { type: string }
+                fleetId: { type: string }
+                assignedTruck: { type: string }
       responses:
         '200':
           description: Assigned
@@ -918,6 +1690,10 @@ paths:
           schema:
             type: string
         - in: query
+          name: subcategory
+          schema:
+            type: string
+        - in: query
           name: farmer
           schema:
             type: string
@@ -965,6 +1741,28 @@ paths:
       responses:
         '200':
           description: Paginated list of products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
     post:
       summary: Create product
       security:
@@ -981,7 +1779,9 @@ paths:
               price: 5000
               quantity: 100
               unit: "kg"
-              categories: ["Grains"]
+              category: "Grains"
+              subcategory: "Maize"
+              categories: ["Grains", "Maize"]
               images: ["https://example.com/maize1.jpg"]
               farmer: "507f1f77bcf86cd799439012"
       responses:
@@ -990,7 +1790,7 @@ paths:
   /api/products/{id}:
     get:
       summary: Get product by ID
-      description: Returns product with populated owner (agent), farmer, reviewSummary/recentReviews, and bidSummary (leading bid).
+      description: Returns product with populated owner (agent), farmer, reviewSummary, recentReviews, bidSummary, category fields, and `wishlisted` for authenticated buyers.
       parameters:
         - name: id
           in: path
@@ -1000,6 +1800,35 @@ paths:
       responses:
         '200':
           description: Product details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    allOf:
+                      - $ref: '#/components/schemas/Product'
+                      - type: object
+                        properties:
+                          reviewSummary:
+                            type: object
+                            properties:
+                              count:
+                                type: integer
+                              averageRating:
+                                type: number
+                          recentReviews:
+                            type: array
+                            items:
+                              type: object
+                          bidSummary:
+                            type: object
+                            properties:
+                              count:
+                                type: integer
+                              leadingBid:
+                                type: object
+                                nullable: true
     patch:
       summary: Update product
       security:
@@ -1077,7 +1906,7 @@ paths:
   /api/products/{id}/similar:
     get:
       summary: List similar products
-      description: Returns available products similar to the current product, primarily by category.
+      description: Returns available products similar to the current product, primarily by category, with normalized category fields and `wishlisted` for authenticated buyers.
       parameters:
         - in: path
           name: id
@@ -1091,6 +1920,17 @@ paths:
       responses:
         '200':
           description: Similar products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
   /api/farmers:
     get:
       summary: List farmers created by you
@@ -1534,9 +2374,141 @@ paths:
   /api/transporters:
     get:
       summary: List transporters
+      description: Buyer/admin transporter discovery endpoint for the transporter listing page. Returns transporter profile plus summary metrics like rating, reviewsCount, totalSales, deliveriesCount, location, and years of experience. Supports buyer-side filtering by transporter rating, Nigerian state/location, years of experience, and fleet availability/size.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by transporter name, business name, or email.
+        - in: query
+          name: state
+          schema:
+            type: string
+          description: Filter by Nigerian state, for example `Lagos`, `Kaduna`, `Kano`, or `Abuja`.
+        - in: query
+          name: location
+          schema:
+            type: string
+          description: Alias of `state` for buyer-side location filtering, for example `Lagos`.
+        - in: query
+          name: rating
+          schema:
+            type: number
+          description: Minimum transporter rating. Use values like `5`, `4`, or `3` to only return transporters at or above that rating.
+        - in: query
+          name: yearsOfExperience
+          schema:
+            type: integer
+          description: Minimum years of experience derived from transporter account age, for example `1`, `3`, or `5`.
+        - in: query
+          name: availability
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+          description: Returns transporters that have at least one fleet matching this availability. Valid values are `available`, `on_transit`, and `under_maintenance`.
+        - in: query
+          name: size
+          schema:
+            type: string
+          description: Returns transporters that have at least one fleet matching this size or capacity query, for example `20 tons`, `30 tons`, `lorry`, or `truck`.
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Transporter list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/User'
+                        - type: object
+                          properties:
+                            businessName:
+                              type: string
+                            phone:
+                              type: string
+                            image:
+                              type: string
+                            bio:
+                              type: string
+                            address:
+                              type: string
+                            country:
+                              type: string
+                            state:
+                              type: string
+                            location:
+                              type: string
+                              nullable: true
+                            rating:
+                              type: number
+                            reviewsCount:
+                              type: integer
+                            totalSales:
+                              type: number
+                            deliveriesCount:
+                              type: integer
+                            yearsOfExperience:
+                              type: integer
+                            matchingFleetCount:
+                              type: integer
+              example:
+                success: true
+                data:
+                  - _id: "67detrans1234567890abc001"
+                    name: "North Haul Logistics"
+                    email: "transporter@example.com"
+                    phone: "+2348001112222"
+                    businessName: "North Haul Logistics Ltd"
+                    image: "https://example.com/transporter.jpg"
+                    bio: "Interstate produce logistics"
+                    address: "12 Transit Yard"
+                    country: "Nigeria"
+                    state: "Kaduna"
+                    location: "Kaduna"
+                    rating: 4.5
+                    reviewsCount: 12
+                    totalSales: 1250000
+                    deliveriesCount: 38
+                    yearsOfExperience: 3
+                    matchingFleetCount: 1
+              examples:
+                buyerFilterExample:
+                  summary: Example transporter listing filtered for buyer page
+                  value:
+                    success: true
+                    data:
+                      - _id: "67detrans1234567890abc001"
+                        name: "North Haul Logistics"
+                        email: "transporter@example.com"
+                        phone: "+2348001112222"
+                        businessName: "North Haul Logistics Ltd"
+                        image: "https://example.com/transporter.jpg"
+                        bio: "Interstate produce logistics"
+                        address: "12 Transit Yard"
+                        country: "Nigeria"
+                        state: "Kaduna"
+                        location: "Kaduna"
+                        rating: 4.5
+                        reviewsCount: 12
+                        totalSales: 1250000
+                        deliveriesCount: 38
+                        yearsOfExperience: 3
+                        matchingFleetCount: 2
     post:
       summary: Create/update transporter profile
       requestBody:
@@ -1566,15 +2538,205 @@ paths:
   /api/transporters/{id}:
     get:
       summary: Get transporter by id
+      description: Returns transporter profile plus rating, reviewsCount, totalSales, deliveriesCount, driversCount, fleetCount, location, and embedded driver/fleet lists for the transporter detail page. The fleet list supports buyer-side filters similar to the seller products page, including route, availability, and tonnes-based size filtering.
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Filters fleet by plate number, fleet name, fleet number, model, or IoT id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+          description: Filters fleet by current fleet status. Valid values are `available`, `on_transit`, and `under_maintenance`.
+        - in: query
+          name: availability
+          schema:
+            type: string
+            enum: [available, on_transit, under_maintenance]
+          description: Alias of `status` for buyer-side fleet availability filtering.
+        - in: query
+          name: fromState
+          schema:
+            type: string
+          description: Filters fleet by route origin Nigerian state, for example `Kaduna`.
+        - in: query
+          name: toState
+          schema:
+            type: string
+          description: Filters fleet by route destination Nigerian state, for example `Lagos`.
+        - in: query
+          name: size
+          schema:
+            type: string
+          description: Filters fleet by size, capacity, model, or fleet name, for example `20 tons`, `30 tons`, `lorry`, or `truck`.
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: Filters fleet by creation year.
+        - in: query
+          name: month
+          schema:
+            type: integer
+          description: Filters fleet by creation month.
       responses:
         '200':
           description: Transporter details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      _id:
+                        type: string
+                      name:
+                        type: string
+                      email:
+                        type: string
+                      phone:
+                        type: string
+                      businessName:
+                        type: string
+                      image:
+                        type: string
+                      bio:
+                        type: string
+                      address:
+                        type: string
+                      country:
+                        type: string
+                      state:
+                        type: string
+                      location:
+                        type: string
+                        nullable: true
+                      rating:
+                        type: number
+                      reviewsCount:
+                        type: integer
+                      totalSales:
+                        type: number
+                      deliveriesCount:
+                        type: integer
+                      driversCount:
+                        type: integer
+                      fleetCount:
+                        type: integer
+                      filteredFleetCount:
+                        type: integer
+                      drivers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Driver'
+                      fleet:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Truck'
+                      fleetFilters:
+                        type: object
+                        properties:
+                          search:
+                            type: string
+                            nullable: true
+                          status:
+                            type: string
+                            nullable: true
+                          availability:
+                            type: string
+                            nullable: true
+                          fromState:
+                            type: string
+                            nullable: true
+                          toState:
+                            type: string
+                            nullable: true
+                          size:
+                            type: string
+                            nullable: true
+                          year:
+                            type: integer
+                            nullable: true
+                          month:
+                            type: integer
+                            nullable: true
+              example:
+                success: true
+                data:
+                  _id: "67detrans1234567890abc001"
+                  name: "North Haul Logistics"
+                  email: "transporter@example.com"
+                  phone: "+2348001112222"
+                  businessName: "North Haul Logistics Ltd"
+                  image: "https://example.com/transporter.jpg"
+                  bio: "Interstate produce logistics"
+                  address: "12 Transit Yard"
+                  country: "Nigeria"
+                  state: "Kaduna"
+                  location: "Kaduna"
+                  rating: 4.5
+                  reviewsCount: 12
+                  totalSales: 1250000
+                  deliveriesCount: 38
+                  driversCount: 2
+                  fleetCount: 2
+                  filteredFleetCount: 1
+                  drivers:
+                    - _id: "67de5678abcd1234ef901999"
+                      name: "Driver John"
+                      phone: "+2348000000000"
+                      licenseNumber: "LIC123"
+                      trackingNumber: "TRK-001"
+                      assignedTruck:
+                        _id: "67de1234abcd5678ef901234"
+                        plateNumber: "ABC-123"
+                        fleetName: "North Route Fleet"
+                        fleetNumber: "ABC-123"
+                        model: "Volvo"
+                        size: "20 tons"
+                        capacity: "20 tons"
+                        price: 250000
+                        status: "available"
+                  fleet:
+                    - _id: "67de1234abcd5678ef901234"
+                      plateNumber: "ABC-123"
+                      fleetName: "North Route Fleet"
+                      fleetNumber: "ABC-123"
+                      iot: "IOT-TRK-001"
+                      model: "Volvo"
+                      size: "20 tons"
+                      capacity: "20 tons"
+                      price: 250000
+                      priceNegotiation: true
+                      fleetDescription: "Primary interstate fleet"
+                      fleetStates: "Active"
+                      status: "available"
+                      assignedDriver:
+                        _id: "67de5678abcd1234ef901999"
+                        name: "Driver John"
+                        phone: "+2348000000000"
+                        licenseNumber: "LIC123"
+                  fleetFilters:
+                    search: null
+                    status: "available"
+                    availability: "available"
+                    fromState: "Kaduna"
+                    toState: "Lagos"
+                    size: "20 tons"
+                    year: 2026
+                    month: 3
   /api/transporters/{id}/reviews:
     get:
       summary: Get reviews for transporter
@@ -1700,9 +2862,35 @@ paths:
   /api/buyers/top-selling:
     get:
       summary: Buyer top selling products
+      description: Returns top-selling products with image/media, normalized category fields, and `wishlisted` for authenticated buyers.
       responses:
         '200':
           description: Top products list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Product'
+                        - type: object
+                          properties:
+                            productId:
+                              type: string
+                            image:
+                              type: string
+                              nullable: true
+                            ordersCount:
+                              type: integer
+                            totalQuantity:
+                              type: number
+                            totalAmount:
+                              type: number
   /api/buyers/recommendations:
     get:
       summary: Buyer recommendations
@@ -1729,6 +2917,7 @@ paths:
   /api/buyers/wishlist:
     get:
       summary: Buyer wishlist
+      description: Returns wishlist items with nested normalized product payloads. Nested `product.wishlisted` is always true for the owning buyer.
       responses:
         '200':
           description: Wishlist items
@@ -1770,14 +2959,44 @@ paths:
   /api/buyers/biddings/won/checkout:
     get:
       summary: Buyer checkout summary for won bids
+      description: Requires activeRole `buyer`. Returns accepted bids and total amount for checkout.
       responses:
         '200':
           description: Checkout summary
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  bids:
+                    - _id: "67debid1234567890abcdef"
+                      amount: 4500
+                      status: "accepted"
+                      product:
+                        _id: "67deprod1234567890abcd1"
+                        name: "Maize"
+                        price: 5000
+                      agent:
+                        _id: "67deagent1234567890abc1"
+                        name: "Seller One"
+                        email: "seller@example.com"
+                  totalAmount: 4500
     post:
       summary: Buyer checkout summary for won bids (alias)
+      description: Frontend compatibility alias for `GET`. Do not send a request body.
       responses:
         '200':
           description: Checkout summary
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  bids:
+                    - _id: "67debid1234567890abcdef"
+                      amount: 4500
+                      status: "accepted"
+                  totalAmount: 4500
   /api/buyers/products/{productId}/bid:
     post:
       summary: Place bid on product
@@ -1856,31 +3075,7 @@ paths:
   /api/sellers/{id}:
     get:
       summary: Seller details
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Seller detail
-  /api/sellers/{id}/reviews:
-    get:
-      summary: Seller reviews and ratings summary
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Seller review summary
-  /api/sellers/{id}/products:
-    get:
-      summary: Seller products
-      description: Returns products owned by this seller only.
+      description: Returns seller profile plus embedded products and recommendations. Supports product filtering via `search`, `status`, `category`, `subcategory`, `page`, and `limit`.
       parameters:
         - in: path
           name: id
@@ -1904,9 +3099,184 @@ paths:
           name: search
           schema:
             type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: subcategory
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      sellerId:
+                        type: string
+                      name:
+                        type: string
+                      followersCount:
+                        type: integer
+                      yearsOfExperience:
+                        type: integer
+                      rating:
+                        type: number
+                      totalReviews:
+                        type: integer
+                      amountOfSales:
+                        type: number
+                      products:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                      recommendations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Product'
+                      productFilters:
+                        type: object
+                        properties:
+                          category:
+                            type: string
+                            nullable: true
+                          subcategory:
+                            type: string
+                            nullable: true
+                          search:
+                            type: string
+                            nullable: true
+                          status:
+                            type: string
+                            nullable: true
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+  /api/sellers/{id}/reviews:
+    get:
+      summary: Seller reviews and ratings summary
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller review summary
+  /api/sellers/{id}/products:
+    get:
+      summary: Seller products
+      description: Returns products owned by this seller only, with optional pagination, status, search, `category`, and `subcategory` filters plus `wishlisted` for authenticated buyers.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [available, out_of_stock, discontinued]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+          description: Filters products where `categories` contains this category value, e.g. `Grains`.
+        - in: query
+          name: subcategory
+          schema:
+            type: string
+          description: Filters products where `categories` contains this subcategory value, e.g. `Rice`.
       responses:
         '200':
           description: Seller products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+              example:
+                success: true
+                data:
+                  - _id: "67deprod1234567890abcd1"
+                    name: "Maize"
+                    description: "Fresh yellow maize"
+                    price: 5000
+                    quantity: 100
+                    unit: "kg"
+                    discount: 0
+                    status: "available"
+                    images:
+                      - "https://example.com/maize1.jpg"
+                    category: "Grains"
+                    subcategory: "Maize"
+                    categories:
+                      - "Grains"
+                      - "Maize"
+                    wishlisted: false
+                  - _id: "67deprod1234567890abcd2"
+                    name: "Rice"
+                    description: "Long grain rice"
+                    price: 7000
+                    quantity: 50
+                    unit: "bag"
+                    discount: 5
+                    status: "available"
+                    images:
+                      - "https://example.com/rice1.jpg"
+                    category: "Grains"
+                    subcategory: "Rice"
+                    categories:
+                      - "Grains"
+                      - "Rice"
+                    wishlisted: true
+                pagination:
+                  total: 2
+                  page: 1
+                  limit: 20
   /api/sellers/{id}/recommendations:
     get:
       summary: Seller recommendations
@@ -1922,6 +3292,7 @@ paths:
   /api/sellers/products/{id}:
     get:
       summary: Seller product detail
+      description: Returns a normalized seller product payload with `wishlisted` for authenticated buyers.
       parameters:
         - in: path
           name: id
@@ -1931,6 +3302,15 @@ paths:
       responses:
         '200':
           description: Product detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Product'
   /api/transporters/dashboard/revenue:
     get:
       summary: Transporter revenue

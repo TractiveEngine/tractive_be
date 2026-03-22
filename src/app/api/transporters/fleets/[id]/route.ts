@@ -1,2 +1,1 @@
-export { PATCH, DELETE } from '../../fleet/[id]/route';
-
+export { GET, PATCH, DELETE } from '../../fleet/[id]/route';

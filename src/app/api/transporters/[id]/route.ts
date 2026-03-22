@@ -29,7 +29,61 @@ export async function GET(
     return NextResponse.json({ success: false, message: 'Transporter not found' }, { status: 404 });
   }
 
-  const [reviewAgg, deliveryAgg, driversCount, fleetCount] = await Promise.all([
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search');
+  const status = searchParams.get('status');
+  const availability = searchParams.get('availability');
+  const fromState = searchParams.get('fromState');
+  const toState = searchParams.get('toState');
+  const year = searchParams.get('year');
+  const month = searchParams.get('month');
+  const size = searchParams.get('size');
+
+  const fleetQuery: Record<string, unknown> = { transporter: transporter._id };
+  if (search) {
+    const regex = new RegExp(search, 'i');
+    fleetQuery.$or = [
+      { plateNumber: regex },
+      { fleetName: regex },
+      { fleetNumber: regex },
+      { model: regex },
+      { iot: regex }
+    ];
+  }
+  const effectiveStatus = availability || status;
+  if (effectiveStatus) {
+    fleetQuery.status = effectiveStatus;
+  }
+  if (fromState) {
+    fleetQuery['route.fromState'] = fromState;
+  }
+  if (toState) {
+    fleetQuery['route.toState'] = toState;
+  }
+  if (size) {
+    const sizeRegex = new RegExp(size, 'i');
+    fleetQuery.$and = [
+      ...(Array.isArray(fleetQuery.$and) ? fleetQuery.$and : []),
+      { $or: [{ size: sizeRegex }, { capacity: sizeRegex }, { model: sizeRegex }, { fleetName: sizeRegex }] }
+    ];
+  }
+  if (year || month) {
+    const createdAt: Record<string, Date> = {};
+    const parsedYear = year ? Number(year) : undefined;
+    const parsedMonth = month ? Number(month) : undefined;
+    if (parsedYear && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12) {
+      createdAt.$gte = new Date(parsedYear, parsedMonth - 1, 1);
+      createdAt.$lt = new Date(parsedYear, parsedMonth, 1);
+    } else if (parsedYear) {
+      createdAt.$gte = new Date(parsedYear, 0, 1);
+      createdAt.$lt = new Date(parsedYear + 1, 0, 1);
+    }
+    if (Object.keys(createdAt).length > 0) {
+      fleetQuery.createdAt = createdAt;
+    }
+  }
+
+  const [reviewAgg, deliveryAgg, driversCount, fleetCount, drivers, fleet, filteredFleetCount] = await Promise.all([
     Review.aggregate([
       { $match: { agent: transporter._id } },
       {
@@ -51,7 +105,22 @@ export async function GET(
       }
     ]),
     Driver.countDocuments({ transporter: transporter._id }),
-    Truck.countDocuments({ transporter: transporter._id })
+    Truck.countDocuments({ transporter: transporter._id }),
+    Driver.find({ transporter: transporter._id })
+      .select('_id name phone licenseNumber trackingNumber assignedTruck createdAt updatedAt')
+      .populate({
+        path: 'assignedTruck',
+        select: '_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates route status images'
+      })
+      .sort({ createdAt: -1 }),
+    Truck.find(fleetQuery)
+      .select('_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates tracker route status images assignedDriver createdAt updatedAt')
+      .populate({
+        path: 'assignedDriver',
+        select: '_id name phone licenseNumber trackingNumber'
+      })
+      .sort({ createdAt: -1 }),
+    Truck.countDocuments(fleetQuery)
   ]);
 
   const review = reviewAgg[0];
@@ -68,6 +137,19 @@ export async function GET(
       deliveriesCount: delivery?.deliveriesCount ?? 0,
       driversCount,
       fleetCount,
+      filteredFleetCount,
+      drivers,
+      fleet,
+      fleetFilters: {
+        search: search || null,
+        status: effectiveStatus || null,
+        availability: effectiveStatus || null,
+        fromState: fromState || null,
+        toState: toState || null,
+        size: size || null,
+        year: year ? Number(year) : null,
+        month: month ? Number(month) : null,
+      }
     }
   }, { status: 200 });
 }
