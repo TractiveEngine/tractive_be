@@ -4,6 +4,7 @@ import User from '@/models/user';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Review from '@/models/review';
 import Order from '@/models/order';
+import Truck from '@/models/truck';
 
 // GET /api/transporters - list transporters (buyer/admin)
 export async function GET(request: Request) {
@@ -16,16 +17,21 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search');
   const state = searchParams.get('state');
+  const location = searchParams.get('location');
   const year = searchParams.get('year');
   const month = searchParams.get('month');
+  const minRating = searchParams.get('rating');
+  const minYearsOfExperience = searchParams.get('yearsOfExperience') || searchParams.get('experience');
+  const availability = searchParams.get('availability') || searchParams.get('status');
+  const size = searchParams.get('size');
 
   const query: Record<string, unknown> = { roles: 'transporter', status: { $ne: 'removed' } };
   if (search) {
     const regex = new RegExp(search, 'i');
     query.$or = [{ name: regex }, { businessName: regex }, { email: regex }];
   }
-  if (state) {
-    query.state = state;
+  if (state || location) {
+    query.state = state || location;
   }
   if (year || month) {
     const createdAt: Record<string, Date> = {};
@@ -48,7 +54,16 @@ export async function GET(request: Request) {
     .sort({ createdAt: -1 });
 
   const transporterIds = transporters.map((item) => item._id);
-  const [reviewStats, deliveryStats] = await Promise.all([
+  const fleetMatch: Record<string, unknown> = { transporter: { $in: transporterIds } };
+  if (availability) {
+    fleetMatch.status = availability;
+  }
+  if (size) {
+    const sizeRegex = new RegExp(size, 'i');
+    fleetMatch.$or = [{ size: sizeRegex }, { capacity: sizeRegex }, { model: sizeRegex }, { fleetName: sizeRegex }];
+  }
+
+  const [reviewStats, deliveryStats, fleetCoverage] = await Promise.all([
     Review.aggregate([
       { $match: { agent: { $in: transporterIds } } },
       {
@@ -68,25 +83,53 @@ export async function GET(request: Request) {
           deliveriesCount: { $sum: 1 }
         }
       }
-    ])
+    ]),
+    availability || size
+      ? Truck.aggregate([
+          { $match: fleetMatch },
+          { $group: { _id: '$transporter', matches: { $sum: 1 } } }
+        ])
+      : Promise.resolve([])
   ]);
 
   const reviewMap = new Map(reviewStats.map((item) => [item._id.toString(), item]));
   const deliveryMap = new Map(deliveryStats.map((item) => [item._id.toString(), item]));
+  const fleetCoverageMap = new Map(fleetCoverage.map((item: any) => [item._id.toString(), item.matches]));
 
-  const data = transporters.map((transporter) => {
+  let data = transporters.map((transporter) => {
     const transporterId = transporter._id.toString();
     const review = reviewMap.get(transporterId);
     const delivery = deliveryMap.get(transporterId);
+    const yearsOfExperience = transporter.createdAt
+      ? Math.max(0, new Date().getFullYear() - new Date(transporter.createdAt).getFullYear())
+      : 0;
     return {
       ...transporter.toObject(),
       rating: review?.averageRating ?? 0,
       reviewsCount: review?.totalReviews ?? 0,
       totalSales: delivery?.totalSales ?? 0,
       deliveriesCount: delivery?.deliveriesCount ?? 0,
+      yearsOfExperience,
       location: transporter.state || transporter.address || null,
+      matchingFleetCount: fleetCoverageMap.get(transporterId) ?? 0,
     };
   });
+
+  if (minRating) {
+    const mr = Number(minRating);
+    if (!Number.isNaN(mr)) {
+      data = data.filter((item) => item.rating >= mr);
+    }
+  }
+  if (minYearsOfExperience) {
+    const yrs = Number(minYearsOfExperience);
+    if (!Number.isNaN(yrs)) {
+      data = data.filter((item) => item.yearsOfExperience >= yrs);
+    }
+  }
+  if (availability || size) {
+    data = data.filter((item) => item.matchingFleetCount > 0);
+  }
 
   return NextResponse.json({ success: true, data }, { status: 200 });
 }

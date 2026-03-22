@@ -4,6 +4,26 @@ import Truck from '@/models/truck';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  await dbConnect();
+  const user = await getAuthUser(request);
+  if (!user || !ensureActiveRole(user, 'transporter')) {
+    return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
+  }
+
+  const { id } = await params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ success: false, message: 'Invalid fleet id' }, { status: 400 });
+  }
+
+  const truck = await Truck.findOne({ _id: id, transporter: user._id });
+  if (!truck) {
+    return NextResponse.json({ success: false, message: 'Truck not found' }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, data: truck }, { status: 200 });
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const user = await getAuthUser(request);
