@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
+import Order from '@/models/order';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
 // GET /api/buyers/biddings/won - accepted bids for buyer
@@ -15,7 +16,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Only buyers can view won bids' }, { status: 403 });
   }
 
-  const bids = await Bid.find({ buyer: user._id, status: 'accepted' })
+  const paidOrders = await Order.find({
+    buyer: user._id,
+    status: { $in: ['paid', 'delivered'] },
+    bidIds: { $exists: true, $ne: [] }
+  }).select('bidIds');
+
+  const consumedBidIds = paidOrders.flatMap((order: any) =>
+    (order.bidIds || []).map((id: any) => id.toString())
+  );
+
+  const bidQuery: Record<string, unknown> = { buyer: user._id, status: 'accepted' };
+  if (consumedBidIds.length > 0) {
+    bidQuery._id = { $nin: consumedBidIds };
+  }
+
+  const bids = await Bid.find(bidQuery)
     .populate('product')
     .populate({
       path: 'agent',

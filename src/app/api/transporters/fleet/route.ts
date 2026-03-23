@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Truck from '@/models/truck';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { parseCapacityToKg } from '@/lib/truckCapacity';
 
 export async function GET(request: Request) {
   await dbConnect();
@@ -71,6 +72,14 @@ export async function POST(request: Request) {
     model: body.model || body.fleetName || body.name,
     size: body.size,
     capacity: body.capacity || body.size,
+    capacityKg:
+      typeof body.capacityKg === 'number'
+        ? body.capacityKg
+        : parseCapacityToKg(body.capacity || body.size),
+    currentLoadKg:
+      typeof body.currentLoadKg === 'number' && body.currentLoadKg >= 0
+        ? body.currentLoadKg
+        : 0,
     price: body.price,
     priceNegotiation: !!body.priceNegotiation,
     images: Array.isArray(body.images) ? body.images : [],

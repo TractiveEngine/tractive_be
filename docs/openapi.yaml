@@ -1139,6 +1139,139 @@ paths:
       responses:
         '200':
           description: Fleet bid updated by buyer
+  /api/transporters/fleet/{id}/payments:
+    get:
+      summary: List fleet payments for a fleet
+      description: Buyer sees their own fleet payments for the fleet. Fleet owner transporter sees all payments for that fleet. Admin can also view all payments.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet payments list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetpay1234567890abc"
+                    amount: 210000
+                    paymentMethod: "bank_transfer"
+                    status: "pending"
+                    buyer:
+                      _id: "67debuyer1234567890abc0"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
+                    transporter:
+                      _id: "67detrans1234567890abc1"
+                      businessName: "North Haul Logistics Ltd"
+                    fleetBid:
+                      _id: "67defleetbid1234567890abc"
+                      amount: 180000
+                      counterAmount: 210000
+                      status: "accepted"
+    post:
+      summary: Create fleet payment
+      description: Buyer creates a fleet payment record from an accepted fleet bid or the fleet listed price. This supports manual approval flows like cash or bank transfer.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fleetBidId:
+                  type: string
+                amount:
+                  type: number
+                paymentMethod:
+                  type: string
+                  enum: [cash, bank_transfer, card]
+                note:
+                  type: string
+            example:
+              fleetBidId: "67defleetbid1234567890abc"
+              amount: 210000
+              paymentMethod: "bank_transfer"
+              note: "Paid via bank transfer for Kaduna to Lagos route"
+      responses:
+        '201':
+          description: Fleet payment created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67defleetpay1234567890abc"
+                  amount: 210000
+                  paymentMethod: "bank_transfer"
+                  status: "pending"
+                  fleetBid: "67defleetbid1234567890abc"
+  /api/transporters/fleets/{id}/payments:
+    get:
+      summary: Alias of /api/transporters/fleet/{id}/payments (list fleet payments)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet payments list
+    post:
+      summary: Alias of /api/transporters/fleet/{id}/payments (create fleet payment)
+      description: Backward-compatible alias route.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Fleet payment created
+  /api/fleet-payments/{id}/status:
+    patch:
+      summary: Admin updates fleet payment status
+      description: Admin confirms or rejects a fleet payment after verifying manual payment like cash or bank transfer.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected, pending]
+            example:
+              status: "approved"
+      responses:
+        '200':
+          description: Fleet payment updated
   /api/transporters/fleet/{id}/status:
     patch:
       summary: Update truck status
@@ -2789,6 +2922,11 @@ paths:
       summary: List transporter trucks with filters
       parameters:
         - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by plate number, fleet name, fleet number, model, IoT id, size, or capacity.
+        - in: query
           name: status
           schema:
             type: string
@@ -2804,6 +2942,26 @@ paths:
       responses:
         '200':
           description: Trucks list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67de1234abcd5678ef901234"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
+                    fleetNumber: "ABC-123"
+                    model: "Volvo"
+                    size: "20 tons"
+                    capacity: "20 tons"
+                    capacityKg: 20000
+                    currentLoadKg: 15000
+                    remainingCapacityKg: 5000
+                    remainingCapacityDisplay: "5 tons"
+                    route:
+                      fromState: "Kaduna"
+                      toState: "Lagos"
+                    status: "on_transit"
   /api/transporters/transactions/{id}/status:
     patch:
       summary: Transporter updates transaction status
@@ -2988,14 +3146,14 @@ paths:
   /api/buyers/biddings/won:
     get:
       summary: Buyer accepted bids
-      description: Requires `activeRole` `buyer`. Returns all bids for the authenticated buyer where bid `status` is `accepted`. Frontend should use this to display all won bids before checkout.
+      description: Requires `activeRole` `buyer`. Returns accepted bids for the authenticated buyer that have not already been tied to a paid order. Frontend should use this to display all won bids before checkout.
       responses:
         '200':
           description: Accepted bids list
   /api/buyers/biddings/won/checkout:
     get:
       summary: Buyer checkout summary for won bids
-      description: Requires activeRole `buyer`. Returns accepted bids and total amount for checkout. This is a summary endpoint only; it does not create an order or payment record.
+      description: Requires activeRole `buyer`. Returns accepted bids that are still eligible for checkout and their total amount. Bids already used in a paid order are excluded. This is a summary endpoint only; it does not create an order or payment record.
       responses:
         '200':
           description: Checkout summary
@@ -3566,12 +3724,39 @@ paths:
   /api/transporters/trucks/almost-full:
     get:
       summary: List almost full trucks
+      description: Returns on-transit fleets. Response now includes numeric capacity and remaining-space fields when available.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: fromState
+          schema:
+            type: string
+        - in: query
+          name: toState
+          schema:
+            type: string
       responses:
         '200':
           description: Trucks list
   /api/transporters/trucks/empty:
     get:
       summary: List empty trucks
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: fromState
+          schema:
+            type: string
+        - in: query
+          name: toState
+          schema:
+            type: string
       responses:
         '200':
           description: Trucks list
@@ -3587,12 +3772,53 @@ paths:
       responses:
         '200':
           description: Truck details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67de1234abcd5678ef901234"
+                  plateNumber: "ABC-123"
+                  fleetName: "North Route Fleet"
+                  model: "Volvo"
+                  size: "20 tons"
+                  capacity: "20 tons"
+                  capacityKg: 20000
+                  currentLoadKg: 15000
+                  remainingCapacityKg: 5000
+                  remainingCapacityDisplay: "5 tons"
+                  status: "on_transit"
   /api/transporters/recommendations:
     get:
       summary: Recommended transporters
+      description: Returns transporter recommendations prioritized by rating and by location match. If `state` is not provided, the authenticated user's state is used when available.
+      parameters:
+        - in: query
+          name: state
+          schema:
+            type: string
+          description: Preferred Nigerian state or location for recommendation matching.
+        - in: query
+          name: location
+          schema:
+            type: string
+          description: Alias of `state`.
       responses:
         '200':
           description: Recommendations list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67detrans1234567890abc001"
+                    name: "North Haul Logistics"
+                    businessName: "North Haul Logistics Ltd"
+                    state: "Kaduna"
+                    avgRating: 4.7
+                    reviewsCount: 12
+                    locationMatch: true
+                    matchedLocation: "Kaduna"
   /api/transporters/reviews:
     get:
       summary: Transporter review list (self or admin)
