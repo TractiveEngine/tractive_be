@@ -382,8 +382,8 @@ paths:
           description: Parties info
   /api/orders/{id}/transporters:
     get:
-      summary: List available transporters for a paid or payment-initiated order
-      description: Buyer (order owner), agent, or admin can fetch transporters when order is paid/delivered OR when a pending payment transaction exists (manual approval flow).
+      summary: List available transporters for a paid, not-yet-shipped order
+      description: Buyer (order owner), agent, or admin can fetch transporters only when payment has been approved and the order transport status is still `pending`. This endpoint currently returns transporter accounts that can be browsed for that order flow; it does not yet rank or pre-match transporters by route, size, or capacity.
       parameters:
         - in: path
           name: id
@@ -420,8 +420,26 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/User'
+              example:
+                success: true
+                message: "Available transporters fetched"
+                data:
+                  orderId: "67deorder1234567890abc111"
+                  orderStatus: "paid"
+                  paymentPendingApproval: false
+                  transportStatus: "pending"
+                  assignedTransporter: null
+                  transporters:
+                    - _id: "67detrans1234567890abc001"
+                      name: "North Haul Logistics"
+                      email: "transporter@example.com"
+                      phone: "+2348001112222"
+                      businessName: "North Haul Logistics Ltd"
+                      image: "https://example.com/transporter.jpg"
+                      country: "Nigeria"
+                      state: "Kaduna"
         '400':
-          description: Payment has not been initiated yet
+          description: Payment is not approved yet or shipping has already started
         '403':
           description: Forbidden for non-owner buyer or unsupported role
   /api/transactions/{id}/status:
@@ -2163,11 +2181,29 @@ paths:
           name: limit
           schema:
             type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, paid, delivered]
+          description: Filter buyer orders by order payment state.
+        - in: query
+          name: transportStatus
+          schema:
+            type: string
+            enum: [pending, picked, on_transit, delivered]
+          description: Filter buyer orders by shipping stage.
+        - in: query
+          name: readyForTransport
+          schema:
+            type: boolean
+          description: Use `true` to return only orders that are paid and not yet shipped, which is the correct dataset for the transporter selection page.
       responses:
         '200':
           description: List of orders
     post:
       summary: Create order
+      description: Use this after `/api/buyers/biddings/won` or `/api/buyers/biddings/won/checkout` to create an order from accepted bids. Requires `activeRole` to be `buyer`.
       security:
         - bearerAuth: []
       parameters:
@@ -2188,8 +2224,7 @@ paths:
                   quantity: 10
               totalAmount: 50000
               address: "123 Delivery Street, Abuja"
-              phone: "+2348011223344"
-              notes: "Please deliver in the morning"
+              transportStatus: "pending"
               bidIds:
                 - "507f1f77bcf86cd799439099"
       responses:
@@ -2264,6 +2299,7 @@ paths:
           description: List of transactions
     post:
       summary: Create transaction for paid order
+      description: Use this after creating an order. This endpoint records the buyer payment intent for an order. It does not use `/api/buyers/biddings/won/checkout` request body.
       security:
         - bearerAuth: []
       requestBody:
@@ -2276,7 +2312,6 @@ paths:
               order: "507f1f77bcf86cd799439014"
               amount: 50000
               paymentMethod: "bank_transfer"
-              paymentReference: "TRX123456789"
       responses:
         '201':
           description: Transaction created
@@ -2953,13 +2988,14 @@ paths:
   /api/buyers/biddings/won:
     get:
       summary: Buyer accepted bids
+      description: Requires `activeRole` `buyer`. Returns all bids for the authenticated buyer where bid `status` is `accepted`. Frontend should use this to display all won bids before checkout.
       responses:
         '200':
           description: Accepted bids list
   /api/buyers/biddings/won/checkout:
     get:
       summary: Buyer checkout summary for won bids
-      description: Requires activeRole `buyer`. Returns accepted bids and total amount for checkout.
+      description: Requires activeRole `buyer`. Returns accepted bids and total amount for checkout. This is a summary endpoint only; it does not create an order or payment record.
       responses:
         '200':
           description: Checkout summary
@@ -2983,7 +3019,7 @@ paths:
                   totalAmount: 4500
     post:
       summary: Buyer checkout summary for won bids (alias)
-      description: Frontend compatibility alias for `GET`. Do not send a request body.
+      description: Frontend compatibility alias for `GET`. Do not send a request body. To actually proceed with payment, call `POST /api/orders` and then `POST /api/transactions`.
       responses:
         '200':
           description: Checkout summary

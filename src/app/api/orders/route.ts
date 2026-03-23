@@ -131,13 +131,28 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
   const limitParam = searchParams.get('limit');
+  const status = searchParams.get('status');
+  const transportStatus = searchParams.get('transportStatus');
+  const readyForTransport = searchParams.get('readyForTransport');
   const page = Math.max(1, Number(pageParam) || 1);
   const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
   const skip = (page - 1) * limit;
+  const query: Record<string, unknown> = { buyer: user._id };
+
+  if (status && ['pending', 'paid', 'delivered'].includes(status)) {
+    query.status = status;
+  }
+  if (transportStatus && ['pending', 'picked', 'on_transit', 'delivered'].includes(transportStatus)) {
+    query.transportStatus = transportStatus;
+  }
+  if (readyForTransport === 'true') {
+    query.status = 'paid';
+    query.transportStatus = 'pending';
+  }
 
   const [orders, total] = await Promise.all([
-    Order.find({ buyer: user._id }).populate('products.product').skip(skip).limit(limit),
-    Order.countDocuments({ buyer: user._id })
+    Order.find(query).populate('products.product').skip(skip).limit(limit),
+    Order.countDocuments(query)
   ]);
 
   return NextResponse.json({
