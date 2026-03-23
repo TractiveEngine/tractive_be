@@ -6,7 +6,7 @@ import Transaction from '@/models/transaction';
 import User from '@/models/user';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
-// GET /api/orders/:id/transporters - list available transporters for paid or pending-payment-approval order
+// GET /api/orders/:id/transporters - list available transporters for paid and not-yet-shipped order
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const user = await getAuthUser(request);
@@ -38,15 +38,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ success: false, message: 'Not authorized to view this order' }, { status: 403 });
   }
 
-  const isPaidState = order.status === 'paid' || order.status === 'delivered';
-  const pendingOrApprovedPayment = await Transaction.exists({
+  const approvedPayment = await Transaction.exists({
     order: order._id,
-    status: { $in: ['pending', 'approved'] }
+    status: 'approved'
   });
 
-  if (!isPaidState && !pendingOrApprovedPayment) {
+  const isPaid = order.status === 'paid' || !!approvedPayment;
+  const isNotShipped = order.transportStatus === 'pending';
+
+  if (!isPaid) {
     return NextResponse.json(
-      { success: false, message: 'Transporters can be listed after payment is initiated' },
+      { success: false, message: 'Transporters can be listed only after payment is approved' },
+      { status: 400 }
+    );
+  }
+
+  if (!isNotShipped) {
+    return NextResponse.json(
+      { success: false, message: 'Transporters can only be listed before shipping starts' },
       { status: 400 }
     );
   }
@@ -61,7 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       data: {
         orderId: order._id,
         orderStatus: order.status,
-        paymentPendingApproval: !isPaidState && !!pendingOrApprovedPayment,
+        paymentPendingApproval: false,
         transportStatus: order.transportStatus,
         assignedTransporter: order.transporter || null,
         transporters,
