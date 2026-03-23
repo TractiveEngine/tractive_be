@@ -8,6 +8,8 @@ const TruckSchema = new mongoose.Schema({
   model: { type: String },
   size: { type: String },
   capacity: { type: String },
+  capacityKg: { type: Number },
+  currentLoadKg: { type: Number, default: 0 },
   price: { type: Number },
   priceNegotiation: { type: Boolean, default: false },
   fleetDescription: { type: String },

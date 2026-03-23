@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Truck from '@/models/truck';
 import { getAuthUser } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
 
 // GET /api/transporters/trucks/:id
 export async function GET(request: Request, { params }: { params: { id: string } }) {
@@ -22,5 +23,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
     return NextResponse.json({ success: false, message: 'Truck not found' }, { status: 404 });
   }
 
-  return NextResponse.json({ success: true, data: truck }, { status: 200 });
+  const truckObj = truck.toObject();
+  return NextResponse.json({ success: true, data: { ...truckObj, ...buildCapacityMeta(truckObj) } }, { status: 200 });
 }

@@ -7,6 +7,7 @@ import Review from '@/models/review';
 import Order from '@/models/order';
 import Driver from '@/models/driver';
 import Truck from '@/models/truck';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
 
 // GET /api/transporters/:id
 export async function GET(
@@ -139,7 +140,10 @@ export async function GET(
       fleetCount,
       filteredFleetCount,
       drivers,
-      fleet,
+      fleet: fleet.map((truck: any) => {
+        const truckObj = truck.toObject();
+        return { ...truckObj, ...buildCapacityMeta(truckObj) };
+      }),
       fleetFilters: {
         search: search || null,
         status: effectiveStatus || null,

@@ -76,6 +76,7 @@ export async function POST(request: Request) {
   const order = await Order.create({
     buyer: user._id,
     products,
+    bidIds: Array.isArray(bidIds) ? bidIds : [],
     totalAmount,
     address,
     status: 'pending',
