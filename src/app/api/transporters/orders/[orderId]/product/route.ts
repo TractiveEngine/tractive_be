@@ -26,30 +26,37 @@ export async function GET(
     return NextResponse.json({ success: false, message: 'Order not found or not assigned to you' }, { status: 404 });
   }
 
-  const embeddedProducts = (order.products || [])
-    .map((p: any) => p?.product)
-    .filter((p: any) => p && p._id);
+  const fallbackProducts = await Product.find({
+    _id: {
+      $in: (order.products || []).map((p: any) => p.product?._id || p.product).filter(Boolean),
+    },
+  });
+  const fallbackMap = new Map(fallbackProducts.map((product) => [product._id.toString(), product]));
 
-  const products =
-    embeddedProducts.length > 0
-      ? embeddedProducts
-      : await Product.find({
-          _id: {
-            $in: (order.products || []).map((p: any) => p.product).filter(Boolean),
-          },
-        });
+  const products = (order.products || [])
+    .map((line: any) => {
+      const populatedProduct = line?.product && line.product._id ? line.product : null;
+      const productId = populatedProduct?._id?.toString?.() || line?.product?.toString?.();
+      const product = populatedProduct || (productId ? fallbackMap.get(productId) : null);
+      if (!product || !productId) return null;
+
+      return {
+        id: productId,
+        name: product.name,
+        price: product.price,
+        unit: product.unit,
+        quantity: line.quantity,
+        orderedQuantity: line.quantity,
+        availableQuantity: product.quantity,
+        status: product.status,
+      };
+    })
+    .filter(Boolean);
 
   return NextResponse.json(
     {
       success: true,
-      data: products.map((p) => ({
-        id: p._id.toString(),
-        name: p.name,
-        price: p.price,
-        unit: p.unit,
-        quantity: p.quantity,
-        status: p.status,
-      })),
+      data: products,
     },
     { status: 200 }
   );

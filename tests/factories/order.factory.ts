@@ -8,7 +8,7 @@ export interface CreateOrderOptions {
     quantity: number;
   }>;
   totalAmount?: number;
-  status?: 'pending' | 'paid' | 'delivered';
+  status?: 'pending' | 'payment_pending' | 'paid' | 'delivered';
   transportStatus?: 'pending' | 'picked' | 'on_transit' | 'delivered';
   transporter?: mongoose.Types.ObjectId | string;
   address?: string;

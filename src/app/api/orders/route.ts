@@ -5,6 +5,7 @@ import Product from '@/models/product';
 import Bid from '@/models/bid';
 import { createNotification } from '@/lib/notifications';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import { buildOrderItemLocalTransport } from '@/lib/localTransport';
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   const existingPending = await Order.findOne({
     buyer: user._id,
-    status: 'pending',
+    status: { $in: ['pending', 'payment_pending'] },
     orderSignature
   });
   if (existingPending) {
@@ -56,6 +57,30 @@ export async function POST(request: Request) {
       message: 'Existing pending order returned'
     }, { status: 200 });
   }
+
+  const productIds = products.map((p: any) => p.product);
+  const productDocs = await Product.find({ _id: { $in: productIds } });
+  const productMap = new Map(productDocs.map((product: any) => [product._id.toString(), product]));
+  const missingProducts = productIds.filter((id: string) => !productMap.has(String(id)));
+  if (missingProducts.length > 0) {
+    return NextResponse.json({ error: 'One or more products not found' }, { status: 400 });
+  }
+
+  const orderProducts = products.map((item: any) => {
+    const productId = item.product?.toString?.() ?? String(item.product);
+    const productDoc: any = productMap.get(productId);
+    const quantity = Number(item.quantity);
+    const localTransportMeta = buildOrderItemLocalTransport(productDoc);
+    const unitPrice = Number(productDoc.price || 0);
+    return {
+      product: productDoc._id,
+      quantity,
+      unitPrice,
+      lineSubtotal: unitPrice * quantity,
+      ...localTransportMeta
+    };
+  });
+  const localTransportTotal = orderProducts.reduce((sum, item) => sum + (item.localTransportFee || 0), 0);
 
   if (Array.isArray(bidIds) && bidIds.length > 0) {
     const bids = await Bid.find({ _id: { $in: bidIds }, buyer: user._id });
@@ -67,15 +92,25 @@ export async function POST(request: Request) {
     if (invalidStatus) {
       return NextResponse.json({ error: 'All bids must be accepted before creating an order' }, { status: 400 });
     }
-    const expectedTotal = bids.reduce((sum, bid) => sum + (bid.amount || 0), 0);
+    const bidProductIds = bids.map((bid: any) => bid.product?.toString?.() ?? String(bid.product)).sort();
+    const requestProductIds = orderProducts.map((item) => item.product.toString()).sort();
+    if (JSON.stringify(bidProductIds) !== JSON.stringify(requestProductIds)) {
+      return NextResponse.json({ error: 'Products must match the selected accepted bids' }, { status: 400 });
+    }
+    const expectedTotal = bids.reduce((sum, bid) => sum + (bid.amount || 0), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
       return NextResponse.json({ error: 'Total amount does not match accepted bids' }, { status: 400 });
+    }
+  } else {
+    const expectedTotal = orderProducts.reduce((sum, item) => sum + (item.lineSubtotal || 0), 0) + localTransportTotal;
+    if (Number(totalAmount) !== expectedTotal) {
+      return NextResponse.json({ error: 'Total amount does not match products and local transport' }, { status: 400 });
     }
   }
 
   const order = await Order.create({
     buyer: user._id,
-    products,
+    products: orderProducts,
     bidIds: Array.isArray(bidIds) ? bidIds : [],
     totalAmount,
     address,
@@ -99,8 +134,6 @@ export async function POST(request: Request) {
   });
 
   // Notify sellers/agents about new order
-  const productIds = products.map((p: any) => p.product);
-  const productDocs = await Product.find({ _id: { $in: productIds } });
   const sellerIds = [...new Set(productDocs.map(p => p.owner.toString()))];
   
   for (const sellerId of sellerIds) {
@@ -140,7 +173,7 @@ export async function GET(request: Request) {
   const skip = (page - 1) * limit;
   const query: Record<string, unknown> = { buyer: user._id };
 
-  if (status && ['pending', 'paid', 'delivered'].includes(status)) {
+  if (status && ['pending', 'payment_pending', 'paid', 'delivered'].includes(status)) {
     query.status = status;
   }
   if (transportStatus && ['pending', 'picked', 'on_transit', 'delivered'].includes(transportStatus)) {

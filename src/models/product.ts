@@ -12,6 +12,13 @@ const ProductSchema = new mongoose.Schema({
   videos: [{ type: String }], // URLs or paths to videos
   status: { type: String, enum: ["available", "out_of_stock", "discontinued"], default: "available" },
   discount: { type: Number, default: 0 },
+  localTransport: {
+    required: { type: Boolean, default: false },
+    fee: { type: Number, default: 0 },
+    from: { type: String, default: null },
+    to: { type: String, default: null },
+    note: { type: String, default: null },
+  },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
   category: { type: String },

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetPayment from '@/models/fleetPayment';
+import FleetBooking from '@/models/fleetBooking';
 
 const ALLOWED_STATUS = ['approved', 'rejected', 'pending'] as const;
 
@@ -39,6 +40,17 @@ export async function PATCH(
   payment.approvedBy = user._id;
   payment.updatedAt = new Date();
   await payment.save();
+
+  if (payment.booking) {
+    const booking = await FleetBooking.findById(payment.booking);
+    if (booking) {
+      if (status === 'approved') booking.status = 'confirmed';
+      if (status === 'rejected') booking.status = 'rejected';
+      if (status === 'pending') booking.status = 'pending_payment';
+      booking.updatedAt = new Date();
+      await booking.save();
+    }
+  }
 
   return NextResponse.json({ success: true, data: payment }, { status: 200 });
 }

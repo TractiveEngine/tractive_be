@@ -6,6 +6,7 @@ import Review from '@/models/review';
 import Bid from '@/models/bid';
 import { attachWishlistedFlag, buildCategoryFields } from '@/lib/productPayload';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { normalizeLocalTransport } from '@/lib/localTransport';
 
 // GET /api/products/[id]
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -124,7 +125,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
   const categoryFields = buildCategoryFields(body);
-  const product = await Product.findByIdAndUpdate(id, { ...body, ...categoryFields }, { new: true });
+  const hasLocalTransportInput =
+    body.localTransport !== undefined ||
+    body.localTransportRequired !== undefined ||
+    body.localTransportFee !== undefined ||
+    body.localTransportFrom !== undefined ||
+    body.localTransportTo !== undefined ||
+    body.localTransportNote !== undefined;
+  const updateDoc: any = { ...body, ...categoryFields };
+  if (hasLocalTransportInput) {
+    try {
+      updateDoc.localTransport = normalizeLocalTransport(body);
+    } catch (error: any) {
+      return NextResponse.json({ error: error?.message || 'Invalid local transport data' }, { status: 400 });
+    }
+  }
+  delete updateDoc.localTransportRequired;
+  delete updateDoc.localTransportFee;
+  delete updateDoc.localTransportFrom;
+  delete updateDoc.localTransportTo;
+  delete updateDoc.localTransportNote;
+  const product = await Product.findByIdAndUpdate(id, updateDoc, { new: true });
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }

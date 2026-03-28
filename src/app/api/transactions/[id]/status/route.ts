@@ -47,6 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (order) {
       if (status === 'approved') order.status = 'paid';
       if (status === 'rejected') order.status = 'pending';
+      if (status === 'pending') order.status = 'payment_pending';
       order.updatedAt = new Date();
       await order.save();
     }

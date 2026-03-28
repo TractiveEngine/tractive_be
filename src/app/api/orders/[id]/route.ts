@@ -58,7 +58,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const body = await request.json();
   // Only allow valid status and transportStatus values
-  if (body.status && !['pending', 'paid', 'delivered'].includes(body.status)) {
+  if (body.status && !['pending', 'payment_pending', 'paid', 'delivered'].includes(body.status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
   if (body.transportStatus && !['pending', 'picked', 'on_transit', 'delivered'].includes(body.transportStatus)) {

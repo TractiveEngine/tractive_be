@@ -5,12 +5,19 @@ const OrderSchema = new mongoose.Schema({
   products: [
     {
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-      quantity: { type: Number, required: true }
+      quantity: { type: Number, required: true },
+      unitPrice: { type: Number, default: null },
+      lineSubtotal: { type: Number, default: null },
+      localTransportRequired: { type: Boolean, default: false },
+      localTransportFee: { type: Number, default: 0 },
+      localTransportFrom: { type: String, default: null },
+      localTransportTo: { type: String, default: null },
+      localTransportNote: { type: String, default: null }
     }
   ],
   bidIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bid' }],
   totalAmount: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'paid', 'delivered'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'payment_pending', 'paid', 'delivered'], default: 'pending' },
   transportStatus: { type: String, enum: ['pending', 'picked', 'on_transit', 'delivered'], default: 'pending' },
   transporter: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // transporter user reference
   address: { type: String },
