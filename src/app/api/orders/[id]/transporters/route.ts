@@ -38,17 +38,24 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ success: false, message: 'Not authorized to view this order' }, { status: 403 });
   }
 
-  const approvedPayment = await Transaction.exists({
+  const paymentInFlight = await Transaction.exists({
+    order: order._id,
+    status: { $in: ['pending', 'approved'] }
+  });
+
+  const hasApprovedPayment = await Transaction.exists({
     order: order._id,
     status: 'approved'
   });
 
-  const isPaid = order.status === 'paid' || !!approvedPayment;
+  const isPaid = ['payment_pending', 'paid'].includes(order.status) || !!paymentInFlight;
   const isNotShipped = order.transportStatus === 'pending';
+  const paymentPendingApproval =
+    order.status === 'payment_pending' || (order.status !== 'paid' && !!paymentInFlight && !hasApprovedPayment);
 
   if (!isPaid) {
     return NextResponse.json(
-      { success: false, message: 'Transporters can be listed only after payment is approved' },
+      { success: false, message: 'Transporters can be listed only after payment is initiated' },
       { status: 400 }
     );
   }
@@ -70,7 +77,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       data: {
         orderId: order._id,
         orderStatus: order.status,
-        paymentPendingApproval: false,
+        paymentPendingApproval,
         transportStatus: order.transportStatus,
         assignedTransporter: order.transporter || null,
         transporters,

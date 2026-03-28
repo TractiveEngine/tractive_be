@@ -5,6 +5,7 @@ import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
 import FleetPayment from '@/models/fleetPayment';
+import FleetBooking from '@/models/fleetBooking';
 
 function resolveAcceptedAmount(bid: any) {
   return typeof bid?.counterAmount === 'number' && bid.counterAmount > 0 ? bid.counterAmount : bid?.amount;
@@ -45,6 +46,7 @@ export async function GET(
     .populate('buyer', '_id name email phone')
     .populate('transporter', '_id name email phone businessName')
     .populate('fleetBid', '_id amount counterAmount status')
+    .populate('booking', '_id status amount')
     .sort({ createdAt: -1 });
 
   return NextResponse.json({ success: true, data: payments }, { status: 200 });
@@ -116,7 +118,8 @@ export async function POST(
   })
     .populate('buyer', '_id name email phone')
     .populate('transporter', '_id name email phone businessName')
-    .populate('fleetBid', '_id amount counterAmount status');
+    .populate('fleetBid', '_id amount counterAmount status')
+    .populate('booking', '_id status amount');
 
   if (existingPayment) {
     return NextResponse.json({
@@ -126,19 +129,45 @@ export async function POST(
     }, { status: 200 });
   }
 
+  let booking = await FleetBooking.findOne({
+    fleet: fleet._id,
+    buyer: user._id,
+    fleetBid: acceptedBid?._id || null,
+    amount: payableAmount,
+    status: { $in: ['pending_payment', 'confirmed'] }
+  });
+
+  if (!booking) {
+    booking = await FleetBooking.create({
+      fleet: fleet._id,
+      transporter: fleet.transporter,
+      buyer: user._id,
+      fleetBid: acceptedBid?._id || null,
+      amount: payableAmount,
+      status: 'pending_payment',
+      note: typeof body?.note === 'string' ? body.note : null
+    });
+  }
+
   const payment = await FleetPayment.create({
     fleet: fleet._id,
     transporter: fleet.transporter,
     buyer: user._id,
     fleetBid: acceptedBid?._id || null,
+    booking: booking._id,
     amount: payableAmount,
     paymentMethod,
     note: typeof body?.note === 'string' ? body.note : null
   });
 
+  booking.payment = payment._id;
+  booking.updatedAt = new Date();
+  await booking.save();
+
   await payment.populate('buyer', '_id name email phone');
   await payment.populate('transporter', '_id name email phone businessName');
   await payment.populate('fleetBid', '_id amount counterAmount status');
+  await payment.populate('booking', '_id status amount');
 
   return NextResponse.json({ success: true, data: payment }, { status: 201 });
 }

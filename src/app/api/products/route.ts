@@ -4,6 +4,7 @@ import Product from "@/models/product";
 import mongoose from "mongoose";
 import { attachWishlistedFlag, buildCategoryFields } from "@/lib/productPayload";
 import { getAuthUser } from "@/lib/apiAuth";
+import { normalizeLocalTransport } from "@/lib/localTransport";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -126,6 +127,15 @@ export async function POST(request: Request) {
   }
 
   const categoryFields = buildCategoryFields({ category, subcategory, categories });
+  let localTransport;
+  try {
+    localTransport = normalizeLocalTransport(body);
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message || "Invalid local transport data" },
+      { status: 400 }
+    );
+  }
 
   try {
     const product = await Product.create({
@@ -141,6 +151,7 @@ export async function POST(request: Request) {
       owner: user._id,
       status: "available",
       discount: numDiscount,
+      localTransport,
     });
 
     return NextResponse.json({ 
@@ -235,8 +246,8 @@ export async function GET(request?: Request) {
   const projection = full
     ? undefined
     : includeMedia
-      ? "name description price quantity unit discount status categories images videos farmer owner createdAt updatedAt"
-      : "name description price quantity unit discount status categories farmer owner createdAt updatedAt";
+      ? "name description price quantity unit discount status categories images videos farmer owner localTransport createdAt updatedAt"
+      : "name description price quantity unit discount status categories farmer owner localTransport createdAt updatedAt";
 
   const [products, total] = await Promise.all([
     Product.find(query).select(projection).sort(sort).skip(skip).limit(limit).lean(),

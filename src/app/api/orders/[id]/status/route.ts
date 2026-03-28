@@ -6,7 +6,7 @@ import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import { createNotification } from '@/lib/notifications';
 import mongoose from 'mongoose';
 
-const ORDER_STATUS = ['pending', 'paid', 'delivered'] as const;
+const ORDER_STATUS = ['pending', 'payment_pending', 'paid', 'delivered'] as const;
 const TRANSPORT_STATUS = ['pending', 'picked', 'on_transit', 'delivered'] as const;
 
 type OrderStatus = (typeof ORDER_STATUS)[number];

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const FleetPaymentSchema = new mongoose.Schema({
+const FleetBookingSchema = new mongoose.Schema({
   fleet: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Truck',
@@ -24,36 +24,22 @@ const FleetPaymentSchema = new mongoose.Schema({
     ref: 'FleetBid',
     default: null
   },
-  booking: {
+  payment: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'FleetBooking',
+    ref: 'FleetPayment',
     default: null
   },
   amount: {
     type: Number,
     required: true
   },
-  paymentMethod: {
-    type: String,
-    enum: ['cash', 'bank_transfer', 'card'],
-    required: true
-  },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'refunded'],
-    default: 'pending',
+    enum: ['pending_payment', 'confirmed', 'rejected', 'cancelled', 'completed'],
+    default: 'pending_payment',
     index: true
   },
   note: {
-    type: String,
-    default: null
-  },
-  approvedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
-  refundReason: {
     type: String,
     default: null
   },
@@ -61,9 +47,9 @@ const FleetPaymentSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-FleetPaymentSchema.pre('save', function(next) {
+FleetBookingSchema.pre('save', function(next) {
   this.updatedAt = new Date();
   next();
 });
 
-export default mongoose.models.FleetPayment || mongoose.model('FleetPayment', FleetPaymentSchema);
+export default mongoose.models.FleetBooking || mongoose.model('FleetBooking', FleetBookingSchema);

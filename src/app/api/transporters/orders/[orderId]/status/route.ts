@@ -13,8 +13,8 @@ export async function PATCH(
 ) {
   await dbConnect();
   const user = await getAuthUser(request);
-  if (!user || !ensureActiveRole(user, 'transporter')) {
-    return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
   const { orderId } = await Promise.resolve(params);
@@ -22,9 +22,23 @@ export async function PATCH(
     return NextResponse.json({ success: false, message: 'Invalid order id' }, { status: 400 });
   }
 
-  const existingOrder = await Order.findById(orderId).select('_id transporter transportStatus');
-  if (!existingOrder || existingOrder.transporter?.toString() !== user._id.toString()) {
-    return NextResponse.json({ success: false, message: 'Order not found or not assigned to you' }, { status: 404 });
+  const existingOrder = await Order.findById(orderId).populate('products.product');
+  if (!existingOrder) {
+    return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+  }
+
+  const isTransporter =
+    ensureActiveRole(user, 'transporter') && existingOrder.transporter?.toString() === user._id.toString();
+  const sellerIds = (existingOrder.products || [])
+    .map((p: any) => p?.product?.owner?.toString?.())
+    .filter(Boolean);
+  const isSeller = ensureActiveRole(user, 'agent') && sellerIds.includes(user._id.toString());
+
+  if (!isTransporter && !isSeller) {
+    return NextResponse.json(
+      { success: false, message: 'Transporter or seller access required for this order' },
+      { status: 403 }
+    );
   }
 
   const body: any = await request.json().catch(() => ({}));
@@ -34,12 +48,12 @@ export async function PATCH(
   }
 
   const order = await Order.findOneAndUpdate(
-    { _id: orderId, transporter: user._id },
+    { _id: orderId },
     { $set: { transportStatus, updatedAt: new Date() } },
     { new: true }
   );
   if (!order) {
-    return NextResponse.json({ success: false, message: 'Order not found or not assigned to you' }, { status: 404 });
+    return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
   }
 
   await TrackingEvent.create({

@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     // ORDER STATS
     const totalOrders = await Order.countDocuments();
     const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const paymentPendingOrders = await Order.countDocuments({ status: 'payment_pending' });
     const paidOrders = await Order.countDocuments({ status: 'paid' });
     const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
 
@@ -207,6 +208,7 @@ export async function GET(request: Request) {
         orderStats: {
           totalOrders,
           pending: pendingOrders,
+          paymentPending: paymentPendingOrders,
           paid: paidOrders,
           delivered: deliveredOrders
         },

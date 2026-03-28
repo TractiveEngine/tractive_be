@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
+import Order from '@/models/order';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
@@ -69,6 +70,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     transaction.updatedAt = new Date();
     await transaction.save();
 
+    if (transaction.order) {
+      await Order.findByIdAndUpdate(transaction.order, {
+        $set: { status: 'paid', updatedAt: new Date() }
+      });
+    }
+
     // Notify buyer about transaction approval
     await createNotification({
       userId: transaction.buyer.toString(),
@@ -89,6 +96,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     transaction.status = 'pending'; // or add 'declined' to enum
     transaction.updatedAt = new Date();
     await transaction.save();
+
+    if (transaction.order) {
+      await Order.findByIdAndUpdate(transaction.order, {
+        $set: { status: 'pending', updatedAt: new Date() }
+      });
+    }
 
     // Notify buyer about transaction decline
     await createNotification({

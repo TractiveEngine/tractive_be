@@ -1,55 +1,52 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
-import User from '@/models/user';
 import Order from '@/models/order';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
   await dbConnect();
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const user = await User.findById(userData.userId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
   }
 
   const { order: orderId, amount, paymentMethod } = await request.json();
   if (!orderId || !amount) {
     return NextResponse.json({ error: 'Order and amount required' }, { status: 400 });
   }
+  if (!['cash', 'bank_transfer', 'card'].includes(paymentMethod)) {
+    return NextResponse.json({ error: 'Valid paymentMethod is required' }, { status: 400 });
+  }
 
   const order = await Order.findById(orderId);
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+  }
+  if (order.buyer?.toString() !== user._id.toString()) {
+    return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+  }
+  if (order.status === 'paid' || order.status === 'delivered') {
+    return NextResponse.json({ error: 'Order is already paid' }, { status: 400 });
+  }
+  if (Number(amount) !== Number(order.totalAmount)) {
+    return NextResponse.json({ error: 'Amount must match the full order total' }, { status: 400 });
+  }
+
+  const existingTransaction = await Transaction.findOne({
+    order: order._id,
+    buyer: user._id,
+    status: { $in: ['pending', 'approved'] }
+  });
+  if (existingTransaction) {
+    return NextResponse.json({
+      success: true,
+      data: existingTransaction,
+      message: 'Existing transaction returned'
+    }, { status: 200 });
   }
 
   const transaction = await Transaction.create({
@@ -60,14 +57,21 @@ export async function POST(request: Request) {
     status: 'pending'
   });
 
-  return NextResponse.json({ transaction }, { status: 201 });
+  order.status = 'payment_pending';
+  order.updatedAt = new Date();
+  await order.save();
+
+  return NextResponse.json({ success: true, data: transaction }, { status: 201 });
 }
 
 export async function GET(request: Request) {
   await dbConnect();
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
   }
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
@@ -77,8 +81,8 @@ export async function GET(request: Request) {
   const skip = (page - 1) * limit;
 
   const [transactions, total] = await Promise.all([
-    Transaction.find({ buyer: userData.userId }).populate('order').skip(skip).limit(limit),
-    Transaction.countDocuments({ buyer: userData.userId })
+    Transaction.find({ buyer: user._id }).populate('order').skip(skip).limit(limit),
+    Transaction.countDocuments({ buyer: user._id })
   ]);
 
   return NextResponse.json({
