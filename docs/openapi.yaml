@@ -2030,6 +2030,7 @@ paths:
                         type: integer
     post:
       summary: Create product
+      description: Requires `activeRole` to be `agent` or `admin`. Preferred category shape is `category` + `subcategory` + `categories`, while `localTransport` describes seller-side farm-to-pickup movement that is later added into buyer checkout totals.
       security:
         - bearerAuth: []
       requestBody:
@@ -2041,13 +2042,15 @@ paths:
             example:
               name: "Fresh Maize"
               description: "High quality yellow maize from Kaduna farms"
-              price: 5000
+              price: 3800
               quantity: 100
+              discount: 10
               unit: "kg"
               category: "Grains"
               subcategory: "Maize"
               categories: ["Grains", "Maize"]
               images: ["https://example.com/maize1.jpg"]
+              videos: ["https://example.com/maize1.mp4"]
               farmer: "507f1f77bcf86cd799439012"
               localTransport:
                 required: true
@@ -2058,6 +2061,32 @@ paths:
       responses:
         '201':
           description: Product created
+          content:
+            application/json:
+              example:
+                message: "Product created successfully"
+                product:
+                  _id: "67deprod1234567890abcd1"
+                  name: "Fresh Maize"
+                  description: "High quality yellow maize from Kaduna farms"
+                  price: 3800
+                  quantity: 100
+                  discount: 10
+                  unit: "kg"
+                  owner: "67deagent1234567890abc1"
+                  farmer: "507f1f77bcf86cd799439012"
+                  images: ["https://example.com/maize1.jpg"]
+                  videos: ["https://example.com/maize1.mp4"]
+                  status: "available"
+                  category: "Grains"
+                  subcategory: "Maize"
+                  categories: ["Grains", "Maize"]
+                  localTransport:
+                    required: true
+                    fee: 2500
+                    from: "Kachia Farm"
+                    to: "Kaduna Aggregation Point"
+                    note: "Farm gate pickup to interstate loading point"
   /api/products/{id}:
     get:
       summary: Get product by ID
@@ -3371,15 +3400,20 @@ paths:
                     - _id: "67debid1234567890abcdef"
                       amount: 4500
                       status: "accepted"
+                      quantity: 20
                       product:
                         _id: "67deprod1234567890abcd1"
                         name: "Maize"
                         price: 5000
+                        category: "Grains"
+                        subcategory: "Maize"
+                        categories: ["Grains", "Maize"]
                         localTransport:
                           required: true
                           fee: 2500
                           from: "Kachia Farm"
                           to: "Kaduna Aggregation Point"
+                          note: "Farm gate pickup to interstate loading point"
                       agent:
                         _id: "67deagent1234567890abc1"
                         name: "Seller One"
@@ -3402,6 +3436,15 @@ paths:
                     - _id: "67debid1234567890abcdef"
                       amount: 4500
                       status: "accepted"
+                      quantity: 20
+                      product:
+                        _id: "67deprod1234567890abcd1"
+                        name: "Maize"
+                        localTransport:
+                          required: true
+                          fee: 2500
+                          from: "Kachia Farm"
+                          to: "Kaduna Aggregation Point"
                   productsSubtotal: 4500
                   localTransportTotal: 2500
                   totalAmount: 7000
