@@ -234,6 +234,56 @@ describe('Product CRUD Test (Agent Role)', () => {
     expect(getData.product.subcategory).toBe('Rice');
     expect(getData.product.wishlisted).toBe(true);
   });
+
+  it('creates products with local transport and preserves normalized category fields', async () => {
+    const { user: agent } = await createAgent({ email: 'agent-local-transport@example.com' });
+
+    const createRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/products',
+      agent._id.toString(),
+      {
+        method: 'POST',
+        body: {
+          name: 'Fresh Maize',
+          description: 'High quality yellow maize from Kaduna farms',
+          price: 3800,
+          quantity: 100,
+          discount: 10,
+          unit: 'kg',
+          category: 'Grains',
+          subcategory: 'Maize',
+          categories: ['Grains', 'Maize'],
+          images: ['https://example.com/maize1.jpg'],
+          videos: ['https://example.com/maize1.mp4'],
+          localTransport: {
+            required: true,
+            fee: 2500,
+            from: 'Kachia Farm',
+            to: 'Kaduna Aggregation Point',
+            note: 'Farm gate pickup to interstate loading point',
+          },
+        },
+        email: agent.email,
+        role: 'agent',
+      }
+    );
+
+    const createResponse = await createProductHandler(createRequest);
+    const createData = await getResponseJson(createResponse);
+
+    expect(createResponse.status).toBe(201);
+    expect(createData.product.category).toBe('Grains');
+    expect(createData.product.subcategory).toBe('Maize');
+    expect(createData.product.categories).toEqual(['Grains', 'Maize']);
+    expect(createData.product.localTransport).toEqual({
+      required: true,
+      fee: 2500,
+      from: 'Kachia Farm',
+      to: 'Kaduna Aggregation Point',
+      note: 'Farm gate pickup to interstate loading point',
+    });
+    expect(createData.product.status).toBe('available');
+  });
 });
 
 describe('Product status & bulk operations (admin/agent)', () => {
