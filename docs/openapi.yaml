@@ -485,7 +485,7 @@ paths:
   /api/transactions/{id}/status:
     patch:
       summary: Admin updates transaction status
-      description: Canonical transaction status update endpoint.
+      description: Legacy transaction approval endpoint. Prefer `PATCH /api/admin/transactions/{id}/status` for admin UI flows.
       parameters:
         - in: path
           name: id
@@ -1363,7 +1363,34 @@ paths:
   /api/fleet-payments/{id}/status:
     patch:
       summary: Admin updates fleet payment status
-      description: Admin confirms or rejects a fleet payment after verifying manual payment like cash or bank transfer. The linked fleet booking is updated to `confirmed`, `rejected`, or `pending_payment` accordingly.
+      description: Legacy fleet payment approval endpoint. Prefer `PATCH /api/admin/fleet-payments/{id}/status` for admin UI flows. The linked fleet booking is updated to `confirmed`, `rejected`, or `pending_payment` accordingly.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected, pending]
+            example:
+              status: "approved"
+      responses:
+        '200':
+          description: Fleet payment updated
+  /api/admin/fleet-payments/{id}/status:
+    patch:
+      summary: Admin updates fleet payment status
+      description: Admin-prefixed alias for fleet payment approval. Prefer this route for admin UI flows.
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -2724,6 +2751,59 @@ paths:
       responses:
         '200':
           description: Fleet payments list
+  /api/admin/fleet-payments/{id}:
+    get:
+      summary: Get fleet payment by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet payment detail
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67defleetpay1234567890ab1"
+                  amount: 210000
+                  status: "pending"
+                  paymentMethod: "bank_transfer"
+                  note: "Paid via bank transfer for Kaduna to Lagos route"
+                  buyer:
+                    _id: "67debuyer1234567890abc1"
+                    name: "Buyer One"
+                    email: "buyer@example.com"
+                  transporter:
+                    _id: "67detrans1234567890abc1"
+                    name: "North Haul Logistics"
+                    email: "transporter@example.com"
+                  fleet:
+                    _id: "67defleet1234567890abc1"
+                    plateNumber: "ABC-123"
+                    fleetName: "North Route Fleet"
+                    model: "Volvo"
+                    status: "available"
+                    price: 210000
+                  fleetBid:
+                    _id: "67defleetbid123456789ab1"
+                    amount: 200000
+                    counterAmount: 210000
+                    status: "countered"
+                  booking:
+                    _id: "67debooking1234567890ab1"
+                    status: "pending_payment"
+                    amount: 210000
+                  approvedBy: null
+                  createdAt: "2026-03-29T10:00:00.000Z"
+                  updatedAt: "2026-03-29T10:00:00.000Z"
+        '404':
+          description: Fleet payment not found
   /api/admin/fleet-payments/{id}/refund:
     post:
       summary: Refund fleet payment by id
