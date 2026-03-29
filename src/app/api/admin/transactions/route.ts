@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
+import Order from '@/models/order';
+import Product from '@/models/product';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 
@@ -80,7 +82,18 @@ export async function GET(request: Request) {
     // Get transactions
     const transactions = await Transaction.find(query)
       .populate('buyer', 'name email businessName')
-      .populate('order')
+      .populate({
+        path: 'order',
+        model: Order,
+        populate: {
+          path: 'products.product',
+          model: Product,
+          populate: {
+            path: 'owner',
+            select: 'name email businessName'
+          }
+        }
+      })
       .populate('approvedBy', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -89,28 +102,46 @@ export async function GET(request: Request) {
     const total = await Transaction.countDocuments(query);
 
     // Format response
-    const transactionsDto = transactions.map(t => ({
-      _id: t._id,
-      amount: t.amount,
-      status: t.status,
-      method: t.paymentMethod,
-      payer: {
-        id: t.buyer._id,
-        name: t.buyer.name || t.buyer.businessName || 'Unknown',
-        email: t.buyer.email
-      },
-      payee: {
-        id: t.order?.transporter || null,
-        name: 'Transporter', // Would need to populate this
-        email: ''
-      },
-      orderId: t.order?._id,
-      approvedBy: t.approvedBy ? {
-        id: t.approvedBy._id,
-        name: t.approvedBy.name || t.approvedBy.email
-      } : null,
-      createdAt: t.createdAt
-    }));
+    const transactionsDto = transactions.map((t: any) => {
+      const buyer = t?.buyer && typeof t.buyer === 'object' ? t.buyer : null;
+      const order = t?.order && typeof t.order === 'object' ? t.order : null;
+      const approvedBy = t?.approvedBy && typeof t.approvedBy === 'object' ? t.approvedBy : null;
+      const payees = Array.from(
+        new Map(
+          (order?.products || [])
+            .map((item: any) => item?.product?.owner)
+            .filter((owner: any) => owner && typeof owner === 'object' && owner._id)
+            .map((owner: any) => [
+              owner._id.toString(),
+              {
+                id: owner._id,
+                name: owner.name || owner.businessName || 'Unknown',
+                email: owner.email || null
+              }
+            ])
+        ).values()
+      );
+
+      return {
+        _id: t._id,
+        amount: t.amount,
+        status: t.status,
+        method: t.paymentMethod,
+        payer: {
+          id: buyer?._id || null,
+          name: buyer?.name || buyer?.businessName || 'Unknown',
+          email: buyer?.email || null
+        },
+        payee: payees[0] || null,
+        payees,
+        orderId: order?._id || null,
+        approvedBy: approvedBy ? {
+          id: approvedBy._id,
+          name: approvedBy.name || approvedBy.email
+        } : null,
+        createdAt: t.createdAt
+      };
+    });
 
     return NextResponse.json({
       success: true,

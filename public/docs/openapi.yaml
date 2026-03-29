@@ -4189,12 +4189,146 @@ paths:
 
   /api/admin/transactions:
     get:
-      summary: GET /api/admin/transactions
+      summary: List product payment transactions
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, refunded]
+        - in: query
+          name: method
+          schema:
+            type: string
+            enum: [cash, bank_transfer, card]
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
-          description: Success
+          description: Paginated product payment transactions
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  transactions:
+                    - _id: "67detrx1234567890abc001"
+                      amount: 7000
+                      status: "pending"
+                      method: "bank_transfer"
+                      payer:
+                        id: "67debuyer1234567890abc1"
+                        name: "Buyer One"
+                        email: "buyer@example.com"
+                      payee:
+                        id: "67deagent1234567890abc1"
+                        name: "Seller One"
+                        email: "seller@example.com"
+                      payees:
+                        - id: "67deagent1234567890abc1"
+                          name: "Seller One"
+                          email: "seller@example.com"
+                      orderId: "67deorder1234567890abc1"
+                      approvedBy: null
+                      createdAt: "2026-03-29T10:00:00.000Z"
+                  pagination:
+                    page: 1
+                    limit: 20
+                    total: 1
+                    totalPages: 1
+
+  /api/admin/transactions/{id}:
+    get:
+      summary: Get product payment transaction by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction detail
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67detrx1234567890abc001"
+                  amount: 7000
+                  status: "pending"
+                  method: "bank_transfer"
+                  payer:
+                    id: "67debuyer1234567890abc1"
+                    name: "Buyer One"
+                    email: "buyer@example.com"
+                  payee:
+                    id: "67deagent1234567890abc1"
+                    name: "Seller One"
+                    email: "seller@example.com"
+                  payees:
+                    - id: "67deagent1234567890abc1"
+                      name: "Seller One"
+                      email: "seller@example.com"
+                  orderId: "67deorder1234567890abc1"
+                  order:
+                    _id: "67deorder1234567890abc1"
+                    status: "payment_pending"
+                    transportStatus: "pending"
+                    totalAmount: 7000
+                  approvedBy: null
+                  createdAt: "2026-03-29T10:00:00.000Z"
+                  updatedAt: "2026-03-29T10:00:00.000Z"
+        '404':
+          description: Transaction not found
+
+  /api/admin/transactions/{id}/status:
+    patch:
+      summary: Admin updates product payment transaction status
+      description: Admin-prefixed alias for transaction approval. Prefer this route for admin UI flows.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected, pending]
+            example:
+              status: "approved"
+      responses:
+        '200':
+          description: Updated transaction
 
   /api/admin/transactions/refund:
     post:
