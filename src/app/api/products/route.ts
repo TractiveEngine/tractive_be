@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, description, price, quantity, unit, images, videos, categories, category, subcategory, farmer, discount } = body;
+  const { name, description, price, quantity, unit, unitWeightKg, images, videos, categories, category, subcategory, farmer, discount } = body;
   
   if (!name || !price) {
     return NextResponse.json(
@@ -72,6 +72,23 @@ export async function POST(request: Request) {
   if (isNaN(numQuantity) || numQuantity < 0) {
     return NextResponse.json(
       { error: "Quantity must be a valid non-negative number" },
+      { status: 400 }
+    );
+  }
+
+  const normalizedUnit = typeof unit === 'string' ? unit.trim().toLowerCase() : 'kg';
+  const parsedUnitWeightKg = unitWeightKg !== undefined && unitWeightKg !== null && unitWeightKg !== ''
+    ? Number(unitWeightKg)
+    : null;
+  if (parsedUnitWeightKg !== null && (!Number.isFinite(parsedUnitWeightKg) || parsedUnitWeightKg <= 0)) {
+    return NextResponse.json(
+      { error: "unitWeightKg must be a valid positive number when provided" },
+      { status: 400 }
+    );
+  }
+  if ((normalizedUnit === 'bag' || normalizedUnit === 'bags') && parsedUnitWeightKg === null) {
+    return NextResponse.json(
+      { error: "unitWeightKg is required when product unit is bag" },
       { status: 400 }
     );
   }
@@ -144,6 +161,7 @@ export async function POST(request: Request) {
       price: numPrice,
       quantity: numQuantity,
       unit: unit || "kg",
+      unitWeightKg: parsedUnitWeightKg,
       images: images || [],
       videos: videos || [],
       ...categoryFields,
@@ -246,8 +264,8 @@ export async function GET(request?: Request) {
   const projection = full
     ? undefined
     : includeMedia
-      ? "name description price quantity unit discount status categories images videos farmer owner localTransport createdAt updatedAt"
-      : "name description price quantity unit discount status categories farmer owner localTransport createdAt updatedAt";
+      ? "name description price quantity unit unitWeightKg discount status categories images videos farmer owner localTransport createdAt updatedAt"
+      : "name description price quantity unit unitWeightKg discount status categories farmer owner localTransport createdAt updatedAt";
 
   const [products, total] = await Promise.all([
     Product.find(query).select(projection).sort(sort).skip(skip).limit(limit).lean(),

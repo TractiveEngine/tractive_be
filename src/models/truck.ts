@@ -11,6 +11,14 @@ const TruckSchema = new mongoose.Schema({
   capacityKg: { type: Number },
   currentLoadKg: { type: Number, default: 0 },
   price: { type: Number },
+  pricingModel: {
+    type: String,
+    enum: ['flat_rate_whole_truck', 'per_kg', 'per_tonne', 'per_50kg_bag', 'per_100kg_bag'],
+    default: 'flat_rate_whole_truck'
+  },
+  wholeTruckOnly: { type: Boolean, default: true },
+  estimatedDeliveryValue: { type: Number, default: null },
+  estimatedDeliveryUnit: { type: String, enum: ['hours', 'days'], default: null },
   priceNegotiation: { type: Boolean, default: false },
   fleetDescription: { type: String },
   fleetStates: { type: String },

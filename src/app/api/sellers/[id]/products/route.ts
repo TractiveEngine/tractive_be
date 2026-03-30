@@ -47,7 +47,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [products, total] = await Promise.all([
     Product.find(query)
-      .select('_id name description price quantity unit images status createdAt discount categories category subcategory')
+      .select('_id name description price quantity unit unitWeightKg images status createdAt discount categories category subcategory')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),

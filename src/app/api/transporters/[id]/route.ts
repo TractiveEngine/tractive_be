@@ -8,6 +8,9 @@ import Order from '@/models/order';
 import Driver from '@/models/driver';
 import Truck from '@/models/truck';
 import { buildCapacityMeta } from '@/lib/truckCapacity';
+import { buildFleetPricingMeta } from '@/lib/fleetPricing';
+import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
+import { getFleetBidSummaries } from '@/lib/fleetBidSummary';
 
 // GET /api/transporters/:id
 export async function GET(
@@ -39,6 +42,7 @@ export async function GET(
   const year = searchParams.get('year');
   const month = searchParams.get('month');
   const size = searchParams.get('size');
+  const pricingModel = searchParams.get('pricingModel');
 
   const fleetQuery: Record<string, unknown> = { transporter: transporter._id };
   if (search) {
@@ -67,6 +71,9 @@ export async function GET(
       ...(Array.isArray(fleetQuery.$and) ? fleetQuery.$and : []),
       { $or: [{ size: sizeRegex }, { capacity: sizeRegex }, { model: sizeRegex }, { fleetName: sizeRegex }] }
     ];
+  }
+  if (pricingModel) {
+    fleetQuery.pricingModel = pricingModel;
   }
   if (year || month) {
     const createdAt: Record<string, Date> = {};
@@ -111,11 +118,11 @@ export async function GET(
       .select('_id name phone licenseNumber trackingNumber assignedTruck createdAt updatedAt')
       .populate({
         path: 'assignedTruck',
-        select: '_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates route status images'
+        select: '_id plateNumber fleetName fleetNumber iot model size capacity capacityKg currentLoadKg price pricingModel wholeTruckOnly estimatedDeliveryValue estimatedDeliveryUnit priceNegotiation fleetDescription fleetStates route status images'
       })
       .sort({ createdAt: -1 }),
     Truck.find(fleetQuery)
-      .select('_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates tracker route status images assignedDriver createdAt updatedAt')
+      .select('_id plateNumber fleetName fleetNumber iot model size capacity capacityKg currentLoadKg price pricingModel wholeTruckOnly estimatedDeliveryValue estimatedDeliveryUnit priceNegotiation fleetDescription fleetStates tracker route status images assignedDriver createdAt updatedAt')
       .populate({
         path: 'assignedDriver',
         select: '_id name phone licenseNumber trackingNumber'
@@ -123,6 +130,7 @@ export async function GET(
       .sort({ createdAt: -1 }),
     Truck.countDocuments(fleetQuery)
   ]);
+  const bidSummaries = await getFleetBidSummaries(fleet.map((truck: any) => truck._id));
 
   const review = reviewAgg[0];
   const delivery = deliveryAgg[0];
@@ -139,10 +147,27 @@ export async function GET(
       driversCount,
       fleetCount,
       filteredFleetCount,
-      drivers,
+      drivers: drivers.map((driver: any) => {
+        const driverObj = driver.toObject();
+        const assignedTruck = driverObj.assignedTruck
+          ? {
+              ...driverObj.assignedTruck,
+              ...buildCapacityMeta(driverObj.assignedTruck),
+              ...buildFleetPricingMeta(driverObj.assignedTruck),
+              ...buildEstimatedDeliveryMeta(driverObj.assignedTruck)
+            }
+          : null;
+        return { ...driverObj, assignedTruck };
+      }),
       fleet: fleet.map((truck: any) => {
         const truckObj = truck.toObject();
-        return { ...truckObj, ...buildCapacityMeta(truckObj) };
+        return {
+          ...truckObj,
+          ...buildCapacityMeta(truckObj),
+          ...buildFleetPricingMeta(truckObj),
+          ...buildEstimatedDeliveryMeta(truckObj),
+          bidSummary: bidSummaries.get(truck._id.toString()) || null
+        };
       }),
       fleetFilters: {
         search: search || null,
@@ -151,6 +176,7 @@ export async function GET(
         fromState: fromState || null,
         toState: toState || null,
         size: size || null,
+        pricingModel: pricingModel || null,
         year: year ? Number(year) : null,
         month: month ? Number(month) : null,
       }

@@ -33,6 +33,25 @@ const FleetBookingSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  loadWeightKg: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  wholeTruckOnly: {
+    type: Boolean,
+    default: false
+  },
+  shipmentItems: [
+    {
+      orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      productName: { type: String, default: null },
+      quantity: { type: Number, required: true },
+      unit: { type: String, default: 'kg' },
+      loadWeightKg: { type: Number, required: true }
+    }
+  ],
   status: {
     type: String,
     enum: ['pending_payment', 'confirmed', 'rejected', 'cancelled', 'completed'],

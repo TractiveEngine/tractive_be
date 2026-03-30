@@ -4,6 +4,7 @@ import dbConnect from '@/lib/dbConnect';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
+import { populateAndSerializeFleetBid } from '@/lib/fleetBidDto';
 
 export async function POST(
   request: Request,
@@ -63,8 +64,5 @@ export async function POST(
 
   bid.updatedAt = new Date();
   await bid.save();
-  await bid.populate('buyer', '_id name email phone');
-  await bid.populate('fleet', '_id plateNumber fleetName fleetNumber model price');
-
-  return NextResponse.json({ success: true, data: bid }, { status: 200 });
+  return NextResponse.json({ success: true, data: await populateAndSerializeFleetBid(bid) }, { status: 200 });
 }

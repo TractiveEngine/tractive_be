@@ -3,6 +3,9 @@ import dbConnect from '@/lib/dbConnect';
 import Driver from '@/models/driver';
 import Truck from '@/models/truck';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
+import { buildFleetPricingMeta } from '@/lib/fleetPricing';
+import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
 
 async function ensureTruckAvailableForDriver(truckId: string, transporterId: string, driverId?: string) {
   const truck = await Truck.findOne({ _id: truckId, transporter: transporterId });
@@ -55,10 +58,24 @@ export async function GET(request: Request) {
   const drivers = await Driver.find(query)
     .populate({
       path: 'assignedTruck',
-      select: '_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates route status images'
+      select: '_id plateNumber fleetName fleetNumber iot model size capacity capacityKg currentLoadKg price pricingModel wholeTruckOnly estimatedDeliveryValue estimatedDeliveryUnit priceNegotiation fleetDescription fleetStates route status images'
     })
     .sort({ createdAt: -1 });
-  return NextResponse.json({ success: true, data: drivers }, { status: 200 });
+  return NextResponse.json({
+    success: true,
+    data: drivers.map((driver: any) => {
+      const driverObj = driver.toObject();
+      const assignedTruck = driverObj.assignedTruck
+        ? {
+            ...driverObj.assignedTruck,
+            ...buildCapacityMeta(driverObj.assignedTruck),
+            ...buildFleetPricingMeta(driverObj.assignedTruck),
+            ...buildEstimatedDeliveryMeta(driverObj.assignedTruck)
+          }
+        : null;
+      return { ...driverObj, assignedTruck };
+    })
+  }, { status: 200 });
 }
 
 export async function POST(request: Request) {
@@ -81,14 +98,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: 'Name and license number required' }, { status: 400 });
   }
 
-  let assignedTruck = null;
+  let selectedTruck = null;
   const requestedTruckId = body.assignedTruck || body.truckId || body.fleetId;
   if (requestedTruckId) {
     const { truck, error } = await ensureTruckAvailableForDriver(requestedTruckId, user._id.toString());
     if (error) {
       return error;
     }
-    assignedTruck = truck;
+    selectedTruck = truck;
   }
 
   const driver = await Driver.create({
@@ -97,19 +114,28 @@ export async function POST(request: Request) {
     licenseNumber,
     trackingNumber,
     transporter: user._id,
-    assignedTruck: assignedTruck?._id || null,
+    assignedTruck: selectedTruck?._id || null,
   });
 
-  if (assignedTruck) {
-    assignedTruck.assignedDriver = driver._id;
-    assignedTruck.updatedAt = new Date();
-    await assignedTruck.save();
+  if (selectedTruck) {
+    selectedTruck.assignedDriver = driver._id;
+    selectedTruck.updatedAt = new Date();
+    await selectedTruck.save();
   }
 
   await driver.populate({
     path: 'assignedTruck',
-    select: '_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates route status images'
+    select: '_id plateNumber fleetName fleetNumber iot model size capacity capacityKg currentLoadKg price pricingModel wholeTruckOnly estimatedDeliveryValue estimatedDeliveryUnit priceNegotiation fleetDescription fleetStates route status images'
   });
+  const driverObj = driver.toObject();
+  const enrichedAssignedTruck = driverObj.assignedTruck
+    ? {
+        ...driverObj.assignedTruck,
+        ...buildCapacityMeta(driverObj.assignedTruck),
+        ...buildFleetPricingMeta(driverObj.assignedTruck),
+        ...buildEstimatedDeliveryMeta(driverObj.assignedTruck)
+      }
+    : null;
 
-  return NextResponse.json({ success: true, data: driver }, { status: 201 });
+  return NextResponse.json({ success: true, data: { ...driverObj, assignedTruck: enrichedAssignedTruck } }, { status: 201 });
 }

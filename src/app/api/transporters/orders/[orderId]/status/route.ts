@@ -33,10 +33,11 @@ export async function PATCH(
     .map((p: any) => p?.product?.owner?.toString?.())
     .filter(Boolean);
   const isSeller = ensureActiveRole(user, 'agent') && sellerIds.includes(user._id.toString());
+  const isAdmin = ensureActiveRole(user, 'admin');
 
-  if (!isTransporter && !isSeller) {
+  if (!isTransporter && !isSeller && !isAdmin) {
     return NextResponse.json(
-      { success: false, message: 'Transporter or seller access required for this order' },
+      { success: false, message: 'Transporter, seller, or admin access required for this order' },
       { status: 403 }
     );
   }
@@ -63,5 +64,16 @@ export async function PATCH(
     location: body?.location || '',
   });
 
-  return NextResponse.json({ success: true, data: order }, { status: 200 });
+  return NextResponse.json({
+    success: true,
+    data: {
+      order,
+      latestTrackingEvent: {
+        status: transportStatus,
+        note: body?.note || '',
+        location: body?.location || '',
+        updatedByRole: user.activeRole || null,
+      }
+    }
+  }, { status: 200 });
 }

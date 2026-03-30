@@ -4,6 +4,8 @@ import dbConnect from '@/lib/dbConnect';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
+import { resolveFleetShipmentSelection } from '@/lib/fleetShipment';
+import { fleetBidPopulate, populateAndSerializeFleetBid, serializeFleetBid } from '@/lib/fleetBidDto';
 
 export async function GET(
   request: Request,
@@ -37,11 +39,10 @@ export async function GET(
   }
 
   const bids = await FleetBid.find(query)
-    .populate('buyer', '_id name email phone')
-    .populate('fleet', '_id plateNumber fleetName fleetNumber model price')
+    .populate(fleetBidPopulate)
     .sort({ createdAt: -1 });
 
-  return NextResponse.json({ success: true, data: bids }, { status: 200 });
+  return NextResponse.json({ success: true, data: bids.map(serializeFleetBid) }, { status: 200 });
 }
 
 export async function POST(
@@ -70,16 +71,24 @@ export async function POST(
     return NextResponse.json({ success: false, message: 'Valid amount is required' }, { status: 400 });
   }
 
+  const shipmentResolution = await resolveFleetShipmentSelection({
+    buyerId: user._id,
+    shipmentItems: body?.shipmentItems,
+    explicitLoadWeightKg: body?.loadWeightKg
+  });
+  if (!shipmentResolution.ok) {
+    return NextResponse.json({ success: false, message: shipmentResolution.message }, { status: shipmentResolution.status });
+  }
+
   const bid = await FleetBid.create({
     fleet: fleet._id,
     transporter: fleet.transporter,
     buyer: user._id,
     amount,
+    loadWeightKg: shipmentResolution.loadWeightKg,
+    shipmentItems: shipmentResolution.shipmentItems,
     message: typeof body?.message === 'string' ? body.message : null
   });
 
-  await bid.populate('buyer', '_id name email phone');
-  await bid.populate('fleet', '_id plateNumber fleetName fleetNumber model price');
-
-  return NextResponse.json({ success: true, data: bid }, { status: 201 });
+  return NextResponse.json({ success: true, data: await populateAndSerializeFleetBid(bid) }, { status: 201 });
 }
