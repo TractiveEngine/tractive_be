@@ -6,6 +6,9 @@ import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
 import FleetPayment from '@/models/fleetPayment';
 import FleetBooking from '@/models/fleetBooking';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
+import { calculateFleetCharge, getFleetPricingUnitLabel, isWholeTruckPricingModel } from '@/lib/fleetPricing';
+import { resolveFleetShipmentSelection } from '@/lib/fleetShipment';
 
 function resolveAcceptedAmount(bid: any) {
   return typeof bid?.counterAmount === 'number' && bid.counterAmount > 0 ? bid.counterAmount : bid?.amount;
@@ -26,7 +29,7 @@ export async function GET(
     return NextResponse.json({ success: false, message: 'Invalid fleet id' }, { status: 400 });
   }
 
-  const fleet = await Truck.findById(id).select('_id transporter plateNumber fleetName fleetNumber model price');
+  const fleet = await Truck.findById(id).select('_id transporter plateNumber fleetName fleetNumber model price pricingModel wholeTruckOnly capacity capacityKg currentLoadKg');
   if (!fleet) {
     return NextResponse.json({ success: false, message: 'Fleet not found' }, { status: 404 });
   }
@@ -67,12 +70,55 @@ export async function POST(
     return NextResponse.json({ success: false, message: 'Invalid fleet id' }, { status: 400 });
   }
 
-  const fleet = await Truck.findById(id).select('_id transporter plateNumber fleetName fleetNumber model price');
+  const fleet = await Truck.findById(id).select('_id transporter plateNumber fleetName fleetNumber model price pricingModel wholeTruckOnly capacity capacityKg currentLoadKg');
   if (!fleet) {
     return NextResponse.json({ success: false, message: 'Fleet not found' }, { status: 404 });
   }
 
   const body: any = await request.json().catch(() => ({}));
+  let loadWeightKg = Number(body?.loadWeightKg);
+  let shipmentItems: Array<{
+    orderId: any;
+    productId: any;
+    productName: string | null;
+    quantity: number;
+    unit: string;
+    loadWeightKg: number;
+  }> = [];
+
+  const capacityMeta = buildCapacityMeta(fleet.toObject());
+  const wholeTruckOnly = isWholeTruckPricingModel(fleet.pricingModel) || fleet.wholeTruckOnly === true;
+  if (wholeTruckOnly && Number(fleet.currentLoadKg || 0) > 0) {
+    return NextResponse.json({
+      success: false,
+      message: 'This fleet only accepts whole-truck bookings and is already reserved or in use',
+      data: {
+        pricingModel: fleet.pricingModel || 'flat_rate_whole_truck',
+        wholeTruckOnly: true,
+        priceUnitLabel: getFleetPricingUnitLabel(fleet.pricingModel),
+        currentLoadKg: Number(fleet.currentLoadKg || 0),
+        capacityKg: capacityMeta.capacityKg
+      }
+    }, { status: 409 });
+  }
+  if (wholeTruckOnly) {
+    const existingWholeTruckBooking = await FleetBooking.findOne({
+      fleet: fleet._id,
+      status: { $in: ['pending_payment', 'confirmed'] }
+    }).select('_id buyer status');
+    if (existingWholeTruckBooking && existingWholeTruckBooking.buyer?.toString() !== user._id.toString()) {
+      return NextResponse.json({
+        success: false,
+        message: 'This fleet already has an active whole-truck booking request',
+        data: {
+          pricingModel: fleet.pricingModel || 'flat_rate_whole_truck',
+          wholeTruckOnly: true,
+          bookingId: existingWholeTruckBooking._id,
+          bookingStatus: existingWholeTruckBooking.status
+        }
+      }, { status: 409 });
+    }
+  }
   const paymentMethod = body?.paymentMethod;
   if (!['cash', 'bank_transfer', 'card'].includes(paymentMethod)) {
     return NextResponse.json({ success: false, message: 'Valid paymentMethod is required' }, { status: 400 });
@@ -100,9 +146,40 @@ export async function POST(
     }).sort({ updatedAt: -1, createdAt: -1 });
   }
 
-  const payableAmount = acceptedBid ? resolveAcceptedAmount(acceptedBid) : fleet.price;
+  const shipmentResolution = await resolveFleetShipmentSelection({
+    buyerId: user._id,
+    shipmentItems: body?.shipmentItems ?? acceptedBid?.shipmentItems,
+    explicitLoadWeightKg: body?.loadWeightKg ?? acceptedBid?.loadWeightKg
+  });
+  if (!shipmentResolution.ok) {
+    return NextResponse.json({ success: false, message: shipmentResolution.message }, { status: shipmentResolution.status });
+  }
+  loadWeightKg = shipmentResolution.loadWeightKg;
+  shipmentItems = shipmentResolution.shipmentItems;
+
+  if (
+    capacityMeta.remainingCapacityKg !== null &&
+    loadWeightKg > capacityMeta.remainingCapacityKg
+  ) {
+    return NextResponse.json({
+      success: false,
+      message: 'Selected load exceeds the truck remaining capacity',
+      data: {
+        requestedLoadKg: loadWeightKg,
+        remainingCapacityKg: capacityMeta.remainingCapacityKg,
+        remainingCapacityDisplay: capacityMeta.remainingCapacityDisplay
+      }
+    }, { status: 400 });
+  }
+
+  const payableAmount = acceptedBid
+    ? resolveAcceptedAmount(acceptedBid)
+    : calculateFleetCharge(fleet.price, fleet.pricingModel, loadWeightKg);
   if (typeof payableAmount !== 'number' || Number.isNaN(payableAmount) || payableAmount <= 0) {
-    return NextResponse.json({ success: false, message: 'No payable fleet amount found. Set fleet price or accept a fleet bid first.' }, { status: 400 });
+    return NextResponse.json({
+      success: false,
+      message: 'No payable fleet amount found. Set fleet price or accept a fleet bid first.'
+    }, { status: 400 });
   }
 
   if (body?.amount !== undefined && Number(body.amount) !== payableAmount) {
@@ -114,6 +191,7 @@ export async function POST(
     buyer: user._id,
     fleetBid: acceptedBid?._id || null,
     amount: payableAmount,
+    loadWeightKg,
     status: { $in: ['pending', 'approved'] }
   })
     .populate('buyer', '_id name email phone')
@@ -134,6 +212,7 @@ export async function POST(
     buyer: user._id,
     fleetBid: acceptedBid?._id || null,
     amount: payableAmount,
+    loadWeightKg,
     status: { $in: ['pending_payment', 'confirmed'] }
   });
 
@@ -144,6 +223,9 @@ export async function POST(
       buyer: user._id,
       fleetBid: acceptedBid?._id || null,
       amount: payableAmount,
+      loadWeightKg,
+      shipmentItems,
+      wholeTruckOnly,
       status: 'pending_payment',
       note: typeof body?.note === 'string' ? body.note : null
     });
@@ -156,6 +238,9 @@ export async function POST(
     fleetBid: acceptedBid?._id || null,
     booking: booking._id,
     amount: payableAmount,
+    loadWeightKg,
+    shipmentItems,
+    wholeTruckOnly,
     paymentMethod,
     note: typeof body?.note === 'string' ? body.note : null
   });

@@ -104,6 +104,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const body = await request.json();
+  const existingProduct = await Product.findById(id);
+  if (!existingProduct) {
+    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+  }
   const isStringArray = (value: unknown) => Array.isArray(value) && value.every((item) => typeof item === 'string');
   const hasDataUri = (items: string[]) => items.some((item) => item.trim().toLowerCase().startsWith('data:'));
 
@@ -125,6 +129,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
   const categoryFields = buildCategoryFields(body);
+  const resolvedUnit = typeof body.unit === 'string' ? body.unit : existingProduct.unit;
+  const normalizedUnit = typeof resolvedUnit === 'string' ? resolvedUnit.trim().toLowerCase() : 'kg';
+  const unitWeightValue =
+    body.unitWeightKg !== undefined
+      ? body.unitWeightKg
+      : existingProduct.unitWeightKg;
+  const parsedUnitWeightKg =
+    unitWeightValue !== undefined && unitWeightValue !== null && unitWeightValue !== ''
+      ? Number(unitWeightValue)
+      : null;
+  if (parsedUnitWeightKg !== null && (!Number.isFinite(parsedUnitWeightKg) || parsedUnitWeightKg <= 0)) {
+    return NextResponse.json({ error: 'unitWeightKg must be a valid positive number when provided' }, { status: 400 });
+  }
+  if ((normalizedUnit === 'bag' || normalizedUnit === 'bags') && parsedUnitWeightKg === null) {
+    return NextResponse.json({ error: 'unitWeightKg is required when product unit is bag' }, { status: 400 });
+  }
   const hasLocalTransportInput =
     body.localTransport !== undefined ||
     body.localTransportRequired !== undefined ||
@@ -133,6 +153,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body.localTransportTo !== undefined ||
     body.localTransportNote !== undefined;
   const updateDoc: any = { ...body, ...categoryFields };
+  updateDoc.unitWeightKg = parsedUnitWeightKg;
   if (hasLocalTransportInput) {
     try {
       updateDoc.localTransport = normalizeLocalTransport(body);
@@ -146,9 +167,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   delete updateDoc.localTransportTo;
   delete updateDoc.localTransportNote;
   const product = await Product.findByIdAndUpdate(id, updateDoc, { new: true });
-  if (!product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-  }
 
   return NextResponse.json({ product }, { status: 200 });
 }

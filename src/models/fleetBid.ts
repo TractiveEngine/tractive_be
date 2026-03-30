@@ -23,6 +23,20 @@ const FleetBidSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  loadWeightKg: {
+    type: Number,
+    default: null
+  },
+  shipmentItems: [
+    {
+      orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
+      productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      productName: { type: String, default: null },
+      quantity: { type: Number, required: true },
+      unit: { type: String, default: 'kg' },
+      loadWeightKg: { type: Number, required: true }
+    }
+  ],
   counterAmount: {
     type: Number,
     default: null

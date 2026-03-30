@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import FleetPayment from '@/models/fleetPayment';
 import FleetBooking from '@/models/fleetBooking';
+import Truck from '@/models/truck';
 import { requireAdmin } from '@/lib/apiAdmin';
 import mongoose from 'mongoose';
+import { isWholeTruckPricingModel } from '@/lib/fleetPricing';
 
 export async function POST(request: Request) {
   const { error } = await requireAdmin(request);
@@ -32,6 +34,18 @@ export async function POST(request: Request) {
     payment.refundReason = reason || null;
     payment.updatedAt = new Date();
     await payment.save();
+
+    if (payment.fleet && typeof payment.loadWeightKg === 'number' && payment.loadWeightKg > 0) {
+      const fleet = await Truck.findById(payment.fleet);
+      if (fleet) {
+        const wholeTruckOnly = payment.wholeTruckOnly === true || fleet.wholeTruckOnly === true || isWholeTruckPricingModel(fleet.pricingModel);
+        fleet.currentLoadKg = wholeTruckOnly
+          ? 0
+          : Math.max(0, Number(fleet.currentLoadKg || 0) - payment.loadWeightKg);
+        fleet.updatedAt = new Date();
+        await fleet.save();
+      }
+    }
 
     if (payment.booking) {
       const booking = await FleetBooking.findById(payment.booking);

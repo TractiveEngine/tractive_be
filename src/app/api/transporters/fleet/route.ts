@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Truck from '@/models/truck';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
-import { parseCapacityToKg } from '@/lib/truckCapacity';
+import { buildCapacityMeta, parseCapacityToKg } from '@/lib/truckCapacity';
+import { buildFleetPricingMeta, normalizeFleetPricingModel } from '@/lib/fleetPricing';
+import { buildEstimatedDeliveryMeta, normalizeEstimatedDeliveryUnit } from '@/lib/estimatedDelivery';
 
 export async function GET(request: Request) {
   await dbConnect();
@@ -48,7 +50,18 @@ export async function GET(request: Request) {
   }
 
   const trucks = await Truck.find(query).sort({ createdAt: -1 });
-  return NextResponse.json({ success: true, data: trucks }, { status: 200 });
+  return NextResponse.json({
+    success: true,
+    data: trucks.map((truck) => {
+      const truckObj = truck.toObject();
+      return {
+        ...truckObj,
+        ...buildCapacityMeta(truckObj),
+        ...buildFleetPricingMeta(truckObj),
+        ...buildEstimatedDeliveryMeta(truckObj)
+      };
+    })
+  }, { status: 200 });
 }
 
 export async function POST(request: Request) {
@@ -64,6 +77,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: 'plateNumber or fleetNumber required' }, { status: 400 });
   }
 
+  const pricingModel = normalizeFleetPricingModel(body.pricingModel);
+  const estimatedDeliveryUnit = normalizeEstimatedDeliveryUnit(body.estimatedDeliveryUnit);
+  const estimatedDeliveryValue =
+    body.estimatedDeliveryValue !== undefined && body.estimatedDeliveryValue !== null
+      ? Number(body.estimatedDeliveryValue)
+      : null;
+  const capacityKg =
+    typeof body.capacityKg === 'number'
+      ? body.capacityKg
+      : parseCapacityToKg(body.capacity || body.size);
+  if (pricingModel === 'flat_rate_whole_truck' && (capacityKg === null || capacityKg <= 0)) {
+    return NextResponse.json({
+      success: false,
+      message: 'capacity or capacityKg is required for flat-rate whole-truck fleets'
+    }, { status: 400 });
+  }
+  if (estimatedDeliveryValue !== null && (!Number.isFinite(estimatedDeliveryValue) || estimatedDeliveryValue <= 0)) {
+    return NextResponse.json({ success: false, message: 'estimatedDeliveryValue must be a positive number' }, { status: 400 });
+  }
+  if (body.estimatedDeliveryValue !== undefined && !estimatedDeliveryUnit) {
+    return NextResponse.json({ success: false, message: 'estimatedDeliveryUnit must be either hours or days' }, { status: 400 });
+  }
+
   const truck = await Truck.create({
     plateNumber,
     fleetName: body.fleetName || body.name || body.model,
@@ -72,15 +108,16 @@ export async function POST(request: Request) {
     model: body.model || body.fleetName || body.name,
     size: body.size,
     capacity: body.capacity || body.size,
-    capacityKg:
-      typeof body.capacityKg === 'number'
-        ? body.capacityKg
-        : parseCapacityToKg(body.capacity || body.size),
+    capacityKg,
     currentLoadKg:
       typeof body.currentLoadKg === 'number' && body.currentLoadKg >= 0
         ? body.currentLoadKg
         : 0,
     price: body.price,
+    pricingModel,
+    wholeTruckOnly: pricingModel === 'flat_rate_whole_truck',
+    estimatedDeliveryValue,
+    estimatedDeliveryUnit,
     priceNegotiation: !!body.priceNegotiation,
     images: Array.isArray(body.images) ? body.images : [],
     fleetDescription: body.fleetDescription,
@@ -92,5 +129,14 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json({ success: true, data: truck }, { status: 201 });
+  const truckObj = truck.toObject();
+  return NextResponse.json({
+    success: true,
+    data: {
+      ...truckObj,
+      ...buildCapacityMeta(truckObj),
+      ...buildFleetPricingMeta(truckObj),
+      ...buildEstimatedDeliveryMeta(truckObj)
+    }
+  }, { status: 201 });
 }

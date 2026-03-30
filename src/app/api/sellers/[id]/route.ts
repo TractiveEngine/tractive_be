@@ -105,7 +105,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     Product.countDocuments({ owner: id }),
     Product.countDocuments(productQuery),
     Product.find(productQuery)
-      .select('_id name description price quantity unit images status createdAt discount categories category subcategory')
+      .select('_id name description price quantity unit unitWeightKg images status createdAt discount categories category subcategory')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -113,7 +113,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       owner: seller._id,
       status: 'available'
     })
-      .select('_id name images price categories category subcategory')
+      .select('_id name images price unit unitWeightKg categories category subcategory')
       .sort({ createdAt: -1 })
       .limit(8)
   ]);

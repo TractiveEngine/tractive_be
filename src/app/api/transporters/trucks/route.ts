@@ -3,6 +3,9 @@ import dbConnect from '@/lib/dbConnect';
 import Truck from '@/models/truck';
 import { getAuthUser } from '@/lib/apiAuth';
 import { buildCapacityMeta } from '@/lib/truckCapacity';
+import { buildFleetPricingMeta } from '@/lib/fleetPricing';
+import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
+import { getFleetBidSummaries } from '@/lib/fleetBidSummary';
 
 // GET /api/transporters/trucks
 export async function GET(request: Request) {
@@ -17,6 +20,7 @@ export async function GET(request: Request) {
   const status = searchParams.get('status') || 'all';
   const fromState = searchParams.get('fromState');
   const toState = searchParams.get('toState');
+  const pricingModel = searchParams.get('pricingModel');
 
   const query: any = {};
   if (status === 'empty') query.status = 'available';
@@ -24,6 +28,7 @@ export async function GET(request: Request) {
 
   if (fromState) query['route.fromState'] = fromState;
   if (toState) query['route.toState'] = toState;
+  if (pricingModel) query.pricingModel = pricingModel;
   if (search) {
     const regex = new RegExp(search, 'i');
     query.$or = [
@@ -38,11 +43,19 @@ export async function GET(request: Request) {
   }
 
   const trucks = await Truck.find(query).sort({ createdAt: -1 });
+  const bidSummaries = await getFleetBidSummaries(trucks.map((truck) => truck._id));
   return NextResponse.json({
     success: true,
     data: trucks.map((truck) => {
       const truckObj = truck.toObject();
-      return { ...truckObj, ...buildCapacityMeta(truckObj) };
+      const bidSummary = bidSummaries.get(truck._id.toString()) || null;
+      return {
+        ...truckObj,
+        ...buildCapacityMeta(truckObj),
+        ...buildFleetPricingMeta(truckObj),
+        ...buildEstimatedDeliveryMeta(truckObj),
+        bidSummary
+      };
     })
   }, { status: 200 });
 }

@@ -43,6 +43,13 @@ components:
           type: number
         quantity:
           type: number
+        unit:
+          type: string
+          description: Measurement unit for the quantity, for example `kg`, `ton`, or `bag`.
+        unitWeightKg:
+          type: number
+          nullable: true
+          description: Required when `unit` is `bag`. Defines how many kilograms one bag represents.
         discount:
           type: number
         images:
@@ -114,8 +121,110 @@ components:
           type: string
         capacity:
           type: string
+        capacityKg:
+          type: number
+          nullable: true
+        currentLoadKg:
+          type: number
+          nullable: true
+        remainingCapacityKg:
+          type: number
+          nullable: true
+        remainingCapacityDisplay:
+          type: string
+          nullable: true
         price:
           type: number
+        pricingModel:
+          type: string
+          enum: [flat_rate_whole_truck, per_kg, per_tonne, per_50kg_bag, per_100kg_bag]
+          description: How the fleet price should be interpreted.
+        wholeTruckOnly:
+          type: boolean
+          description: True when the transporter only accepts the truck as a full-truck booking.
+        estimatedDeliveryValue:
+          type: number
+          nullable: true
+          description: Estimated delivery duration numeric value for this route.
+        estimatedDeliveryUnit:
+          type: string
+          nullable: true
+          enum: [hours, days]
+        estimatedDeliveryText:
+          type: string
+          nullable: true
+          description: Computed human-readable duration like `8 hours` or `2 days`.
+        bidSummary:
+          type: object
+          nullable: true
+          properties:
+            totalBids:
+              type: integer
+            activeBidsCount:
+              type: integer
+            successfulBidsCount:
+              type: integer
+            highestBidAmount:
+              type: number
+              nullable: true
+            latestBidAmount:
+              type: number
+              nullable: true
+            activeBidders:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  loadWeightKg:
+                    type: number
+                    nullable: true
+                  loadWeightTonnes:
+                    type: number
+                    nullable: true
+                  equivalent50kgBags:
+                    type: number
+                    nullable: true
+                  equivalent100kgBags:
+                    type: number
+                    nullable: true
+                  loadDisplay:
+                    type: string
+                    nullable: true
+            successfulBidders:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  loadWeightKg:
+                    type: number
+                    nullable: true
+                  loadWeightTonnes:
+                    type: number
+                    nullable: true
+                  equivalent50kgBags:
+                    type: number
+                    nullable: true
+                  equivalent100kgBags:
+                    type: number
+                    nullable: true
+                  loadDisplay:
+                    type: string
+                    nullable: true
+        priceUnitLabel:
+          type: string
+          description: Human-readable pricing unit for frontend display.
+        pricePerKgEquivalent:
+          type: number
+          nullable: true
+          description: Backend-calculated price-per-kg equivalent for UI comparison.
         priceNegotiation:
           type: boolean
         fleetDescription:
@@ -679,7 +788,15 @@ paths:
                 model: { type: string }
                 size: { type: string }
                 capacity: { type: string }
+                capacityKg: { type: number }
                 price: { type: number }
+                pricingModel:
+                  type: string
+                  enum: [flat_rate_whole_truck, per_kg, per_tonne, per_50kg_bag, per_100kg_bag]
+                estimatedDeliveryValue: { type: number }
+                estimatedDeliveryUnit:
+                  type: string
+                  enum: [hours, days]
                 priceNegotiation: { type: boolean }
                 images:
                   type: array
@@ -697,7 +814,12 @@ paths:
               iot: "IOT-TRK-001"
               model: "Volvo"
               size: "20 tons"
+              capacity: "20 tons"
+              capacityKg: 20000
               price: 250000
+              pricingModel: "flat_rate_whole_truck"
+              estimatedDeliveryValue: 2
+              estimatedDeliveryUnit: "days"
               priceNegotiation: true
               images:
                 - "https://example.com/truck1.jpg"
@@ -754,7 +876,15 @@ paths:
                 model: { type: string }
                 size: { type: string }
                 capacity: { type: string }
+                capacityKg: { type: number }
                 price: { type: number }
+                pricingModel:
+                  type: string
+                  enum: [flat_rate_whole_truck, per_kg, per_tonne, per_50kg_bag, per_100kg_bag]
+                estimatedDeliveryValue: { type: number }
+                estimatedDeliveryUnit:
+                  type: string
+                  enum: [hours, days]
                 priceNegotiation: { type: boolean }
                 images:
                   type: array
@@ -802,7 +932,18 @@ paths:
                   model: "Volvo"
                   size: "20 tons"
                   capacity: "20 tons"
+                  capacityKg: 20000
+                  currentLoadKg: 0
+                  remainingCapacityKg: 20000
+                  remainingCapacityDisplay: "20 tons"
                   price: 250000
+                  pricingModel: "flat_rate_whole_truck"
+                  wholeTruckOnly: true
+                  estimatedDeliveryValue: 2
+                  estimatedDeliveryUnit: "days"
+                  estimatedDeliveryText: "2 days"
+                  priceUnitLabel: "whole truck"
+                  pricePerKgEquivalent: 12.5
                   priceNegotiation: true
                   fleetDescription: "Primary interstate fleet"
                   fleetStates: "Active"
@@ -836,7 +977,15 @@ paths:
                 model: { type: string }
                 size: { type: string }
                 capacity: { type: string }
+                capacityKg: { type: number }
                 price: { type: number }
+                pricingModel:
+                  type: string
+                  enum: [flat_rate_whole_truck, per_kg, per_tonne, per_50kg_bag, per_100kg_bag]
+                estimatedDeliveryValue: { type: number }
+                estimatedDeliveryUnit:
+                  type: string
+                  enum: [hours, days]
                 priceNegotiation: { type: boolean }
                 images:
                   type: array
@@ -851,6 +1000,9 @@ paths:
             example:
               model: "MAN"
               capacity: "18 tons"
+              pricingModel: "per_tonne"
+              estimatedDeliveryValue: 8
+              estimatedDeliveryUnit: "hours"
       responses:
         '200':
           description: Updated truck
@@ -868,7 +1020,7 @@ paths:
   /api/transporters/fleet/{id}/bids:
     get:
       summary: List fleet price bids
-      description: Buyers see only their own bids for the fleet. The owning transporter sees all bids for that fleet.
+      description: Buyers see only their own bids for the fleet. The owning transporter sees all bids for that fleet. The path `id` is the fleet or truck id, not the bid id. Each bid now includes shipment load details so transporters can see the requested weight in kg, tonnes, and bag equivalents.
       parameters:
         - in: path
           name: id
@@ -885,6 +1037,11 @@ paths:
                 data:
                   - _id: "67defleetbid1234567890abc"
                     amount: 180000
+                    loadWeightKg: 5000
+                    loadWeightTonnes: 5
+                    equivalent50kgBags: 100
+                    equivalent100kgBags: 50
+                    loadDisplay: "5 tonnes"
                     counterAmount: null
                     message: "Can you do 180k for this route?"
                     responseMessage: null
@@ -902,7 +1059,7 @@ paths:
                       price: 250000
     post:
       summary: Create fleet price bid
-      description: Requires activeRole `buyer`. Creates a price bid against a fleet/truck on the transporter page.
+      description: Requires activeRole `buyer`. Creates a price bid against a fleet or truck on the transporter page. The path `id` is the fleet id. Include either `loadWeightKg` or `shipmentItems` so the transporter can see how much cargo the buyer wants to move.
       parameters:
         - in: path
           name: id
@@ -920,10 +1077,30 @@ paths:
                   type: number
                 proposedPrice:
                   type: number
+                loadWeightKg:
+                  type: number
+                shipmentItems:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                      productId:
+                        type: string
+                      quantity:
+                        type: number
                 message:
                   type: string
             example:
               amount: 180000
+              shipmentItems:
+                - orderId: "67deorder1234567890abc1"
+                  productId: "67deprod1234567890abc1"
+                  quantity: 3000
+                - orderId: "67deorder1234567890abc2"
+                  productId: "67deprod1234567890abc2"
+                  quantity: 2
               message: "Can you do 180k for this route?"
       responses:
         '201':
@@ -935,6 +1112,11 @@ paths:
                 data:
                   _id: "67defleetbid1234567890abc"
                   amount: 180000
+                  loadWeightKg: 5000
+                  loadWeightTonnes: 5
+                  equivalent50kgBags: 100
+                  equivalent100kgBags: 50
+                  loadDisplay: "5 tonnes"
                   status: "pending"
                   message: "Can you do 180k for this route?"
                   buyer:
@@ -1085,6 +1267,8 @@ paths:
                 data:
                   _id: "67defleetbid1234567890abc"
                   amount: 180000
+                  loadWeightKg: 5000
+                  loadWeightTonnes: 5
                   counterAmount: 210000
                   status: "countered"
                   responseMessage: "Best I can do is 210k"
@@ -1128,6 +1312,8 @@ paths:
                 data:
                   _id: "67defleetbid1234567890abc"
                   amount: 180000
+                  loadWeightKg: 5000
+                  loadWeightTonnes: 5
                   counterAmount: 210000
                   status: "accepted"
                   responseMessage: "Accepted your counter offer"
@@ -1182,7 +1368,7 @@ paths:
   /api/transporters/fleet/{id}/payments:
     get:
       summary: List fleet payments for a fleet
-      description: Buyer sees their own fleet payments for the fleet. Fleet owner transporter sees all payments for that fleet. Admin can also view all payments.
+      description: Buyer sees their own fleet payments for the fleet. Fleet owner transporter sees all payments for that fleet. Admin can also view all payments. Use truck detail/list endpoints to read `remainingCapacityKg` and `remainingCapacityDisplay` before submitting a payment.
       parameters:
         - in: path
           name: id
@@ -1199,6 +1385,8 @@ paths:
                 data:
                   - _id: "67defleetpay1234567890abc"
                     amount: 210000
+                    loadWeightKg: 5000
+                    wholeTruckOnly: false
                     paymentMethod: "bank_transfer"
                     status: "pending"
                     buyer:
@@ -1215,7 +1403,7 @@ paths:
                       status: "accepted"
     post:
       summary: Create fleet payment
-      description: Buyer creates a fleet payment record from an accepted fleet bid or the fleet listed price. This supports manual approval flows like cash or bank transfer. The endpoint also creates or reuses a linked fleet booking in `pending_payment` state.
+      description: Buyer creates a fleet payment record from an accepted fleet bid or the fleet listed price. This supports manual approval flows like cash or bank transfer. The endpoint also creates or reuses a linked fleet booking in `pending_payment` state. Preferred payload is `shipmentItems`, where the backend computes total load in kg from selected paid order items and rejects the request when that total exceeds the truck's current remaining capacity. Supported shipment units for capacity conversion are `kg`, `ton/tons`, and `bag` when the product defines `unitWeightKg`. If the truck pricing model is `flat_rate_whole_truck`, approval reserves the full truck and the fleet is treated as whole-truck-only.
       parameters:
         - in: path
           name: id
@@ -1233,6 +1421,19 @@ paths:
                   type: string
                 amount:
                   type: number
+                loadWeightKg:
+                  type: number
+                shipmentItems:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      orderId:
+                        type: string
+                      productId:
+                        type: string
+                      quantity:
+                        type: number
                 paymentMethod:
                   type: string
                   enum: [cash, bank_transfer, card]
@@ -1241,6 +1442,13 @@ paths:
             example:
               fleetBidId: "67defleetbid1234567890abc"
               amount: 210000
+              shipmentItems:
+                - orderId: "67deorder1234567890abc1"
+                  productId: "67deprod1234567890abc1"
+                  quantity: 3000
+                - orderId: "67deorder1234567890abc2"
+                  productId: "67deprod1234567890abc2"
+                  quantity: 2
               paymentMethod: "bank_transfer"
               note: "Paid via bank transfer for Kaduna to Lagos route"
       responses:
@@ -1253,12 +1461,53 @@ paths:
                 data:
                   _id: "67defleetpay1234567890abc"
                   amount: 210000
+                  loadWeightKg: 5000
+                  wholeTruckOnly: false
+                  shipmentItems:
+                    - orderId: "67deorder1234567890abc1"
+                      productId: "67deprod1234567890abc1"
+                      productName: "Maize"
+                      quantity: 3000
+                      unit: "kg"
+                      loadWeightKg: 3000
+                    - orderId: "67deorder1234567890abc2"
+                      productId: "67deprod1234567890abc2"
+                      productName: "Beans"
+                      quantity: 2
+                      unit: "ton"
+                      loadWeightKg: 2000
                   paymentMethod: "bank_transfer"
                   status: "pending"
                   fleetBid: "67defleetbid1234567890abc"
                   booking:
                     _id: "67defleetbooking1234567890ab"
                     status: "pending_payment"
+                    loadWeightKg: 5000
+                    wholeTruckOnly: false
+        '400':
+          description: Load exceeds remaining capacity, unsupported shipment unit, or shipmentItems/loadWeightKg invalid
+          content:
+            application/json:
+              example:
+                success: false
+                message: "Selected load exceeds the truck remaining capacity"
+                data:
+                  requestedLoadKg: 7000
+                  remainingCapacityKg: 5000
+                  remainingCapacityDisplay: "5 tons"
+        '409':
+          description: Whole-truck fleet already reserved or in use
+          content:
+            application/json:
+              example:
+                success: false
+                message: "This fleet only accepts whole-truck bookings and is already reserved or in use"
+                data:
+                  pricingModel: "flat_rate_whole_truck"
+                  wholeTruckOnly: true
+                  priceUnitLabel: "whole truck"
+                  currentLoadKg: 20000
+                  capacityKg: 20000
   /api/transporters/fleets/{id}/payments:
     get:
       summary: Alias of /api/transporters/fleet/{id}/payments (list fleet payments)
@@ -1773,8 +2022,8 @@ paths:
           description: Updated negotiation
   /api/transporters/orders/{orderId}/status:
     patch:
-      summary: Update transport status for assigned order
-      description: Allows the assigned transporter or a seller/agent attached to any product in the order to update delivery progress and create a tracking event.
+      summary: Update transport status for an order
+      description: Allows the assigned transporter, a seller/agent attached to any product in the order, or an admin to manually update delivery progress and create a tracking event.
       parameters:
         - in: path
           name: orderId
@@ -1791,15 +2040,34 @@ paths:
                 transportStatus:
                   type: string
                   enum: [pending, picked, on_transit, delivered]
+                note:
+                  type: string
+                location:
+                  type: string
             example:
               transportStatus: "on_transit"
+              note: "Left Kaduna depot"
+              location: "Kaduna"
       responses:
         '200':
-          description: Updated order
+          description: Updated order with latest tracking event
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order:
+                    _id: "67deorder1234567890abc1"
+                    transportStatus: "on_transit"
+                  latestTrackingEvent:
+                    status: "on_transit"
+                    note: "Left Kaduna depot"
+                    location: "Kaduna"
+                    updatedByRole: "agent"
   /api/transporters/orders/{orderId}/tracking:
     get:
-      summary: Get tracking timeline for assigned order
-      description: Returns transportStatus plus timeline of tracking events (status, timestamp, note, location).
+      summary: Get tracking timeline for order
+      description: Buyer (order owner), assigned transporter, seller/agent attached to the order, or admin can fetch the manual tracking timeline. Returns transportStatus plus timeline of tracking events (status, timestamp, note, location).
       parameters:
         - in: path
           name: orderId
@@ -2073,6 +2341,7 @@ paths:
               quantity: 100
               discount: 10
               unit: "kg"
+              unitWeightKg: null
               category: "Grains"
               subcategory: "Maize"
               categories: ["Grains", "Maize"]
@@ -2100,6 +2369,7 @@ paths:
                   quantity: 100
                   discount: 10
                   unit: "kg"
+                  unitWeightKg: null
                   owner: "67deagent1234567890abc1"
                   farmer: "507f1f77bcf86cd799439012"
                   images: ["https://example.com/maize1.jpg"]
@@ -2772,6 +3042,20 @@ paths:
                 data:
                   _id: "67defleetpay1234567890ab1"
                   amount: 210000
+                  loadWeightKg: 5000
+                  shipmentItems:
+                    - orderId: "67deorder1234567890abc1"
+                      productId: "67deprod1234567890abc1"
+                      productName: "Maize"
+                      quantity: 3000
+                      unit: "kg"
+                      loadWeightKg: 3000
+                    - orderId: "67deorder1234567890abc2"
+                      productId: "67deprod1234567890abc2"
+                      productName: "Beans"
+                      quantity: 2
+                      unit: "ton"
+                      loadWeightKg: 2000
                   status: "pending"
                   paymentMethod: "bank_transfer"
                   note: "Paid via bank transfer for Kaduna to Lagos route"
@@ -2799,6 +3083,7 @@ paths:
                     _id: "67debooking1234567890ab1"
                     status: "pending_payment"
                     amount: 210000
+                    loadWeightKg: 5000
                   approvedBy: null
                   createdAt: "2026-03-29T10:00:00.000Z"
                   updatedAt: "2026-03-29T10:00:00.000Z"
@@ -3190,6 +3475,12 @@ paths:
                         size: "20 tons"
                         capacity: "20 tons"
                         price: 250000
+                        pricingModel: "flat_rate_whole_truck"
+                        wholeTruckOnly: true
+                        estimatedDeliveryValue: 2
+                        estimatedDeliveryUnit: "days"
+                        estimatedDeliveryText: "2 days"
+                        priceUnitLabel: "whole truck"
                         status: "available"
                   fleet:
                     - _id: "67de1234abcd5678ef901234"
@@ -3200,7 +3491,24 @@ paths:
                       model: "Volvo"
                       size: "20 tons"
                       capacity: "20 tons"
+                      capacityKg: 20000
+                      currentLoadKg: 0
+                      remainingCapacityKg: 20000
+                      remainingCapacityDisplay: "20 tons"
                       price: 250000
+                      pricingModel: "flat_rate_whole_truck"
+                      wholeTruckOnly: true
+                      estimatedDeliveryValue: 2
+                      estimatedDeliveryUnit: "days"
+                      estimatedDeliveryText: "2 days"
+                      bidSummary:
+                        totalBids: 3
+                        activeBidsCount: 1
+                        successfulBidsCount: 1
+                        highestBidAmount: 250000
+                        latestBidAmount: 220000
+                      priceUnitLabel: "whole truck"
+                      pricePerKgEquivalent: 12.5
                       priceNegotiation: true
                       fleetDescription: "Primary interstate fleet"
                       fleetStates: "Active"
@@ -3246,6 +3554,11 @@ paths:
             type: string
             enum: [all, empty, almost_full]
         - in: query
+          name: pricingModel
+          schema:
+            type: string
+            enum: [flat_rate_whole_truck, per_kg, per_tonne, per_50kg_bag, per_100kg_bag]
+        - in: query
           name: fromState
           schema:
             type: string
@@ -3272,6 +3585,36 @@ paths:
                     currentLoadKg: 15000
                     remainingCapacityKg: 5000
                     remainingCapacityDisplay: "5 tons"
+                    price: 12000
+                    pricingModel: "per_tonne"
+                    wholeTruckOnly: false
+                    estimatedDeliveryValue: 8
+                    estimatedDeliveryUnit: "hours"
+                    estimatedDeliveryText: "8 hours"
+                    bidSummary:
+                      totalBids: 4
+                      activeBidsCount: 2
+                      successfulBidsCount: 1
+                      highestBidAmount: 210000
+                      latestBidAmount: 195000
+                      activeBidders:
+                        - id: "67debuyer1234567890abc1"
+                          name: "Buyer One"
+                          loadWeightKg: 5000
+                          loadWeightTonnes: 5
+                          equivalent50kgBags: 100
+                          equivalent100kgBags: 50
+                          loadDisplay: "5 tonnes"
+                      successfulBidders:
+                        - id: "67debuyer1234567890abc2"
+                          name: "Buyer Two"
+                          loadWeightKg: 3000
+                          loadWeightTonnes: 3
+                          equivalent50kgBags: 60
+                          equivalent100kgBags: 30
+                          loadDisplay: "3 tonnes"
+                    priceUnitLabel: "per tonne"
+                    pricePerKgEquivalent: 12
                     route:
                       fromState: "Kaduna"
                       toState: "Lagos"
@@ -3778,6 +4121,7 @@ paths:
                     price: 5000
                     quantity: 100
                     unit: "kg"
+                    unitWeightKg: null
                     discount: 0
                     status: "available"
                     images:
@@ -3794,6 +4138,7 @@ paths:
                     price: 7000
                     quantity: 50
                     unit: "bag"
+                    unitWeightKg: 50
                     discount: 5
                     status: "available"
                     images:
@@ -4124,6 +4469,36 @@ paths:
                   currentLoadKg: 15000
                   remainingCapacityKg: 5000
                   remainingCapacityDisplay: "5 tons"
+                  price: 12000
+                  pricingModel: "per_tonne"
+                  wholeTruckOnly: false
+                  estimatedDeliveryValue: 8
+                  estimatedDeliveryUnit: "hours"
+                  estimatedDeliveryText: "8 hours"
+                  bidSummary:
+                    totalBids: 4
+                    activeBidsCount: 2
+                    successfulBidsCount: 1
+                    highestBidAmount: 210000
+                    latestBidAmount: 195000
+                    activeBidders:
+                      - id: "67debuyer1234567890abc1"
+                        name: "Buyer One"
+                        loadWeightKg: 5000
+                        loadWeightTonnes: 5
+                        equivalent50kgBags: 100
+                        equivalent100kgBags: 50
+                        loadDisplay: "5 tonnes"
+                    successfulBidders:
+                      - id: "67debuyer1234567890abc2"
+                        name: "Buyer Two"
+                        loadWeightKg: 3000
+                        loadWeightTonnes: 3
+                        equivalent50kgBags: 60
+                        equivalent100kgBags: 30
+                        loadDisplay: "3 tonnes"
+                  priceUnitLabel: "per tonne"
+                  pricePerKgEquivalent: 12
                   status: "on_transit"
   /api/transporters/recommendations:
     get:

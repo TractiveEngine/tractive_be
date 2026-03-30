@@ -4,6 +4,12 @@ import dbConnect from '@/lib/dbConnect';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
+import { buildShipmentLoadMeta } from '@/lib/fleetShipment';
+
+function serializeFleetBid(bid: any) {
+  const bidObj = bid.toObject();
+  return { ...bidObj, ...buildShipmentLoadMeta(bidObj.loadWeightKg) };
+}
 
 export async function POST(
   request: Request,
@@ -66,5 +72,5 @@ export async function POST(
   await bid.populate('buyer', '_id name email phone');
   await bid.populate('fleet', '_id plateNumber fleetName fleetNumber model price');
 
-  return NextResponse.json({ success: true, data: bid }, { status: 200 });
+  return NextResponse.json({ success: true, data: serializeFleetBid(bid) }, { status: 200 });
 }

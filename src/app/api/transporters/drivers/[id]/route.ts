@@ -4,6 +4,9 @@ import Driver from '@/models/driver';
 import Truck from '@/models/truck';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
+import { buildFleetPricingMeta } from '@/lib/fleetPricing';
+import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   await dbConnect();
@@ -71,9 +74,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   await driver.save();
   await driver.populate({
     path: 'assignedTruck',
-    select: '_id plateNumber fleetName fleetNumber iot model size capacity price priceNegotiation fleetDescription fleetStates route status images'
+    select: '_id plateNumber fleetName fleetNumber iot model size capacity capacityKg currentLoadKg price pricingModel wholeTruckOnly estimatedDeliveryValue estimatedDeliveryUnit priceNegotiation fleetDescription fleetStates route status images'
   });
-  return NextResponse.json({ success: true, data: driver }, { status: 200 });
+  const driverObj = driver.toObject();
+  const assignedTruck = driverObj.assignedTruck
+    ? {
+        ...driverObj.assignedTruck,
+        ...buildCapacityMeta(driverObj.assignedTruck),
+        ...buildFleetPricingMeta(driverObj.assignedTruck),
+        ...buildEstimatedDeliveryMeta(driverObj.assignedTruck)
+      }
+    : null;
+  return NextResponse.json({ success: true, data: { ...driverObj, assignedTruck } }, { status: 200 });
 }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
