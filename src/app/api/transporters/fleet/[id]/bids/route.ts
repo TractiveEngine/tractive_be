@@ -4,12 +4,8 @@ import dbConnect from '@/lib/dbConnect';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
-import { buildShipmentLoadMeta, resolveFleetShipmentSelection } from '@/lib/fleetShipment';
-
-function serializeFleetBid(bid: any) {
-  const bidObj = bid.toObject();
-  return { ...bidObj, ...buildShipmentLoadMeta(bidObj.loadWeightKg) };
-}
+import { resolveFleetShipmentSelection } from '@/lib/fleetShipment';
+import { fleetBidPopulate, populateAndSerializeFleetBid, serializeFleetBid } from '@/lib/fleetBidDto';
 
 export async function GET(
   request: Request,
@@ -43,8 +39,7 @@ export async function GET(
   }
 
   const bids = await FleetBid.find(query)
-    .populate('buyer', '_id name email phone')
-    .populate('fleet', '_id plateNumber fleetName fleetNumber model price')
+    .populate(fleetBidPopulate)
     .sort({ createdAt: -1 });
 
   return NextResponse.json({ success: true, data: bids.map(serializeFleetBid) }, { status: 200 });
@@ -95,8 +90,5 @@ export async function POST(
     message: typeof body?.message === 'string' ? body.message : null
   });
 
-  await bid.populate('buyer', '_id name email phone');
-  await bid.populate('fleet', '_id plateNumber fleetName fleetNumber model price');
-
-  return NextResponse.json({ success: true, data: serializeFleetBid(bid) }, { status: 201 });
+  return NextResponse.json({ success: true, data: await populateAndSerializeFleetBid(bid) }, { status: 201 });
 }

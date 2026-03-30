@@ -3814,6 +3814,57 @@ paths:
       responses:
         '200':
           description: Checkout summary
+  /api/buyers/fleet-bids:
+    get:
+      summary: List buyer fleet bids
+      description: Returns the authenticated buyer's fleet bids across all trucks. Supports filtering by bid status or a specific fleet.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted, rejected, countered]
+        - in: query
+          name: fleetId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Buyer fleet bids list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetbid1234567890abc"
+                    amount: 180000
+                    loadWeightKg: 5000
+                    loadWeightTonnes: 5
+                    equivalent50kgBags: 100
+                    equivalent100kgBags: 50
+                    loadDisplay: "5 tonnes"
+                    status: "countered"
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                    fleet:
+                      _id: "67de1234abcd5678ef901234"
+                      fleetName: "North Route Fleet"
+                      price: 250000
+                      pricingModel: "flat_rate_whole_truck"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
           content:
             application/json:
               example:
@@ -5599,6 +5650,61 @@ paths:
       responses:
         '200':
           description: Success
+  /api/transporters/fleet-bids:
+    get:
+      summary: List transporter fleet bids
+      description: Returns fleet bids across the authenticated transporter's trucks. Supports filtering by bid status or a specific fleet.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted, rejected, countered]
+        - in: query
+          name: fleetId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transporter fleet bids list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetbid1234567890abc"
+                    amount: 180000
+                    counterAmount: 210000
+                    loadWeightKg: 5000
+                    loadWeightTonnes: 5
+                    equivalent50kgBags: 100
+                    equivalent100kgBags: 50
+                    loadDisplay: "5 tonnes"
+                    status: "countered"
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
+                    fleet:
+                      _id: "67de1234abcd5678ef901234"
+                      fleetName: "North Route Fleet"
+                      price: 250000
+                      pricingModel: "flat_rate_whole_truck"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
 
   /api/trucks:
     get:
