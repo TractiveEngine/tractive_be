@@ -1090,6 +1090,12 @@ paths:
                         type: string
                       quantity:
                         type: number
+                      unitWeightKg:
+                        type: number
+                        description: Optional fallback for bag-based products when the product itself does not yet store unitWeightKg.
+                      unitWeightKg:
+                        type: number
+                        description: Optional fallback for bag-based products when the product itself does not yet store unitWeightKg.
                 message:
                   type: string
             example:
@@ -1101,6 +1107,7 @@ paths:
                 - orderId: "67deorder1234567890abc2"
                   productId: "67deprod1234567890abc2"
                   quantity: 2
+                  unitWeightKg: 50
               message: "Can you do 180k for this route?"
       responses:
         '201':
@@ -1449,6 +1456,7 @@ paths:
                 - orderId: "67deorder1234567890abc2"
                   productId: "67deprod1234567890abc2"
                   quantity: 2
+                  unitWeightKg: 50
               paymentMethod: "bank_transfer"
               note: "Paid via bank transfer for Kaduna to Lagos route"
       responses:

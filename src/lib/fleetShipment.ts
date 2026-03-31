@@ -92,6 +92,7 @@ export async function resolveFleetShipmentSelection({
       const orderId = String(item?.orderId || '');
       const productId = String(item?.productId || '');
       const quantity = Number(item?.quantity);
+      const itemUnitWeightKg = item?.unitWeightKg ?? item?.bagWeightKg;
 
       if (!orderId || !productId || !Number.isFinite(quantity) || quantity <= 0) {
         return {
@@ -132,12 +133,14 @@ export async function resolveFleetShipmentSelection({
       }
 
       const unit = line?.product?.unit || 'kg';
-      const itemLoadWeightKg = convertQuantityToKg(quantity, unit, line?.product?.unitWeightKg);
+      const effectiveUnitWeightKg =
+        Number(itemUnitWeightKg) > 0 ? itemUnitWeightKg : line?.product?.unitWeightKg;
+      const itemLoadWeightKg = convertQuantityToKg(quantity, unit, effectiveUnitWeightKg);
       if (itemLoadWeightKg === null) {
         return {
           ok: false,
           status: 400,
-          message: `Unsupported shipment unit for capacity check: ${unit}. Use kg, ton/tons, or bag with unitWeightKg defined on the product.`
+          message: `Unsupported shipment unit for capacity check: ${unit}. Use kg, ton/tons, or bag with unitWeightKg defined on the product or provided in shipmentItems[].unitWeightKg.`
         };
       }
 
