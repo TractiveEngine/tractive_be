@@ -3814,6 +3814,36 @@ paths:
       responses:
         '200':
           description: Checkout summary
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  bids:
+                    - _id: "67debid1234567890abcdef"
+                      amount: 4500
+                      status: "accepted"
+                      quantity: 20
+                      product:
+                        _id: "67deprod1234567890abcd1"
+                        name: "Maize"
+                        price: 5000
+                        category: "Grains"
+                        subcategory: "Maize"
+                        categories: ["Grains", "Maize"]
+                        localTransport:
+                          required: true
+                          fee: 2500
+                          from: "Kachia Farm"
+                          to: "Kaduna Aggregation Point"
+                          note: "Farm gate pickup to interstate loading point"
+                      agent:
+                        _id: "67deagent1234567890abc1"
+                        name: "Seller One"
+                        email: "seller@example.com"
+                  productsSubtotal: 4500
+                  localTransportTotal: 2500
+                  totalAmount: 7000
   /api/buyers/fleet-bids:
     get:
       summary: List buyer fleet bids
@@ -3865,36 +3895,6 @@ paths:
                   limit: 20
                   total: 1
                   totalPages: 1
-          content:
-            application/json:
-              example:
-                success: true
-                data:
-                  bids:
-                    - _id: "67debid1234567890abcdef"
-                      amount: 4500
-                      status: "accepted"
-                      quantity: 20
-                      product:
-                        _id: "67deprod1234567890abcd1"
-                        name: "Maize"
-                        price: 5000
-                        category: "Grains"
-                        subcategory: "Maize"
-                        categories: ["Grains", "Maize"]
-                        localTransport:
-                          required: true
-                          fee: 2500
-                          from: "Kachia Farm"
-                          to: "Kaduna Aggregation Point"
-                          note: "Farm gate pickup to interstate loading point"
-                      agent:
-                        _id: "67deagent1234567890abc1"
-                        name: "Seller One"
-                        email: "seller@example.com"
-                  productsSubtotal: 4500
-                  localTransportTotal: 2500
-                  totalAmount: 7000
     post:
       summary: Buyer checkout summary for won bids (alias)
       description: Frontend compatibility alias for `GET`. Do not send a request body. To actually proceed with payment, call `POST /api/orders` and then `POST /api/transactions`.
