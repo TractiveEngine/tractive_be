@@ -6,6 +6,7 @@ import User from '@/models/user';
 import '@/models/farmer';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
+import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -146,15 +147,18 @@ export async function GET(request: Request) {
         entry.bidders.push({
           bidId: bidObj._id,
           amount: bidObj.amount,
+          counterOffer: bidObj.counterOffer ?? null,
+          effectiveAmount: getEffectiveProductBidAmount(bidObj),
           status: bidObj.status,
           createdAt: bidObj.createdAt,
           buyer: bidObj.buyer
         });
 
-        if (!entry.leadingBid || bidObj.amount > entry.leadingBid.amount) {
+        const effectiveAmount = getEffectiveProductBidAmount(bidObj);
+        if (!entry.leadingBid || effectiveAmount > entry.leadingBid.amount) {
           entry.leadingBid = {
             bidId: bidObj._id,
-            amount: bidObj.amount,
+            amount: effectiveAmount,
             buyer: bidObj.buyer
           };
         }

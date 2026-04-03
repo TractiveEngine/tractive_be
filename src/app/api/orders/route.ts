@@ -6,6 +6,7 @@ import Bid from '@/models/bid';
 import { createNotification } from '@/lib/notifications';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import { buildOrderItemLocalTransport } from '@/lib/localTransport';
+import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
     if (JSON.stringify(bidProductIds) !== JSON.stringify(requestProductIds)) {
       return NextResponse.json({ error: 'Products must match the selected accepted bids' }, { status: 400 });
     }
-    const expectedTotal = bids.reduce((sum, bid) => sum + (bid.amount || 0), 0) + localTransportTotal;
+    const expectedTotal = bids.reduce((sum, bid) => sum + getEffectiveProductBidAmount(bid), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
       return NextResponse.json({ error: 'Total amount does not match accepted bids' }, { status: 400 });
     }
