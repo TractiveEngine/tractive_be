@@ -6,7 +6,7 @@ type ShipmentSnapshot = {
   orderId: any;
   productId: any;
   productName: string | null;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   loadWeightKg: number;
 };
@@ -92,13 +92,21 @@ export async function resolveFleetShipmentSelection({
       const orderId = String(item?.orderId || '');
       const productId = String(item?.productId || '');
       const quantity = Number(item?.quantity);
+      const requestedWeightKg = Number(item?.weightKg ?? item?.quantityKg ?? item?.loadWeightKg);
       const itemUnitWeightKg = item?.unitWeightKg ?? item?.bagWeightKg;
 
-      if (!orderId || !productId || !Number.isFinite(quantity) || quantity <= 0) {
+      if (
+        !orderId ||
+        !productId ||
+        (
+          (!Number.isFinite(quantity) || quantity <= 0) &&
+          (!Number.isFinite(requestedWeightKg) || requestedWeightKg <= 0)
+        )
+      ) {
         return {
           ok: false,
           status: 400,
-          message: 'Each shipment item must include valid orderId, productId, and quantity'
+          message: 'Each shipment item must include valid orderId, productId, and either quantity or weightKg/quantityKg'
         };
       }
 
@@ -135,7 +143,37 @@ export async function resolveFleetShipmentSelection({
       const unit = line?.product?.unit || 'kg';
       const effectiveUnitWeightKg =
         Number(itemUnitWeightKg) > 0 ? itemUnitWeightKg : line?.product?.unitWeightKg;
-      const itemLoadWeightKg = convertQuantityToKg(quantity, unit, effectiveUnitWeightKg);
+      const maxLineWeightKg = convertQuantityToKg(Number(line.quantity || 0), unit, effectiveUnitWeightKg);
+      let itemLoadWeightKg: number | null = null;
+      let snapshotQuantity: number | null = Number.isFinite(quantity) && quantity > 0 ? quantity : null;
+
+      if (Number.isFinite(requestedWeightKg) && requestedWeightKg > 0) {
+        if (maxLineWeightKg === null) {
+          return {
+            ok: false,
+            status: 400,
+            message: `Unsupported shipment unit for capacity check: ${unit}. Use kg, ton/tons, or bag with unitWeightKg defined on the product or provided in shipmentItems[].unitWeightKg.`
+          };
+        }
+        if (requestedWeightKg > maxLineWeightKg) {
+          return {
+            ok: false,
+            status: 400,
+            message: 'Selected shipment weight exceeds the ordered quantity for one or more items'
+          };
+        }
+        itemLoadWeightKg = requestedWeightKg;
+      } else {
+        if (quantity > Number(line.quantity || 0)) {
+          return {
+            ok: false,
+            status: 400,
+            message: 'Selected shipment quantity exceeds the order quantity for one or more items'
+          };
+        }
+        itemLoadWeightKg = convertQuantityToKg(quantity, unit, effectiveUnitWeightKg);
+      }
+
       if (itemLoadWeightKg === null) {
         return {
           ok: false,
@@ -148,7 +186,7 @@ export async function resolveFleetShipmentSelection({
         orderId: order._id,
         productId: line.product._id,
         productName: line.product.name || null,
-        quantity,
+        quantity: snapshotQuantity,
         unit,
         loadWeightKg: itemLoadWeightKg
       });

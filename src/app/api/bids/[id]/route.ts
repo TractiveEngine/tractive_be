@@ -5,6 +5,7 @@ import User from '@/models/user';
 import Product from '@/models/product';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
+import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -64,27 +65,129 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   const body = await request.json();
-  // Only allow status update to pending, accepted, rejected
-  if (body.status && !['pending', 'accepted', 'rejected'].includes(body.status)) {
+  const requestedStatus = body?.status;
+  const isAgent = user._id.equals(bid.agent);
+  const isBuyer = user._id.equals(bid.buyer);
+
+  if (requestedStatus && !['pending', 'accepted', 'rejected', 'countered'].includes(requestedStatus)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
+  const product = await Product.findById(bid.product);
+
   const oldStatus = bid.status;
-  Object.assign(bid, body, { updatedAt: new Date() });
+
+  if (isAgent) {
+    if (requestedStatus === 'countered' || body?.counterOffer !== undefined) {
+      const counterOffer = Number(body?.counterOffer);
+      if (!Number.isFinite(counterOffer) || counterOffer <= 0) {
+        return NextResponse.json({ error: 'Valid counterOffer is required when countering a bid' }, { status: 400 });
+      }
+      bid.status = 'countered';
+      bid.counterOffer = counterOffer;
+      bid.responseMessage = body?.message ?? body?.responseMessage ?? null;
+    } else {
+      if (requestedStatus && !['pending', 'accepted', 'rejected'].includes(requestedStatus)) {
+        return NextResponse.json({ error: 'Invalid status for agent update' }, { status: 400 });
+      }
+      if (requestedStatus) {
+        bid.status = requestedStatus;
+      }
+      if (typeof body?.message === 'string') {
+        bid.responseMessage = body.message;
+      }
+      if (requestedStatus === 'accepted') {
+        bid.counterOffer = null;
+      }
+    }
+  } else if (isBuyer) {
+    if (bid.status !== 'countered') {
+      return NextResponse.json({ error: 'Buyer can only respond to countered bids' }, { status: 400 });
+    }
+
+    const newOfferAmount = body?.amount ?? body?.proposedPrice;
+    if (newOfferAmount !== undefined && newOfferAmount !== null) {
+      const parsedAmount = Number(newOfferAmount);
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return NextResponse.json({ error: 'Valid amount is required when sending a new offer' }, { status: 400 });
+      }
+      bid.amount = parsedAmount;
+      bid.status = 'pending';
+      bid.counterOffer = null;
+      bid.responseMessage = body?.message ?? body?.responseMessage ?? null;
+      bid.updatedAt = new Date();
+      await bid.save();
+
+      await createNotification({
+        userId: bid.agent.toString(),
+        type: 'generic',
+        title: 'Buyer sent a new offer',
+        message: `Buyer sent a new offer of ${parsedAmount} on ${product?.name || 'a product'}`,
+        metadata: {
+          productId: bid.product.toString(),
+          bidId: bid._id.toString(),
+          amount: parsedAmount
+        }
+      });
+
+      return NextResponse.json({ bid }, { status: 200 });
+    }
+
+    if (!['accepted', 'rejected'].includes(requestedStatus)) {
+      return NextResponse.json({ error: 'Buyer can accept, reject, or send a new offer on a countered bid' }, { status: 400 });
+    }
+    bid.status = requestedStatus;
+    bid.responseMessage = body?.message ?? body?.responseMessage ?? null;
+  }
+
+  bid.updatedAt = new Date();
   await bid.save();
 
+  const effectiveAmount = getEffectiveProductBidAmount(bid);
+
+  if (bid.status === 'countered' && oldStatus !== 'countered') {
+    await createNotification({
+      userId: bid.buyer.toString(),
+      type: 'generic',
+      title: 'Counter offer received',
+      message: `You received a counter offer of ${effectiveAmount} on ${product?.name || 'a product'}`,
+      metadata: {
+        productId: bid.product.toString(),
+        bidId: bid._id.toString(),
+        amount: effectiveAmount,
+        originalAmount: bid.amount
+      }
+    });
+  }
+
   // Notify buyer when bid is accepted
-  if (body.status === 'accepted' && oldStatus !== 'accepted') {
-    const product = await Product.findById(bid.product);
+  if (bid.status === 'accepted' && oldStatus !== 'accepted') {
     await createNotification({
       userId: bid.buyer.toString(),
       type: 'bid_accepted',
       title: 'Your bid was accepted',
-      message: `Your bid of ${bid.amount} on ${product?.name || 'a product'} was accepted`,
+      message: `Your bid of ${effectiveAmount} on ${product?.name || 'a product'} was accepted`,
       metadata: {
         productId: bid.product.toString(),
         bidId: bid._id.toString(),
-        amount: bid.amount
+        amount: effectiveAmount
+      }
+    });
+  }
+
+  if (isBuyer && oldStatus === 'countered') {
+    await createNotification({
+      userId: bid.agent.toString(),
+      type: 'generic',
+      title: bid.status === 'accepted' ? 'Counter offer accepted' : 'Counter offer rejected',
+      message:
+        bid.status === 'accepted'
+          ? `Buyer accepted your counter offer of ${effectiveAmount} on ${product?.name || 'a product'}`
+          : `Buyer rejected your counter offer on ${product?.name || 'a product'}`,
+      metadata: {
+        productId: bid.product.toString(),
+        bidId: bid._id.toString(),
+        amount: effectiveAmount
       }
     });
   }

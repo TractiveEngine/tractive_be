@@ -1093,9 +1093,9 @@ paths:
                       unitWeightKg:
                         type: number
                         description: Optional fallback for bag-based products when the product itself does not yet store unitWeightKg.
-                      unitWeightKg:
+                      weightKg:
                         type: number
-                        description: Optional fallback for bag-based products when the product itself does not yet store unitWeightKg.
+                        description: Optional per-item shipment weight in kilograms. Useful when the UI selects part of a bag-based order by weight instead of by bag count.
                 message:
                   type: string
             example:
@@ -1106,7 +1106,7 @@ paths:
                   quantity: 3000
                 - orderId: "67deorder1234567890abc2"
                   productId: "67deprod1234567890abc2"
-                  quantity: 2
+                  weightKg: 500
                   unitWeightKg: 50
               message: "Can you do 180k for this route?"
       responses:
@@ -1455,7 +1455,7 @@ paths:
                   quantity: 3000
                 - orderId: "67deorder1234567890abc2"
                   productId: "67deprod1234567890abc2"
-                  quantity: 2
+                  quantityKg: 500
                   unitWeightKg: 50
               paymentMethod: "bank_transfer"
               note: "Paid via bank transfer for Kaduna to Lagos route"
@@ -5197,6 +5197,12 @@ paths:
           description: Success
     patch:
       summary: PATCH /api/bids/{id}
+      description: |
+        Product bid update endpoint.
+        - Agent can `accept`, `reject`, or `counter` a buyer's product bid by setting `status` to `accepted`, `rejected`, or `countered`.
+        - When countering, agent must provide `counterOffer`.
+        - Buyer can use the same endpoint to accept or reject a countered bid by sending `status: accepted` or `status: rejected`.
+        - Buyer can also submit a fresh offer on the same `bidId` by sending a new `amount` while the bid is `countered`.
       security:
         - bearerAuth: []
       parameters:
@@ -5212,8 +5218,9 @@ paths:
             schema:
               type: object
             example:
-              status: "accepted"
+              status: "countered"
               counterOffer: 4700
+              message: "Best I can do is 4700"
       responses:
         '200':
           description: Success

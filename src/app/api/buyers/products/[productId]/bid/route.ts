@@ -8,7 +8,10 @@ import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 // POST /api/buyers/products/:productId/bid - place a bid
-export async function POST(request: Request, { params }: { params: { productId: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ productId: string }> | { productId: string } }
+) {
   await dbConnect();
 
   const user = await getAuthUser(request);
@@ -19,7 +22,7 @@ export async function POST(request: Request, { params }: { params: { productId: 
     return NextResponse.json({ success: false, message: 'Only buyers can place bids' }, { status: 403 });
   }
 
-  const { productId } = params;
+  const { productId } = await Promise.resolve(params);
   if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
     return NextResponse.json({ success: false, message: 'Invalid product ID' }, { status: 400 });
   }

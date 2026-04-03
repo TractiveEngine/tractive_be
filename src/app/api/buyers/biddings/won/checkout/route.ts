@@ -16,7 +16,7 @@ async function getCheckoutSummary(request: Request) {
     }
 
     const bids = await getEligibleWonBidsForBuyer(user._id.toString());
-    const productsSubtotal = bids.reduce((sum, b: any) => sum + (b.amount || 0), 0);
+    const productsSubtotal = bids.reduce((sum, b: any) => sum + Number(b.effectiveAmount || b.amount || 0), 0);
     const localTransportTotal = bids.reduce((sum, b: any) => {
       const fee = Number(b?.product?.localTransport?.fee || 0);
       const required = !!b?.product?.localTransport?.required;

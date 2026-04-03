@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Bid from '@/models/bid';
 import Order from '@/models/order';
 import Transaction from '@/models/transaction';
+import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 
 export async function getEligibleWonBidsForBuyer(buyerId: string) {
   const paymentInFlightOrderIdsRaw = await Transaction.find({
@@ -41,10 +42,18 @@ export async function getEligibleWonBidsForBuyer(buyerId: string) {
     bidQuery._id = { $nin: consumedBidIds };
   }
 
-  return Bid.find(bidQuery)
+  const bids = await Bid.find(bidQuery)
     .populate('product')
     .populate({
       path: 'agent',
       select: '_id name email phone businessName address country state lga activeRole roles'
     });
+
+  return bids.map((bid: any) => {
+    const bidObject = typeof bid.toObject === 'function' ? bid.toObject() : bid;
+    return {
+      ...bidObject,
+      effectiveAmount: getEffectiveProductBidAmount(bidObject)
+    };
+  });
 }
