@@ -13,6 +13,8 @@ export interface CreateProductOptions {
   category?: string;
   subcategory?: string;
   categories?: string[];
+  unit?: 'kg' | 'tonne' | '50kg_bag' | '100kg_bag';
+  unitWeightKg?: number | null;
 }
 
 /**
@@ -31,6 +33,8 @@ export async function createProduct(options: CreateProductOptions = {}) {
     category,
     subcategory,
     categories = ['grain'],
+    unit = 'kg',
+    unitWeightKg = null,
   } = options;
 
   if (!owner) {
@@ -46,6 +50,8 @@ export async function createProduct(options: CreateProductOptions = {}) {
     images,
     videos,
     status,
+    unit,
+    unitWeightKg,
     category,
     subcategory,
     categories,

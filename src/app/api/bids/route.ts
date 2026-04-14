@@ -7,6 +7,7 @@ import '@/models/farmer';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
+import { getUnitWeightKg } from '@/lib/productUnit';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -49,13 +50,17 @@ export async function POST(request: Request) {
   const productId = body.productId || body.product;
   const amount = body.amount ?? body.proposedPrice;
   const message = body.message;
-  if (!productId || amount === undefined || amount === null) {
-    return NextResponse.json({ error: 'Product and amount required' }, { status: 400 });
+  const quantity = Number(body.quantity);
+  if (!productId || amount === undefined || amount === null || !quantity) {
+    return NextResponse.json({ error: 'Product, amount, and quantity required' }, { status: 400 });
   }
 
   const product = await Product.findById(productId);
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+  }
+  if (!Number.isFinite(quantity) || quantity <= 0 || quantity > Number(product.quantity || 0)) {
+    return NextResponse.json({ error: 'Requested quantity exceeds available stock' }, { status: 400 });
   }
 
   // Find agent who owns the product
@@ -66,6 +71,9 @@ export async function POST(request: Request) {
     buyer: user._id,
     agent: agent ? agent._id : undefined,
     amount,
+    quantity,
+    unit: product.unit,
+    unitWeightKg: product.unitWeightKg ?? getUnitWeightKg(product.unit),
     message,
     status: 'pending'
   });

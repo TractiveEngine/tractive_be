@@ -7,6 +7,7 @@ import User from '@/models/user';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import { createNotification } from '@/lib/notifications';
 import mongoose from 'mongoose';
+import { reserveProductInventory } from '@/lib/productInventory';
 
 const ALLOWED_STATUS = ['approved', 'rejected', 'pending'] as const;
 
@@ -45,6 +46,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (tx.order) {
     const order = await Order.findById(tx.order);
     if (order) {
+      if (status === 'approved' && (!Array.isArray(order.bidIds) || order.bidIds.length === 0)) {
+        try {
+          for (const item of order.products || []) {
+            await reserveProductInventory(item.product, item.quantity);
+          }
+        } catch (error: any) {
+          return NextResponse.json({ success: false, message: error?.message || 'Failed to reserve product inventory' }, { status: 400 });
+        }
+      }
       if (status === 'approved') order.status = 'paid';
       if (status === 'rejected') order.status = 'pending';
       if (status === 'pending') order.status = 'payment_pending';

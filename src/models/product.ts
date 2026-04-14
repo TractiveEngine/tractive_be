@@ -5,7 +5,7 @@ const ProductSchema = new mongoose.Schema({
   description: { type: String },
   price: { type: Number, required: true },
   quantity: { type: Number, default: 0 },
-  unit: { type: String, default: "kg" }, // e.g. "kg", "bag", "ton"
+  unit: { type: String, enum: ["kg", "tonne", "50kg_bag", "100kg_bag"], default: "kg" },
   unitWeightKg: { type: Number, default: null },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   farmer: { type: mongoose.Schema.Types.ObjectId, ref: "Farmer" }, // Optional: Link to farmer

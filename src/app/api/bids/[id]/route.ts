@@ -3,9 +3,11 @@ import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
 import User from '@/models/user';
 import Product from '@/models/product';
+import Order from '@/models/order';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
+import { releaseProductInventory, reserveProductInventory } from '@/lib/productInventory';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -76,6 +78,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const product = await Product.findById(bid.product);
 
   const oldStatus = bid.status;
+  if (oldStatus === 'accepted' && requestedStatus && requestedStatus !== 'accepted') {
+    const linkedOrder = await Order.findOne({ bidIds: bid._id }).select('_id status');
+    if (linkedOrder) {
+      return NextResponse.json({ error: 'Accepted bid cannot be changed after it has been attached to an order' }, { status: 400 });
+    }
+  }
 
   if (isAgent) {
     if (requestedStatus === 'countered' || body?.counterOffer !== undefined) {
@@ -141,6 +149,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   bid.updatedAt = new Date();
+  if (oldStatus !== 'accepted' && bid.status === 'accepted') {
+    try {
+      await reserveProductInventory(bid.product, bid.quantity);
+    } catch (error: any) {
+      return NextResponse.json({ error: error?.message || 'Failed to reserve product inventory' }, { status: 400 });
+    }
+  }
+  if (oldStatus === 'accepted' && bid.status !== 'accepted') {
+    try {
+      await releaseProductInventory(bid.product, bid.quantity);
+    } catch (error: any) {
+      return NextResponse.json({ error: error?.message || 'Failed to release product inventory' }, { status: 400 });
+    }
+  }
+
   await bid.save();
 
   const effectiveAmount = getEffectiveProductBidAmount(bid);

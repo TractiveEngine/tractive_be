@@ -8,6 +8,7 @@ import { PATCH as patchTransactionStatusHandler } from '@/app/api/transactions/[
 import { POST as contactCustomerCareHandler } from '@/app/api/transactions/[id]/contact-customer-care/route';
 import SupportTicket from '@/models/supportTicket';
 import Order from '@/models/order';
+import Product from '@/models/product';
 
 describe('Orders & Transactions status endpoints', () => {
   beforeEach(async () => {
@@ -98,6 +99,31 @@ describe('Orders & Transactions status endpoints', () => {
 
     const updatedOrder = await Order.findById(order._id);
     expect(updatedOrder?.status).toBe('paid');
+  });
+
+  it('reduces direct-purchase product stock on payment approval', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const { user: admin } = await createAdmin();
+    const product = await createProduct({ owner: agent._id, quantity: 2, unit: 'kg' });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 2 }],
+      totalAmount: 5000,
+    });
+    const tx = await createTransaction({ order: order._id, buyer: buyer._id, amount: 5000, status: 'pending' });
+
+    const adminReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transactions/${tx._id}/status`,
+      admin._id.toString(),
+      { method: 'PATCH', body: { status: 'approved' }, role: 'admin', email: admin.email }
+    );
+    const res = await patchTransactionStatusHandler(adminReq, { params: { id: tx._id.toString() } });
+    expect(res.status).toBe(200);
+
+    const updatedProduct = await Product.findById(product._id);
+    expect(updatedProduct?.quantity).toBe(0);
+    expect(updatedProduct?.status).toBe('out_of_stock');
   });
 
   it('creates support ticket via contact-customer-care', async () => {

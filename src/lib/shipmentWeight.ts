@@ -19,6 +19,14 @@ export function convertQuantityToKg(quantity: unknown, unit: unknown, unitWeight
     return qty * 1000;
   }
 
+  if (normalizedUnit === '50kg_bag') {
+    return qty * 50;
+  }
+
+  if (normalizedUnit === '100kg_bag') {
+    return qty * 100;
+  }
+
   if (normalizedUnit === 'bag' || normalizedUnit === 'bags') {
     const bagWeightKg = Number(unitWeightKg);
     if (!Number.isFinite(bagWeightKg) || bagWeightKg <= 0) {

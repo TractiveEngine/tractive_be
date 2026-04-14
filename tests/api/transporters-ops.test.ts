@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { setupTest, teardownTest } from '../setup/db';
 import { createAuthenticatedRequest, getResponseJson } from '../setup/test-server';
-import { createTransporter, createBuyer, createAgent, createProduct, createOrder, createNegotiationOffer, createShippingRequest, createTransaction, createReview } from '../factories';
+import { createTransporter, createBuyer, createAgent, createProduct, createOrder, createNegotiationOffer, createShippingRequest, createTransaction, createReview, createTruck } from '../factories';
 
 describe('Transporter operations namespace', () => {
   beforeEach(async () => {
@@ -64,7 +64,7 @@ describe('Transporter operations namespace', () => {
 
     const createReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleets', transporter._id.toString(), {
       method: 'POST',
-      body: { fleetName: 'Alias Fleet', fleetNumber: 'ALIAS-001', price: 120000 },
+      body: { fleetName: 'Alias Fleet', fleetNumber: 'ALIAS-001', price: 120000, capacity: '30 tonnes' },
       role: 'transporter',
       email: transporter.email,
     });
@@ -110,7 +110,7 @@ describe('Transporter operations namespace', () => {
 
     const truckReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleet', transporter._id.toString(), {
       method: 'POST',
-      body: { plateNumber: 'XYZ-999' },
+      body: { plateNumber: 'XYZ-999', capacity: '15 tonnes' },
       role: 'transporter',
       email: transporter.email,
     });
@@ -169,7 +169,7 @@ describe('Transporter operations namespace', () => {
 
     const fleetReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleet', transporter._id.toString(), {
       method: 'POST',
-      body: { fleetName: 'Northern Route', fleetNumber: 'KD-100', Iot: 'IOT-777', status: 'available', route: { fromState: 'Kaduna', toState: 'Lagos' } },
+      body: { fleetName: 'Northern Route', fleetNumber: 'KD-100', Iot: 'IOT-777', status: 'available', capacity: '25 tonnes', route: { fromState: 'Kaduna', toState: 'Lagos' } },
       role: 'transporter',
       email: transporter.email,
     });
@@ -351,6 +351,90 @@ describe('Transporter operations namespace', () => {
       m.GET(otherBuyerReq, { params: Promise.resolve({ id: order._id.toString() }) })
     );
     expect((otherBuyerRes as Response).status).toBe(403);
+  });
+
+  it('derives transport load from paid order quantities and rejects mixed raw weight input', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const { user: transporter } = await createTransporter();
+    const product = await createProduct({
+      owner: agent._id,
+      unit: '100kg_bag',
+      unitWeightKg: 100,
+      quantity: 150,
+    });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 100 }],
+      totalAmount: 500000,
+      status: 'paid',
+      transportStatus: 'pending',
+    });
+    const truck = await createTruck({
+      transporter: transporter._id,
+      capacity: '30 tonnes',
+      price: 15000,
+      pricingModel: 'per_tonne',
+    } as any);
+
+    const paymentReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/fleet/${truck._id}/payments`,
+      buyer._id.toString(),
+      {
+        method: 'POST',
+        body: {
+          paymentMethod: 'cash',
+          shipmentItems: [
+            {
+              orderId: order._id.toString(),
+              productId: product._id.toString(),
+              quantityToShip: 100,
+            },
+          ],
+        },
+        role: 'buyer',
+        email: buyer.email,
+      }
+    );
+    const paymentRes = await import('@/app/api/transporters/fleet/[id]/payments/route').then((m) =>
+      m.POST(paymentReq, { params: { id: truck._id.toString() } })
+    );
+    const paymentData = await getResponseJson(paymentRes as unknown as Response);
+    expect((paymentRes as Response).status).toBe(201);
+    expect(paymentData.data.loadWeightKg).toBe(10000);
+    expect(paymentData.data.loadWeightTonnes).toBe(10);
+    expect(paymentData.data.amount).toBe(150000);
+    expect(paymentData.data.shipmentItems[0].quantity).toBe(100);
+    expect(paymentData.data.shipmentItems[0].unit).toBe('100kg_bag');
+    expect(paymentData.data.shipmentItems[0].loadWeightKg).toBe(10000);
+    expect(paymentData.data.shipmentItems[0].loadWeightTonnes).toBe(10);
+
+    const invalidReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/fleet/${truck._id}/payments`,
+      buyer._id.toString(),
+      {
+        method: 'POST',
+        body: {
+          paymentMethod: 'cash',
+          loadWeightKg: 1,
+          shipmentItems: [
+            {
+              orderId: order._id.toString(),
+              productId: product._id.toString(),
+              quantity: 100,
+            },
+          ],
+        },
+        role: 'buyer',
+        email: buyer.email,
+      }
+    );
+    const invalidRes = await import('@/app/api/transporters/fleet/[id]/payments/route').then((m) =>
+      m.POST(invalidReq, { params: { id: truck._id.toString() } })
+    );
+    const invalidData = await getResponseJson(invalidRes as unknown as Response);
+    expect((invalidRes as Response).status).toBe(400);
+    expect(invalidData.message).toContain('Do not send loadWeightKg');
   });
 
   it('returns enriched transporter detail summary', async () => {

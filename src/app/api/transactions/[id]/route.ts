@@ -5,6 +5,7 @@ import Order from '@/models/order';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
+import { reserveProductInventory } from '@/lib/productInventory';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -65,6 +66,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const body = await request.json();
   if (body.status && body.status === 'approved') {
+    if (transaction.order) {
+      const order = await Order.findById(transaction.order);
+      if (order && (!Array.isArray(order.bidIds) || order.bidIds.length === 0)) {
+        for (const item of order.products || []) {
+          try {
+            await reserveProductInventory(item.product, item.quantity);
+          } catch (error: any) {
+            return NextResponse.json({ error: error?.message || 'Failed to reserve product inventory' }, { status: 400 });
+          }
+        }
+      }
+    }
+
     transaction.status = 'approved';
     transaction.approvedBy = user._id;
     transaction.updatedAt = new Date();

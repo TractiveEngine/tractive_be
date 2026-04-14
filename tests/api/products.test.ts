@@ -4,6 +4,7 @@ import { POST as createProductHandler, GET as listProductsHandler } from '@/app/
 import { GET as getProductHandler, PATCH as updateProductHandler, DELETE as deleteProductHandler } from '@/app/api/products/[id]/route';
 import { createMockRequest, createAuthenticatedRequest, getResponseJson } from '../setup/test-server';
 import { createAgent, createBuyer, createProduct, createAdmin, createWishlistItem, createOrder } from '../factories';
+import Product from '@/models/product';
 
 describe('Product CRUD Test (Agent Role)', () => {
   beforeEach(async () => {
@@ -283,6 +284,88 @@ describe('Product CRUD Test (Agent Role)', () => {
       note: 'Farm gate pickup to interstate loading point',
     });
     expect(createData.product.status).toBe('available');
+  });
+
+  it('normalizes product units and reserves stock for accepted bids', async () => {
+    const { user: agent } = await createAgent({ email: 'agent-stock@example.com' });
+    const { user: buyer } = await createBuyer({ email: 'buyer-stock@example.com' });
+
+    const createRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/products',
+      agent._id.toString(),
+      {
+        method: 'POST',
+        body: {
+          name: 'Bagged Rice',
+          price: 25000,
+          quantity: 5,
+          unit: '50kg bag',
+        },
+        email: agent.email,
+        role: 'agent',
+      }
+    );
+    const createResponse = await createProductHandler(createRequest);
+    const createData = await getResponseJson(createResponse);
+    expect(createResponse.status).toBe(201);
+    expect(createData.product.unit).toBe('50kg_bag');
+    expect(createData.product.unitWeightKg).toBe(50);
+
+    const bidReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/buyers/products/${createData.product._id}/bid`,
+      buyer._id.toString(),
+      {
+        method: 'POST',
+        body: { amount: 50000, quantity: 2 },
+        email: buyer.email,
+        role: 'buyer',
+      }
+    );
+    const bidRes = await import('@/app/api/buyers/products/[productId]/bid/route').then((m) =>
+      m.POST(bidReq, { params: Promise.resolve({ productId: createData.product._id.toString() }) })
+    );
+    const bidData = await getResponseJson(bidRes as unknown as Response);
+    expect((bidRes as Response).status).toBe(201);
+    expect(bidData.data.quantity).toBe(2);
+    expect(bidData.data.unit).toBe('50kg_bag');
+
+    const acceptReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/bids/${bidData.data._id}`,
+      agent._id.toString(),
+      {
+        method: 'PATCH',
+        body: { status: 'accepted' },
+        email: agent.email,
+        role: 'agent',
+      }
+    );
+    const acceptRes = await import('@/app/api/bids/[id]/route').then((m) =>
+      m.PATCH(acceptReq, { params: Promise.resolve({ id: bidData.data._id.toString() }) })
+    );
+    expect((acceptRes as Response).status).toBe(200);
+
+    const reservedProduct = await Product.findById(createData.product._id);
+    expect(reservedProduct?.quantity).toBe(3);
+    expect(reservedProduct?.status).toBe('available');
+
+    const rejectReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/bids/${bidData.data._id}`,
+      agent._id.toString(),
+      {
+        method: 'PATCH',
+        body: { status: 'rejected' },
+        email: agent.email,
+        role: 'agent',
+      }
+    );
+    const rejectRes = await import('@/app/api/bids/[id]/route').then((m) =>
+      m.PATCH(rejectReq, { params: Promise.resolve({ id: bidData.data._id.toString() }) })
+    );
+    expect((rejectRes as Response).status).toBe(200);
+
+    const restoredProduct = await Product.findById(createData.product._id);
+    expect(restoredProduct?.quantity).toBe(5);
+    expect(restoredProduct?.status).toBe('available');
   });
 });
 

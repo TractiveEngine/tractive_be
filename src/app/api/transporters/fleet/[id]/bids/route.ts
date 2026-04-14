@@ -4,8 +4,21 @@ import dbConnect from '@/lib/dbConnect';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
-import { resolveFleetShipmentSelection } from '@/lib/fleetShipment';
+import { buildShipmentLoadMeta, resolveFleetShipmentSelection } from '@/lib/fleetShipment';
 import { fleetBidPopulate, populateAndSerializeFleetBid, serializeFleetBid } from '@/lib/fleetBidDto';
+
+function attachShipmentDisplayMeta<T extends { shipmentItems?: any[]; loadWeightKg?: unknown }>(record: T) {
+  return {
+    ...record,
+    ...buildShipmentLoadMeta(record.loadWeightKg),
+    shipmentItems: Array.isArray(record.shipmentItems)
+      ? record.shipmentItems.map((item) => ({
+          ...item,
+          ...buildShipmentLoadMeta(item?.loadWeightKg)
+        }))
+      : record.shipmentItems
+  };
+}
 
 export async function GET(
   request: Request,
@@ -90,5 +103,9 @@ export async function POST(
     message: typeof body?.message === 'string' ? body.message : null
   });
 
-  return NextResponse.json({ success: true, data: await populateAndSerializeFleetBid(bid) }, { status: 201 });
+  const serialized = await populateAndSerializeFleetBid(bid);
+  return NextResponse.json({
+    success: true,
+    data: attachShipmentDisplayMeta(serialized)
+  }, { status: 201 });
 }
