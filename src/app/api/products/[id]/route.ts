@@ -7,6 +7,7 @@ import Bid from '@/models/bid';
 import { attachWishlistedFlag, buildCategoryFields } from '@/lib/productPayload';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import { normalizeLocalTransport } from '@/lib/localTransport';
+import { getUnitWeightKg, normalizeProductUnit } from '@/lib/productUnit';
 
 // GET /api/products/[id]
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -129,21 +130,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
   const categoryFields = buildCategoryFields(body);
-  const resolvedUnit = typeof body.unit === 'string' ? body.unit : existingProduct.unit;
-  const normalizedUnit = typeof resolvedUnit === 'string' ? resolvedUnit.trim().toLowerCase() : 'kg';
+  const resolvedUnit = body.unit !== undefined ? body.unit : existingProduct.unit;
+  const normalizedUnit = normalizeProductUnit(resolvedUnit, body.unitWeightKg ?? existingProduct.unitWeightKg);
+  if (!normalizedUnit) {
+    return NextResponse.json({ error: 'Unit must be one of kg, tonne, 50kg_bag, or 100kg_bag' }, { status: 400 });
+  }
   const unitWeightValue =
     body.unitWeightKg !== undefined
       ? body.unitWeightKg
-      : existingProduct.unitWeightKg;
+      : getUnitWeightKg(normalizedUnit) ?? existingProduct.unitWeightKg;
   const parsedUnitWeightKg =
     unitWeightValue !== undefined && unitWeightValue !== null && unitWeightValue !== ''
       ? Number(unitWeightValue)
       : null;
   if (parsedUnitWeightKg !== null && (!Number.isFinite(parsedUnitWeightKg) || parsedUnitWeightKg <= 0)) {
     return NextResponse.json({ error: 'unitWeightKg must be a valid positive number when provided' }, { status: 400 });
-  }
-  if ((normalizedUnit === 'bag' || normalizedUnit === 'bags') && parsedUnitWeightKg === null) {
-    return NextResponse.json({ error: 'unitWeightKg is required when product unit is bag' }, { status: 400 });
   }
   const hasLocalTransportInput =
     body.localTransport !== undefined ||
@@ -153,7 +154,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body.localTransportTo !== undefined ||
     body.localTransportNote !== undefined;
   const updateDoc: any = { ...body, ...categoryFields };
+  updateDoc.unit = normalizedUnit;
   updateDoc.unitWeightKg = parsedUnitWeightKg;
+  if (body.quantity !== undefined) {
+    const numericQuantity = Number(body.quantity);
+    if (!Number.isFinite(numericQuantity) || numericQuantity < 0) {
+      return NextResponse.json({ error: 'Quantity must be a valid non-negative number' }, { status: 400 });
+    }
+    updateDoc.quantity = numericQuantity;
+    if (existingProduct.status !== 'discontinued') {
+      updateDoc.status = numericQuantity <= 0 ? 'out_of_stock' : 'available';
+    }
+  }
   if (hasLocalTransportInput) {
     try {
       updateDoc.localTransport = normalizeLocalTransport(body);

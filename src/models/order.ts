@@ -6,6 +6,8 @@ const OrderSchema = new mongoose.Schema({
     {
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true },
+      unit: { type: String, default: 'kg' },
+      unitWeightKg: { type: Number, default: null },
       unitPrice: { type: Number, default: null },
       lineSubtotal: { type: Number, default: null },
       localTransportRequired: { type: Boolean, default: false },

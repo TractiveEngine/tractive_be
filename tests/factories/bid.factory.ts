@@ -6,6 +6,9 @@ export interface CreateBidOptions {
   buyer?: mongoose.Types.ObjectId | string;
   agent?: mongoose.Types.ObjectId | string;
   amount?: number;
+  quantity?: number;
+  unit?: 'kg' | 'tonne' | '50kg_bag' | '100kg_bag';
+  unitWeightKg?: number | null;
   status?: 'pending' | 'accepted' | 'rejected';
   message?: string;
 }
@@ -19,6 +22,9 @@ export async function createBid(options: CreateBidOptions = {}) {
     buyer,
     agent,
     amount = Math.floor(Math.random() * 10000) + 500,
+    quantity = 1,
+    unit = 'kg',
+    unitWeightKg = null,
     status = 'pending',
     message = 'I would like to purchase this product',
   } = options;
@@ -36,6 +42,9 @@ export async function createBid(options: CreateBidOptions = {}) {
     buyer,
     agent,
     amount,
+    quantity,
+    unit,
+    unitWeightKg,
     status,
     message,
   });

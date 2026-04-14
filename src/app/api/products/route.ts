@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import { attachWishlistedFlag, buildCategoryFields } from "@/lib/productPayload";
 import { getAuthUser } from "@/lib/apiAuth";
 import { normalizeLocalTransport } from "@/lib/localTransport";
+import { getUnitWeightKg, normalizeProductUnit } from "@/lib/productUnit";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -76,19 +77,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const normalizedUnit = typeof unit === 'string' ? unit.trim().toLowerCase() : 'kg';
-  const parsedUnitWeightKg = unitWeightKg !== undefined && unitWeightKg !== null && unitWeightKg !== ''
-    ? Number(unitWeightKg)
-    : null;
-  if (parsedUnitWeightKg !== null && (!Number.isFinite(parsedUnitWeightKg) || parsedUnitWeightKg <= 0)) {
+  const normalizedUnit = normalizeProductUnit(unit, unitWeightKg);
+  if (!normalizedUnit) {
     return NextResponse.json(
-      { error: "unitWeightKg must be a valid positive number when provided" },
+      { error: "Unit must be one of kg, tonne, 50kg_bag, or 100kg_bag" },
       { status: 400 }
     );
   }
-  if ((normalizedUnit === 'bag' || normalizedUnit === 'bags') && parsedUnitWeightKg === null) {
+  const parsedUnitWeightKg = unitWeightKg !== undefined && unitWeightKg !== null && unitWeightKg !== ''
+    ? Number(unitWeightKg)
+    : getUnitWeightKg(normalizedUnit);
+  if (parsedUnitWeightKg !== null && (!Number.isFinite(parsedUnitWeightKg) || parsedUnitWeightKg <= 0)) {
     return NextResponse.json(
-      { error: "unitWeightKg is required when product unit is bag" },
+      { error: "unitWeightKg must be a valid positive number when provided" },
       { status: 400 }
     );
   }
@@ -160,14 +161,14 @@ export async function POST(request: Request) {
       description,
       price: numPrice,
       quantity: numQuantity,
-      unit: unit || "kg",
+      unit: normalizedUnit,
       unitWeightKg: parsedUnitWeightKg,
       images: images || [],
       videos: videos || [],
       ...categoryFields,
       farmer: farmer || null,
       owner: user._id,
-      status: "available",
+      status: numQuantity <= 0 ? "out_of_stock" : "available",
       discount: numDiscount,
       localTransport,
     });

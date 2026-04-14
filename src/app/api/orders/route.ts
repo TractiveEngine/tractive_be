@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import { buildOrderItemLocalTransport } from '@/lib/localTransport';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
+import { getUnitWeightKg } from '@/lib/productUnit';
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -76,6 +77,8 @@ export async function POST(request: Request) {
     return {
       product: productDoc._id,
       quantity,
+      unit: productDoc.unit,
+      unitWeightKg: productDoc.unitWeightKg ?? getUnitWeightKg(productDoc.unit),
       unitPrice,
       lineSubtotal: unitPrice * quantity,
       ...localTransportMeta
@@ -98,11 +101,28 @@ export async function POST(request: Request) {
     if (JSON.stringify(bidProductIds) !== JSON.stringify(requestProductIds)) {
       return NextResponse.json({ error: 'Products must match the selected accepted bids' }, { status: 400 });
     }
+    const bidMap = new Map(bids.map((bid: any) => [bid.product.toString(), bid]));
+    for (const item of orderProducts) {
+      const bid: any = bidMap.get(item.product.toString());
+      if (!bid || Number(bid.quantity) !== Number(item.quantity)) {
+        return NextResponse.json({ error: 'Order quantities must match the selected accepted bids' }, { status: 400 });
+      }
+      item.unit = bid.unit;
+      item.unitWeightKg = bid.unitWeightKg ?? getUnitWeightKg(bid.unit);
+      item.unitPrice = Number(bid.quantity) > 0 ? getEffectiveProductBidAmount(bid) / Number(bid.quantity) : null;
+      item.lineSubtotal = getEffectiveProductBidAmount(bid);
+    }
     const expectedTotal = bids.reduce((sum, bid) => sum + getEffectiveProductBidAmount(bid), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
       return NextResponse.json({ error: 'Total amount does not match accepted bids' }, { status: 400 });
     }
   } else {
+    for (const item of orderProducts) {
+      const productDoc: any = productMap.get(item.product.toString());
+      if (productDoc.status !== 'available' || Number(item.quantity) > Number(productDoc.quantity || 0)) {
+        return NextResponse.json({ error: 'One or more products exceed available stock' }, { status: 400 });
+      }
+    }
     const expectedTotal = orderProducts.reduce((sum, item) => sum + (item.lineSubtotal || 0), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
       return NextResponse.json({ error: 'Total amount does not match products and local transport' }, { status: 400 });

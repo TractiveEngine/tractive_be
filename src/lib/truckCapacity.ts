@@ -49,16 +49,22 @@ export function buildCapacityMeta(truck: {
     parsedCapacityKg !== null && currentLoadKg !== null
       ? Math.max(0, parsedCapacityKg - currentLoadKg)
       : null;
+  const capacityTonnes = parsedCapacityKg === null ? null : Number((parsedCapacityKg / 1000).toFixed(2));
+  const currentLoadTonnes = currentLoadKg === null ? null : Number((currentLoadKg / 1000).toFixed(2));
+  const remainingCapacityTonnes = remainingCapacityKg === null ? null : Number((remainingCapacityKg / 1000).toFixed(2));
 
   return {
     capacityKg: parsedCapacityKg,
+    capacityTonnes,
     currentLoadKg,
+    currentLoadTonnes,
     remainingCapacityKg,
+    remainingCapacityTonnes,
     remainingCapacityDisplay:
       remainingCapacityKg === null
         ? null
         : remainingCapacityKg >= 1000
-          ? `${Number((remainingCapacityKg / 1000).toFixed(2))} tons`
+          ? `${Number((remainingCapacityKg / 1000).toFixed(2))} tonnes`
           : `${remainingCapacityKg} kg`,
   };
 }

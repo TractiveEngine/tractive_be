@@ -8,10 +8,23 @@ import FleetPayment from '@/models/fleetPayment';
 import FleetBooking from '@/models/fleetBooking';
 import { buildCapacityMeta } from '@/lib/truckCapacity';
 import { calculateFleetCharge, getFleetPricingUnitLabel, isWholeTruckPricingModel } from '@/lib/fleetPricing';
-import { resolveFleetShipmentSelection } from '@/lib/fleetShipment';
+import { buildShipmentLoadMeta, resolveFleetShipmentSelection } from '@/lib/fleetShipment';
 
 function resolveAcceptedAmount(bid: any) {
   return typeof bid?.counterAmount === 'number' && bid.counterAmount > 0 ? bid.counterAmount : bid?.amount;
+}
+
+function attachShipmentDisplayMeta<T extends { shipmentItems?: any[]; loadWeightKg?: unknown }>(record: T) {
+  return {
+    ...record,
+    ...buildShipmentLoadMeta(record.loadWeightKg),
+    shipmentItems: Array.isArray(record.shipmentItems)
+      ? record.shipmentItems.map((item) => ({
+          ...item,
+          ...buildShipmentLoadMeta(item?.loadWeightKg)
+        }))
+      : record.shipmentItems
+  };
 }
 
 export async function GET(
@@ -76,6 +89,10 @@ export async function POST(
   }
 
   const body: any = await request.json().catch(() => ({}));
+  const hasExplicitBodyLoadWeight =
+    body?.loadWeightKg !== undefined &&
+    body?.loadWeightKg !== null &&
+    body?.loadWeightKg !== '';
   let loadWeightKg = Number(body?.loadWeightKg);
   let shipmentItems: Array<{
     orderId: any;
@@ -123,6 +140,12 @@ export async function POST(
   if (!['cash', 'bank_transfer', 'card'].includes(paymentMethod)) {
     return NextResponse.json({ success: false, message: 'Valid paymentMethod is required' }, { status: 400 });
   }
+  if (hasExplicitBodyLoadWeight && Array.isArray(body?.shipmentItems) && body.shipmentItems.length > 0) {
+    return NextResponse.json({
+      success: false,
+      message: 'Do not send loadWeightKg when shipmentItems are provided. The backend derives total load from the selected order quantities.'
+    }, { status: 400 });
+  }
 
   let acceptedBid: any = null;
   if (body?.fleetBidId) {
@@ -146,10 +169,16 @@ export async function POST(
     }).sort({ updatedAt: -1, createdAt: -1 });
   }
 
+  const selectedShipmentItems = body?.shipmentItems ?? acceptedBid?.shipmentItems;
+  const selectedExplicitLoadWeightKg =
+    Array.isArray(selectedShipmentItems) && selectedShipmentItems.length > 0
+      ? (hasExplicitBodyLoadWeight ? body?.loadWeightKg : undefined)
+      : (body?.loadWeightKg ?? acceptedBid?.loadWeightKg);
+
   const shipmentResolution = await resolveFleetShipmentSelection({
     buyerId: user._id,
-    shipmentItems: body?.shipmentItems ?? acceptedBid?.shipmentItems,
-    explicitLoadWeightKg: body?.loadWeightKg ?? acceptedBid?.loadWeightKg
+    shipmentItems: selectedShipmentItems,
+    explicitLoadWeightKg: selectedExplicitLoadWeightKg
   });
   if (!shipmentResolution.ok) {
     return NextResponse.json({ success: false, message: shipmentResolution.message }, { status: shipmentResolution.status });
@@ -202,7 +231,7 @@ export async function POST(
   if (existingPayment) {
     return NextResponse.json({
       success: true,
-      data: existingPayment,
+      data: attachShipmentDisplayMeta(existingPayment.toObject()),
       message: 'Existing fleet payment returned'
     }, { status: 200 });
   }
@@ -254,5 +283,9 @@ export async function POST(
   await payment.populate('fleetBid', '_id amount counterAmount status');
   await payment.populate('booking', '_id status amount');
 
-  return NextResponse.json({ success: true, data: payment }, { status: 201 });
+  const paymentObject = payment.toObject();
+  return NextResponse.json({
+    success: true,
+    data: attachShipmentDisplayMeta(paymentObject)
+  }, { status: 201 });
 }

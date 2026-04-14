@@ -67,6 +67,9 @@ export async function PATCH(
   return NextResponse.json({
     success: true,
     data: {
+      _id: order._id,
+      transportStatus: order.transportStatus,
+      status: order.status,
       order,
       latestTrackingEvent: {
         status: transportStatus,
