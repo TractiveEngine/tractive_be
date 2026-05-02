@@ -121,6 +121,31 @@ export async function GET(request: Request) {
             ])
         ).values()
       );
+      const products = (order?.products || [])
+        .map((item: any) => {
+          const product = item?.product && typeof item.product === 'object' ? item.product : null;
+          if (!product?._id) return null;
+          const owner = product.owner && typeof product.owner === 'object' ? product.owner : null;
+          return {
+            id: product._id,
+            name: product.name || null,
+            description: product.description || null,
+            images: Array.isArray(product.images) ? product.images : [],
+            videos: Array.isArray(product.videos) ? product.videos : [],
+            price: product.price ?? null,
+            quantity: item.quantity ?? null,
+            unit: item.unit ?? product.unit ?? null,
+            unitWeightKg: item.unitWeightKg ?? product.unitWeightKg ?? null,
+            unitPrice: item.unitPrice ?? null,
+            lineSubtotal: item.lineSubtotal ?? null,
+            owner: owner ? {
+              id: owner._id,
+              name: owner.name || owner.businessName || 'Unknown',
+              email: owner.email || null
+            } : null
+          };
+        })
+        .filter(Boolean);
 
       return {
         _id: t._id,
@@ -135,6 +160,7 @@ export async function GET(request: Request) {
         payee: payees[0] || null,
         payees,
         orderId: order?._id || null,
+        products,
         approvedBy: approvedBy ? {
           id: approvedBy._id,
           name: approvedBy.name || approvedBy.email

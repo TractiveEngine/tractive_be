@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
+import Product from '@/models/product';
+import Order from '@/models/order';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
 // GET /api/customers
@@ -23,33 +25,91 @@ export async function GET(request: Request) {
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
 
-  const query: any = { roles: 'buyer', status: { $ne: 'removed' } };
+  const userQuery: any = { roles: 'buyer', status: { $ne: 'removed' } };
   if (search) {
-    query.$or = [
+    userQuery.$or = [
       { name: { $regex: search, $options: 'i' } },
       { email: { $regex: search, $options: 'i' } },
       { phone: { $regex: search, $options: 'i' } }
     ];
   }
-  if (name) query.name = { $regex: name, $options: 'i' };
-  if (state) query.state = { $regex: state, $options: 'i' };
+  if (name) userQuery.name = { $regex: name, $options: 'i' };
+  if (state) userQuery.state = { $regex: state, $options: 'i' };
   if (year) {
     const y = Number(year);
     if (!Number.isNaN(y)) {
-      query.createdAt = {
+      userQuery.createdAt = {
         $gte: new Date(Date.UTC(y, 0, 1)),
         $lt: new Date(Date.UTC(y + 1, 0, 1))
       };
     }
   }
 
-  const customers = await User.find(query)
-    .select('_id name email phone image businessName createdAt')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  let customers;
+  let total;
 
-  const total = await User.countDocuments(query);
+  if (ensureActiveRole(user, 'agent')) {
+    const productIds = await Product.find({ owner: user._id }).distinct('_id');
+    if (productIds.length === 0) {
+      customers = [];
+      total = 0;
+    } else {
+      const orders = await Order.find({ 'products.product': { $in: productIds } })
+        .select('buyer totalAmount createdAt products')
+        .lean();
+
+      const customerStats = new Map<string, { ordersCount: number; totalSpent: number; lastOrderAt: Date | null }>();
+      for (const order of orders) {
+        const buyerId = order.buyer?.toString?.();
+        if (!buyerId) continue;
+        const current = customerStats.get(buyerId) || { ordersCount: 0, totalSpent: 0, lastOrderAt: null };
+        current.ordersCount += 1;
+        current.totalSpent += Number((order as any).totalAmount || 0);
+        const orderCreatedAt = (order as any).createdAt ? new Date((order as any).createdAt) : null;
+        if (orderCreatedAt && (!current.lastOrderAt || orderCreatedAt > current.lastOrderAt)) {
+          current.lastOrderAt = orderCreatedAt;
+        }
+        customerStats.set(buyerId, current);
+      }
+
+      const buyerIds = Array.from(customerStats.keys());
+      if (buyerIds.length === 0) {
+        customers = [];
+        total = 0;
+      } else {
+        userQuery._id = { $in: buyerIds };
+        const [buyerDocs, count] = await Promise.all([
+          User.find(userQuery)
+            .select('_id name email phone image businessName createdAt')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit),
+          User.countDocuments(userQuery)
+        ]);
+        customers = buyerDocs.map((customer: any) => {
+          const stats = customerStats.get(customer._id.toString());
+          return {
+            ...customer.toObject(),
+            ordersCount: stats?.ordersCount || 0,
+            totalSpent: stats?.totalSpent || 0,
+            lastOrderAt: stats?.lastOrderAt || null
+          };
+        });
+        total = count;
+      }
+    }
+  } else {
+    const [customerDocs, count] = await Promise.all([
+      User.find(userQuery)
+        .select('_id name email phone image businessName createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      User.countDocuments(userQuery)
+    ]);
+    customers = customerDocs;
+    total = count;
+  }
 
   const pagination = { page, limit, total };
   return NextResponse.json({
