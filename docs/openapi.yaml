@@ -930,7 +930,7 @@ paths:
                   fleetNumber: "ABC-123"
                   iot: "IOT-TRK-001"
                   model: "Volvo"
-                  size: "20 tons"
+                  size: "20 tonnes"
                   capacity: "20 tons"
                   capacityKg: 20000
                   currentLoadKg: 0
@@ -1059,7 +1059,7 @@ paths:
                       price: 250000
     post:
       summary: Create fleet price bid
-      description: Requires activeRole `buyer`. Creates a price bid against a fleet or truck on the transporter page. The path `id` is the fleet id. Include either `loadWeightKg` or `shipmentItems` so the transporter can see how much cargo the buyer wants to move.
+      description: Requires activeRole `buyer`. Creates a price bid against a fleet or truck on the transporter page. The path `id` is the fleet id. Preferred payload is `shipmentItems`, where the backend derives total load from the selected paid order quantities. If `shipmentItems` are sent, do not send `loadWeightKg`. Use `loadWeightKg` only for manual freight loads not tied to paid order items.
       parameters:
         - in: path
           name: id
@@ -1090,12 +1090,12 @@ paths:
                         type: string
                       quantity:
                         type: number
+                      quantityToShip:
+                        type: number
+                        description: Alias of `quantity`. Recommended UI field for transport selection from paid order items.
                       unitWeightKg:
                         type: number
-                        description: Optional fallback for bag-based products when the product itself does not yet store unitWeightKg.
-                      weightKg:
-                        type: number
-                        description: Optional per-item shipment weight in kilograms. Useful when the UI selects part of a bag-based order by weight instead of by bag count.
+                        description: Optional fallback for bag-based products when the product/order snapshot does not already carry unitWeightKg.
                 message:
                   type: string
             example:
@@ -1103,11 +1103,7 @@ paths:
               shipmentItems:
                 - orderId: "67deorder1234567890abc1"
                   productId: "67deprod1234567890abc1"
-                  quantity: 3000
-                - orderId: "67deorder1234567890abc2"
-                  productId: "67deprod1234567890abc2"
-                  weightKg: 500
-                  unitWeightKg: 50
+                  quantityToShip: 100
               message: "Can you do 180k for this route?"
       responses:
         '201':
@@ -1119,13 +1115,27 @@ paths:
                 data:
                   _id: "67defleetbid1234567890abc"
                   amount: 180000
-                  loadWeightKg: 5000
-                  loadWeightTonnes: 5
-                  equivalent50kgBags: 100
-                  equivalent100kgBags: 50
-                  loadDisplay: "5 tonnes"
+                  loadWeightKg: 10000
+                  loadWeightTonnes: 10
+                  equivalent50kgBags: 200
+                  equivalent100kgBags: 100
+                  loadDisplay: "10 tonnes"
                   status: "pending"
                   message: "Can you do 180k for this route?"
+                  shipmentItems:
+                    - orderId: "67deorder1234567890abc1"
+                      productId: "67deprod1234567890abc1"
+                      productName: "Maize"
+                      quantity: 100
+                      unit: "100kg_bag"
+                      unitWeightKg: 100
+                      loadWeightKg: 10000
+                      loadWeightTonnes: 10
+                      quantity: 100
+                      unit: "100kg_bag"
+                      unitWeightKg: 100
+                      loadWeightKg: 10000
+                      loadWeightTonnes: 10
                   buyer:
                     _id: "67debuyer1234567890abc1"
                     name: "Buyer One"
@@ -1375,7 +1385,7 @@ paths:
   /api/transporters/fleet/{id}/payments:
     get:
       summary: List fleet payments for a fleet
-      description: Buyer sees their own fleet payments for the fleet. Fleet owner transporter sees all payments for that fleet. Admin can also view all payments. Use truck detail/list endpoints to read `remainingCapacityKg` and `remainingCapacityDisplay` before submitting a payment.
+      description: Buyer sees their own fleet payments for the fleet. Fleet owner transporter sees all payments for that fleet. Admin can also view all payments. Use truck detail/list endpoints to read `remainingCapacityKg`, `remainingCapacityTonnes`, and `remainingCapacityDisplay` before submitting a payment.
       parameters:
         - in: path
           name: id
@@ -1393,6 +1403,7 @@ paths:
                   - _id: "67defleetpay1234567890abc"
                     amount: 210000
                     loadWeightKg: 5000
+                    loadWeightTonnes: 5
                     wholeTruckOnly: false
                     paymentMethod: "bank_transfer"
                     status: "pending"
@@ -1410,7 +1421,7 @@ paths:
                       status: "accepted"
     post:
       summary: Create fleet payment
-      description: Buyer creates a fleet payment record from an accepted fleet bid or the fleet listed price. This supports manual approval flows like cash or bank transfer. The endpoint also creates or reuses a linked fleet booking in `pending_payment` state. Preferred payload is `shipmentItems`, where the backend computes total load in kg from selected paid order items and rejects the request when that total exceeds the truck's current remaining capacity. Supported shipment units for capacity conversion are `kg`, `ton/tons`, and `bag` when the product defines `unitWeightKg`. If the truck pricing model is `flat_rate_whole_truck`, approval reserves the full truck and the fleet is treated as whole-truck-only.
+      description: Buyer creates a fleet payment record either from an accepted fleet bid or directly from the fleet listed price. `fleetBidId` is optional and is not needed for the normal direct-pay flow. This supports manual approval flows like cash or bank transfer. The endpoint also creates or reuses a linked fleet booking in `pending_payment` state. Preferred payload is `shipmentItems`, where the backend computes total load from selected paid order items and rejects the request when that total exceeds the truck's current remaining capacity. For order-linked transport, send `shipmentItems` with `orderId`, `productId`, and `quantity` or `quantityToShip`. Do not send `loadWeightKg` together with `shipmentItems`. Use `loadWeightKg` only for manual freight loads not tied to paid order items. Supported shipment units for conversion are `kg`, `tonne`, `50kg_bag`, and `100kg_bag`. If the truck pricing model is `flat_rate_whole_truck`, approval reserves the full truck and the fleet is treated as whole-truck-only.
       parameters:
         - in: path
           name: id
@@ -1426,10 +1437,13 @@ paths:
               properties:
                 fleetBidId:
                   type: string
+                  description: Optional. Only send this when paying against an accepted fleet bid. Omit it for direct payment.
                 amount:
                   type: number
+                  description: Optional. If provided, it must match the backend-computed payable amount exactly.
                 loadWeightKg:
                   type: number
+                  description: Use only for manual freight loads that are not tied to `shipmentItems`. Do not send when `shipmentItems` are present.
                 shipmentItems:
                   type: array
                   items:
@@ -1441,24 +1455,24 @@ paths:
                         type: string
                       quantity:
                         type: number
+                      quantityToShip:
+                        type: number
+                        description: Alias of `quantity`. Recommended UI field for direct transport payment from paid order items.
+                      unitWeightKg:
+                        type: number
+                        description: Optional fallback for bag-based products when the product/order snapshot does not already carry unitWeightKg.
                 paymentMethod:
                   type: string
                   enum: [cash, bank_transfer, card]
                 note:
                   type: string
             example:
-              fleetBidId: "67defleetbid1234567890abc"
-              amount: 210000
               shipmentItems:
                 - orderId: "67deorder1234567890abc1"
                   productId: "67deprod1234567890abc1"
-                  quantity: 3000
-                - orderId: "67deorder1234567890abc2"
-                  productId: "67deprod1234567890abc2"
-                  quantityKg: 500
-                  unitWeightKg: 50
+                  quantityToShip: 100
               paymentMethod: "bank_transfer"
-              note: "Paid via bank transfer for Kaduna to Lagos route"
+              note: "Direct pay for Kaduna to Lagos route"
       responses:
         '201':
           description: Fleet payment created
@@ -1468,41 +1482,52 @@ paths:
                 success: true
                 data:
                   _id: "67defleetpay1234567890abc"
-                  amount: 210000
-                  loadWeightKg: 5000
+                  amount: 150000
+                  loadWeightKg: 10000
+                  loadWeightTonnes: 10
+                  equivalent50kgBags: 200
+                  equivalent100kgBags: 100
+                  loadDisplay: "10 tonnes"
                   wholeTruckOnly: false
                   shipmentItems:
                     - orderId: "67deorder1234567890abc1"
                       productId: "67deprod1234567890abc1"
                       productName: "Maize"
-                      quantity: 3000
-                      unit: "kg"
-                      loadWeightKg: 3000
-                    - orderId: "67deorder1234567890abc2"
-                      productId: "67deprod1234567890abc2"
-                      productName: "Beans"
-                      quantity: 2
-                      unit: "ton"
-                      loadWeightKg: 2000
+                      quantity: 100
+                      unit: "100kg_bag"
+                      unitWeightKg: 100
+                      loadWeightKg: 10000
+                      loadWeightTonnes: 10
+                      equivalent50kgBags: 200
+                      equivalent100kgBags: 100
+                      loadDisplay: "10 tonnes"
                   paymentMethod: "bank_transfer"
                   status: "pending"
-                  fleetBid: "67defleetbid1234567890abc"
+                  fleetBid: null
                   booking:
                     _id: "67defleetbooking1234567890ab"
                     status: "pending_payment"
-                    loadWeightKg: 5000
+                    loadWeightKg: 10000
                     wholeTruckOnly: false
         '400':
           description: Load exceeds remaining capacity, unsupported shipment unit, or shipmentItems/loadWeightKg invalid
           content:
             application/json:
-              example:
-                success: false
-                message: "Selected load exceeds the truck remaining capacity"
-                data:
-                  requestedLoadKg: 7000
-                  remainingCapacityKg: 5000
-                  remainingCapacityDisplay: "5 tons"
+              examples:
+                mixed_payload:
+                  summary: Reject mixed shipmentItems and raw load weight
+                  value:
+                    success: false
+                    message: "Do not send loadWeightKg when shipmentItems are provided. The backend derives total load from the selected order quantities."
+                capacity_exceeded:
+                  summary: Reject load above remaining capacity
+                  value:
+                    success: false
+                    message: "Selected load exceeds the truck remaining capacity"
+                    data:
+                      requestedLoadKg: 7000
+                      remainingCapacityKg: 5000
+                      remainingCapacityDisplay: "5 tonnes"
         '409':
           description: Whole-truck fleet already reserved or in use
           content:
@@ -2075,7 +2100,7 @@ paths:
   /api/transporters/orders/{orderId}/tracking:
     get:
       summary: Get tracking timeline for order
-      description: Buyer (order owner), assigned transporter, seller/agent attached to the order, or admin can fetch the manual tracking timeline. Returns transportStatus plus timeline of tracking events (status, timestamp, note, location).
+      description: Shared tracking read endpoint for the transport flow. Although it lives under `/api/transporters/...`, it can be used by the buyer who owns the order, the assigned transporter, any seller/agent attached to a product in the order, or an admin. Returns the current `transportStatus` plus a chronological timeline of tracking events.
       parameters:
         - in: path
           name: orderId
@@ -2085,6 +2110,28 @@ paths:
       responses:
         '200':
           description: Tracking info with timeline
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  orderId: "67deorder1234567890abc1"
+                  transportStatus: "on_transit"
+                  timeline:
+                    - status: "pending"
+                      timestamp: "2026-03-23T10:00:00.000Z"
+                      note: ""
+                      location: ""
+                    - status: "picked"
+                      timestamp: "2026-03-24T08:15:00.000Z"
+                      note: "Goods loaded"
+                      location: "Abia"
+                    - status: "on_transit"
+                      timestamp: "2026-03-24T14:30:00.000Z"
+                      note: "En route to buyer"
+                      location: "Enugu"
+        '403':
+          description: Caller is not the buyer, assigned transporter, seller on the order, or admin
   /api/transporters/orders/{orderId}/buyer:
     get:
       summary: Get buyer info for assigned order
@@ -3538,6 +3585,7 @@ paths:
   /api/transporters/{id}/reviews:
     get:
       summary: Get reviews for transporter
+      description: Public transporter review listing by transporter id. Useful for buyer-facing transporter detail/review pages.
       parameters:
         - in: path
           name: id
@@ -3547,6 +3595,21 @@ paths:
       responses:
         '200':
           description: Reviews list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67dereview1234567890abc"
+                    rating: 5
+                    comment: "Delivery was fast and smooth"
+                    reply: null
+                    likes: []
+                    createdAt: "2026-03-25T12:00:00.000Z"
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
   /api/transporters/trucks:
     get:
       summary: List transporter trucks with filters
@@ -4255,9 +4318,21 @@ paths:
   /api/transporters/dashboard/customers:
     get:
       summary: Transporter customers
+      description: Returns dashboard-level customer summary for the authenticated transporter, including total customers served and top customer data.
       responses:
         '200':
           description: Customer stats
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  customersServed: 12
+                  topCustomers:
+                    - buyerId: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      ordersCount: 4
+                      totalAmount: 420000
   /api/transporters/dashboard/fleet:
     get:
       summary: Transporter fleet stats
@@ -4288,6 +4363,15 @@ paths:
       responses:
         '200':
           description: Top customers
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - buyerId: "67debuyer1234567890abc1"
+                    name: "Buyer One"
+                    ordersCount: 4
+                    totalAmount: 420000
   /api/transporters/dashboard/trucks-on-transit:
     get:
       summary: Transporter trucks on transit
@@ -4523,11 +4607,14 @@ paths:
                   fleetName: "North Route Fleet"
                   model: "Volvo"
                   size: "20 tons"
-                  capacity: "20 tons"
+                  capacity: "20 tonnes"
                   capacityKg: 20000
+                  capacityTonnes: 20
                   currentLoadKg: 15000
+                  currentLoadTonnes: 15
                   remainingCapacityKg: 5000
-                  remainingCapacityDisplay: "5 tons"
+                  remainingCapacityTonnes: 5
+                  remainingCapacityDisplay: "5 tonnes"
                   price: 12000
                   pricingModel: "per_tonne"
                   wholeTruckOnly: false
@@ -4593,9 +4680,25 @@ paths:
   /api/transporters/reviews:
     get:
       summary: Transporter review list (self or admin)
+      description: Review list for the authenticated transporter's own review page. Admin can also use this route. For a public buyer-facing transporter review page, use `GET /api/transporters/{id}/reviews`.
       responses:
         '200':
           description: Reviews list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67dereview1234567890abc"
+                    rating: 5
+                    comment: "Very reliable transporter"
+                    reply: null
+                    likes: []
+                    createdAt: "2026-03-25T12:00:00.000Z"
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
   /api/admin/users/{id}/onboard:
     post:
       summary: Onboard user (reactivate)
@@ -5641,12 +5744,24 @@ paths:
 
   /api/transporters/customers:
     get:
-      summary: GET /api/transporters/customers
+      summary: Get transporter customers
+      description: Returns the authenticated transporter's customers. Customers are derived from orders assigned to the transporter and from accepted negotiations/shipping requests. Useful for transporter customer list pages.
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Success
+          description: Customer list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - buyerId: "67debuyer1234567890abc1"
+                    name: "Buyer One"
+                    email: "buyer@example.com"
+                    ordersCount: 3
+        '403':
+          description: Only transporters can use this route
 
   /api/transporters/dashboard:
     get:
@@ -5659,12 +5774,54 @@ paths:
 
   /api/transporters/transactions:
     get:
-      summary: GET /api/transporters/transactions
+      summary: Get transporter transactions
+      description: Returns transactions for orders assigned to the authenticated transporter. Supports filtering by transaction status and paginating the result set.
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, refunded]
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
           description: Success
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67detrx1234567890abc"
+                    buyer:
+                      id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
+                      phone: "+2348000000000"
+                    order:
+                      id: "67deorder1234567890abc1"
+                      totalAmount: 120000
+                      status: "paid"
+                      transportStatus: "pending"
+                    amount: 120000
+                    paymentMethod: "bank_transfer"
+                    status: "pending"
+                    approvedBy: null
+                    createdAt: "2026-03-24T12:00:00.000Z"
+                    updatedAt: "2026-03-24T12:00:00.000Z"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
   /api/transporters/fleet-bids:
     get:
       summary: List transporter fleet bids

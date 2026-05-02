@@ -46,19 +46,32 @@ export async function GET(request: Request) {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
+    const skip = (page - 1) * limit;
+
     // Get all orders assigned to this transporter
     const orders = await Order.find({ transporter: user._id });
     const orderIds = orders.map(order => order._id);
 
-    // Get transactions for these orders
-    // Note: Current Transaction model doesn't have payeeId field
-    // We're getting transactions based on orders assigned to transporter
-    const transactions = await Transaction.find({
+    const query: Record<string, unknown> = {
       order: { $in: orderIds }
-    })
-      .populate('buyer', 'name email businessName phone')
-      .populate('order')
-      .sort({ createdAt: -1 });
+    };
+    if (status && ['pending', 'approved', 'rejected', 'refunded'].includes(status)) {
+      query.status = status;
+    }
+
+    const [transactions, total] = await Promise.all([
+      Transaction.find(query)
+        .populate('buyer', 'name email businessName phone')
+        .populate('order')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Transaction.countDocuments(query)
+    ]);
 
     // Format response with additional details
     const formattedTransactions = transactions.map(transaction => ({
@@ -85,7 +98,13 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      data: formattedTransactions 
+      data: formattedTransactions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
     }, { status: 200 });
 
   } catch (error) {
