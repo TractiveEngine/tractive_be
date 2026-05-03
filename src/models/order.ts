@@ -18,6 +18,7 @@ const OrderSchema = new mongoose.Schema({
     }
   ],
   bidIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Bid' }],
+  fleetTripId: { type: mongoose.Schema.Types.ObjectId, ref: 'FleetTrip', default: null },
   totalAmount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'payment_pending', 'paid', 'delivered'], default: 'pending' },
   transportStatus: { type: String, enum: ['pending', 'picked', 'on_transit', 'delivered'], default: 'pending' },

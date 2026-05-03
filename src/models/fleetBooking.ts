@@ -29,6 +29,11 @@ const FleetBookingSchema = new mongoose.Schema({
     ref: 'FleetPayment',
     default: null
   },
+  fleetTripId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FleetTrip',
+    default: null
+  },
   amount: {
     type: Number,
     required: true

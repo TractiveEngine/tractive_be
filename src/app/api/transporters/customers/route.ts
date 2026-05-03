@@ -4,6 +4,8 @@ import Order from '@/models/order';
 import NegotiationOffer from '@/models/negotiation';
 import ShippingRequest from '@/models/shipping';
 import User from '@/models/user';
+import FleetTrip from '@/models/fleetTrip';
+import FleetBooking from '@/models/fleetBooking';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
@@ -62,6 +64,13 @@ export async function GET(request: Request) {
       _id: { $in: shippingRequestIds }
     }).populate('buyer', 'name email businessName phone');
 
+    const [trips, bookings] = await Promise.all([
+      FleetTrip.find({ transporter: user._id })
+        .populate('buyerIds', 'name email businessName phone'),
+      FleetBooking.find({ transporter: user._id, status: { $in: ['confirmed', 'completed'] } })
+        .populate('buyer', 'name email businessName phone')
+    ]);
+
     // Combine and deduplicate buyers
     const buyerMap = new Map();
 
@@ -94,6 +103,35 @@ export async function GET(request: Request) {
           });
         }
         // Count shipping requests as orders
+        buyerMap.get(buyerId).ordersCount++;
+      }
+    });
+
+    trips.forEach((trip: any) => {
+      (trip.buyerIds || []).forEach((buyer: any) => {
+        const buyerId = buyer._id.toString();
+        if (!buyerMap.has(buyerId)) {
+          buyerMap.set(buyerId, {
+            buyerId: buyer._id,
+            name: buyer.name || buyer.businessName || 'Unknown',
+            email: buyer.email,
+            ordersCount: 0
+          });
+        }
+      });
+    });
+
+    bookings.forEach((booking: any) => {
+      if (booking.buyer) {
+        const buyerId = booking.buyer._id.toString();
+        if (!buyerMap.has(buyerId)) {
+          buyerMap.set(buyerId, {
+            buyerId: booking.buyer._id,
+            name: booking.buyer.name || booking.buyer.businessName || 'Unknown',
+            email: booking.buyer.email,
+            ordersCount: 0
+          });
+        }
         buyerMap.get(buyerId).ordersCount++;
       }
     });

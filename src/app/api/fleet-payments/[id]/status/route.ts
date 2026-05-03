@@ -7,6 +7,7 @@ import FleetBooking from '@/models/fleetBooking';
 import Truck from '@/models/truck';
 import { buildCapacityMeta } from '@/lib/truckCapacity';
 import { isWholeTruckPricingModel } from '@/lib/fleetPricing';
+import { createFleetTripFromBooking } from '@/lib/fleetTrip';
 
 const ALLOWED_STATUS = ['approved', 'rejected', 'pending'] as const;
 
@@ -98,6 +99,20 @@ export async function PATCH(
       if (status === 'pending') booking.status = 'pending_payment';
       booking.updatedAt = new Date();
       await booking.save();
+
+      if (
+        status === 'approved' &&
+        booking.wholeTruckOnly === true &&
+        !booking.fleetTripId
+      ) {
+        await createFleetTripFromBooking({
+          booking,
+          payment,
+          origin: null,
+          destination: null,
+          createdBy: user._id
+        });
+      }
     }
   }
 

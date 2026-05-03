@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Review from '@/models/review';
 import User from '@/models/user';
+import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
@@ -67,9 +68,41 @@ export async function GET(request: Request) {
   await dbConnect();
   const { searchParams } = new URL(request.url);
   const agentId = searchParams.get('agentId');
-  if (!agentId) {
-    return NextResponse.json({ error: 'agentId required' }, { status: 400 });
+
+  let effectiveAgentId = agentId;
+  if (!effectiveAgentId) {
+    const authUser = await getAuthUser(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'agentId required' }, { status: 400 });
+    }
+
+    const canReadOwnReviews =
+      ensureActiveRole(authUser, 'agent') ||
+      ensureActiveRole(authUser, 'transporter') ||
+      ensureActiveRole(authUser, 'admin') ||
+      authUser.roles?.includes('agent') ||
+      authUser.roles?.includes('transporter') ||
+      authUser.roles?.includes('admin');
+
+    if (!canReadOwnReviews) {
+      return NextResponse.json({ error: 'agentId required' }, { status: 400 });
+    }
+    effectiveAgentId = authUser._id.toString();
   }
-  const reviews = await Review.find({ agent: agentId }).populate('buyer', 'name email');
-  return NextResponse.json({ reviews }, { status: 200 });
+
+  const reviews = await Review.find({ agent: effectiveAgentId }).populate('buyer', 'name email');
+  const totalReviews = reviews.length;
+  const averageRating = totalReviews > 0
+    ? reviews.reduce((sum: number, review: any) => sum + Number(review.rating || 0), 0) / totalReviews
+    : 0;
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      reviews,
+      averageRating,
+      totalReviews
+    },
+    reviews
+  }, { status: 200 });
 }
