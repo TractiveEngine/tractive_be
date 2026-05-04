@@ -3,16 +3,31 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 import Product from '@/models/product';
 import Order from '@/models/order';
+import { verifyToken } from '@/lib/auth';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+
+async function getAuthUserCompat(request: Request) {
+  const strictUser = await getAuthUser(request);
+  if (strictUser) return strictUser;
+
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice('Bearer '.length).trim();
+  const decoded = verifyToken(token);
+  if (!decoded?.userId) return null;
+  return User.findById(decoded.userId);
+}
 
 // GET /api/customers
 export async function GET(request: Request) {
   await dbConnect();
-  const user = await getAuthUser(request);
+  const user = await getAuthUserCompat(request);
   if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-  if (!ensureActiveRole(user, 'admin') && !ensureActiveRole(user, 'agent')) {
+  const isAdmin = ensureActiveRole(user, 'admin') || user.roles?.includes('admin');
+  const isAgent = ensureActiveRole(user, 'agent') || user.roles?.includes('agent');
+  if (!isAdmin && !isAgent) {
     return NextResponse.json({ success: false, message: 'Admin or agent access required' }, { status: 403 });
   }
 
@@ -48,7 +63,7 @@ export async function GET(request: Request) {
   let customers;
   let total;
 
-  if (ensureActiveRole(user, 'agent')) {
+  if (isAgent && !isAdmin) {
     const productIds = await Product.find({ owner: user._id }).distinct('_id');
     if (productIds.length === 0) {
       customers = [];

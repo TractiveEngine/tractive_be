@@ -2100,7 +2100,7 @@ paths:
   /api/transporters/orders/{orderId}/tracking:
     get:
       summary: Get tracking timeline for order
-      description: Shared tracking read endpoint for the transport flow. Although it lives under `/api/transporters/...`, it can be used by the buyer who owns the order, the assigned transporter, any seller/agent attached to a product in the order, or an admin. Returns the current `transportStatus` plus a chronological timeline of tracking events.
+      description: Shared tracking read endpoint for the transport flow. Although it lives under `/api/transporters/...`, it can be used by the buyer who owns the order, the assigned transporter, any seller/agent attached to a product in the order, or an admin. For legacy orders it returns order-level tracking events. For trip-backed orders it resolves through the linked fleet trip and may include `fleetTripId`, `fleetId`, `trackingCode`, and `currentLocation`.
       parameters:
         - in: path
           name: orderId
@@ -2116,7 +2116,11 @@ paths:
                 success: true
                 data:
                   orderId: "67deorder1234567890abc1"
+                  fleetTripId: "67detrip1234567890abc1"
+                  fleetId: "67defleet1234567890abc1"
+                  trackingCode: "TRIP-1001"
                   transportStatus: "on_transit"
+                  currentLocation: "Enugu"
                   timeline:
                     - status: "pending"
                       timestamp: "2026-03-23T10:00:00.000Z"
@@ -2132,6 +2136,241 @@ paths:
                       location: "Enugu"
         '403':
           description: Caller is not the buyer, assigned transporter, seller on the order, or admin
+  /api/transporters/fleet-trips:
+    get:
+      summary: List fleet trips
+      description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
+        - in: query
+          name: fleetId
+          schema:
+            type: string
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Matches tracking code.
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Fleet trip list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67detrip1234567890abc1"
+                    fleet:
+                      _id: "67defleet1234567890abc1"
+                      plateNumber: "ABC-123"
+                      fleetName: "North Route Fleet"
+                      fleetNumber: "ABC-123"
+                      model: "Volvo"
+                      route:
+                        fromState: "Abia"
+                        toState: "Anambra"
+                    driver:
+                      _id: "67dedriver1234567890abc1"
+                      name: "Driver John"
+                      phone: "+2348000000000"
+                      trackingNumber: "TRK-1001"
+                    buyerIds:
+                      - _id: "67debuyer1234567890abc1"
+                        name: "Buyer One"
+                        phone: "+2348011111111"
+                    orderIds:
+                      - _id: "67deorder1234567890abc1"
+                        buyer: "67debuyer1234567890abc1"
+                        transportStatus: "on_transit"
+                    status: "planned"
+                    origin: "Abia"
+                    destination: "Anambra"
+                    currentLocation: "Abia"
+                    trackingCode: "TRIP-1001"
+                    loadWeightKg: 10000
+                    loadWeightTonnes: 10
+                    wholeTruckOnly: false
+                    buyerCount: 1
+                    orderCount: 1
+                    createdAt: "2026-05-03T10:00:00.000Z"
+                    updatedAt: "2026-05-03T10:00:00.000Z"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
+        '403':
+          description: Transporter or admin access required
+    post:
+      summary: Create fleet trip from confirmed bookings
+      description: Manual trip creation for shared-load bookings. Whole-truck bookings are created automatically on payment approval, but shared-load confirmed bookings can be grouped into a trip with this endpoint.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fleetId, bookingIds]
+              properties:
+                fleetId:
+                  type: string
+                bookingIds:
+                  type: array
+                  items:
+                    type: string
+                driverId:
+                  type: string
+                origin:
+                  type: string
+                destination:
+                  type: string
+            example:
+              fleetId: "67defleet1234567890abc1"
+              bookingIds:
+                - "67debooking1234567890abc1"
+                - "67debooking1234567890abc2"
+              origin: "Abia"
+              destination: "Anambra"
+      responses:
+        '201':
+          description: Fleet trip created
+        '400':
+          description: Invalid fleet/booking payload or booking state
+  /api/transporters/fleet-trips/{tripId}:
+    get:
+      summary: Get fleet trip by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tripId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet trip detail
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67detrip1234567890abc1"
+                  trackingCode: "TRIP-1001"
+                  status: "planned"
+                  origin: "Abia"
+                  destination: "Anambra"
+                  currentLocation: "Abia"
+                  loadWeightKg: 10000
+                  loadWeightTonnes: 10
+                  buyerCount: 2
+                  orderCount: 3
+  /api/transporters/fleet-trips/{tripId}/tracking:
+    get:
+      summary: Get fleet trip tracking timeline
+      description: Operational tracking timeline for one shared truck trip. Buyer pages should normally read order tracking, which may internally resolve through this trip.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tripId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet trip tracking detail
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  tripId: "67detrip1234567890abc1"
+                  trackingCode: "TRIP-1001"
+                  fleetId: "67defleet1234567890abc1"
+                  status: "on_transit"
+                  currentLocation: "Enugu"
+                  buyers:
+                    - id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      phone: "+2348011111111"
+                  orders:
+                    - id: "67deorder1234567890abc1"
+                      buyerId: "67debuyer1234567890abc1"
+                      transportStatus: "on_transit"
+                  timeline:
+                    - status: "planned"
+                      timestamp: "2026-05-03T10:00:00.000Z"
+                      note: "Trip created"
+                      location: "Abia"
+                    - status: "on_transit"
+                      timestamp: "2026-05-03T14:00:00.000Z"
+                      note: "Truck departed"
+                      location: "Enugu"
+  /api/transporters/fleet-trips/{tripId}/status:
+    patch:
+      summary: Update fleet trip tracking status
+      description: Transporter/admin operational update for a shared trip. Linked orders are synchronized automatically.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tripId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
+                location:
+                  type: string
+                note:
+                  type: string
+            example:
+              status: "on_transit"
+              location: "Enugu"
+              note: "Truck departed"
+      responses:
+        '200':
+          description: Fleet trip updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67detrip1234567890abc1"
+                  status: "on_transit"
+                  transportStatus: "on_transit"
+                  currentLocation: "Enugu"
+                  latestTrackingEvent:
+                    status: "on_transit"
+                    note: "Truck departed"
+                    location: "Enugu"
+                    updatedByRole: "transporter"
   /api/transporters/orders/{orderId}/buyer:
     get:
       summary: Get buyer info for assigned order

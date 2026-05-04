@@ -3,9 +3,17 @@ import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import TrackingEvent from '@/models/trackingEvent';
+import FleetTrip from '@/models/fleetTrip';
 import mongoose from 'mongoose';
+import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, syncTripOrders } from '@/lib/fleetTrip';
 
 const TRANSPORT_STATUS = ['pending', 'picked', 'on_transit', 'delivered'] as const;
+const ORDER_TO_TRIP_STATUS: Record<string, 'planned' | 'loaded' | 'on_transit' | 'delivered'> = {
+  pending: 'planned',
+  picked: 'loaded',
+  on_transit: 'on_transit',
+  delivered: 'delivered'
+};
 
 export async function PATCH(
   request: Request,
@@ -46,6 +54,53 @@ export async function PATCH(
   const transportStatus = body?.transportStatus;
   if (!TRANSPORT_STATUS.includes(transportStatus)) {
     return NextResponse.json({ success: false, message: 'Invalid transport status' }, { status: 400 });
+  }
+
+  if (existingOrder.fleetTripId) {
+    const trip = await FleetTrip.findById(existingOrder.fleetTripId);
+    if (!trip) {
+      return NextResponse.json({ success: false, message: 'Fleet trip not found for this order' }, { status: 404 });
+    }
+    if (ensureActiveRole(user, 'transporter') && trip.transporter?.toString() !== user._id.toString()) {
+      return NextResponse.json({ success: false, message: 'Not authorized for this fleet trip' }, { status: 403 });
+    }
+
+    trip.status = ORDER_TO_TRIP_STATUS[transportStatus];
+    trip.currentLocation = body?.location ?? trip.currentLocation ?? null;
+    if (trip.status === 'on_transit' && !trip.startedAt) {
+      trip.startedAt = new Date();
+    }
+    if (trip.status === 'delivered') {
+      trip.completedAt = new Date();
+    }
+    trip.updatedAt = new Date();
+    await trip.save();
+
+    await appendFleetTripTrackingEvent({
+      tripId: trip._id,
+      status: trip.status,
+      note: body?.note || '',
+      location: body?.location || '',
+      updatedBy: user._id,
+      updatedByRole: user.activeRole || null
+    });
+    await syncTripOrders(trip._id, trip.status);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        _id: existingOrder._id,
+        transportStatus: mapTripStatusToOrderTransportStatus(trip.status),
+        status: existingOrder.status,
+        fleetTripId: trip._id,
+        latestTrackingEvent: {
+          status: trip.status,
+          note: body?.note || '',
+          location: body?.location || '',
+          updatedByRole: user.activeRole || null,
+        }
+      }
+    }, { status: 200 });
   }
 
   const order = await Order.findOneAndUpdate(
