@@ -6,6 +6,7 @@ import FleetBooking from '@/models/fleetBooking';
 import FleetPayment from '@/models/fleetPayment';
 import FleetTrip from '@/models/fleetTrip';
 import Order from '@/models/order';
+import Truck from '@/models/truck';
 
 describe('Fleet trip tracking', () => {
   beforeEach(async () => {
@@ -217,5 +218,141 @@ describe('Fleet trip tracking', () => {
     expect((trackingRes as Response).status).toBe(200);
     expect(trackingData.data.status).toBe('on_transit');
     expect(trackingData.data.timeline.length).toBe(2);
+  });
+
+  it('auto-creates a shared-load fleet trip when approved bookings fill truck capacity and releases capacity on delivery', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter();
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, unit: 'tonne' });
+    const orderA = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 15 }],
+      totalAmount: 15000,
+      status: 'paid',
+      transportStatus: 'pending'
+    });
+    const orderB = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 15 }],
+      totalAmount: 15000,
+      status: 'paid',
+      transportStatus: 'pending'
+    });
+    const truck = await createTruck({
+      transporter: transporter._id,
+      capacity: '30 tonnes',
+      pricingModel: 'per_tonne',
+      wholeTruckOnly: false
+    } as any);
+
+    const bookingA = await FleetBooking.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      amount: 10000,
+      loadWeightKg: 15000,
+      shipmentItems: [{
+        orderId: orderA._id,
+        productId: product._id,
+        productName: product.name,
+        quantity: 15,
+        unit: 'tonne',
+        loadWeightKg: 15000
+      }],
+      wholeTruckOnly: false,
+      status: 'pending_payment'
+    });
+    const paymentA = await FleetPayment.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      booking: bookingA._id,
+      amount: 10000,
+      loadWeightKg: 15000,
+      shipmentItems: bookingA.shipmentItems,
+      wholeTruckOnly: false,
+      paymentMethod: 'bank_transfer',
+      status: 'pending'
+    });
+    bookingA.payment = paymentA._id;
+    await bookingA.save();
+
+    const bookingB = await FleetBooking.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      amount: 10000,
+      loadWeightKg: 15000,
+      shipmentItems: [{
+        orderId: orderB._id,
+        productId: product._id,
+        productName: product.name,
+        quantity: 15,
+        unit: 'tonne',
+        loadWeightKg: 15000
+      }],
+      wholeTruckOnly: false,
+      status: 'pending_payment'
+    });
+    const paymentB = await FleetPayment.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      booking: bookingB._id,
+      amount: 10000,
+      loadWeightKg: 15000,
+      shipmentItems: bookingB.shipmentItems,
+      wholeTruckOnly: false,
+      paymentMethod: 'bank_transfer',
+      status: 'pending'
+    });
+    bookingB.payment = paymentB._id;
+    await bookingB.save();
+
+    const approvePayment = async (paymentId: any) => {
+      const req = createAuthenticatedRequest(
+        `http://localhost:3000/api/fleet-payments/${paymentId}/status`,
+        admin._id.toString(),
+        { method: 'PATCH', body: { status: 'approved' }, role: 'admin', email: admin.email }
+      );
+      return import('@/app/api/fleet-payments/[id]/status/route').then((m) =>
+        m.PATCH(req, { params: { id: paymentId.toString() } })
+      );
+    };
+
+    const firstApprovalRes = await approvePayment(paymentA._id);
+    expect((firstApprovalRes as Response).status).toBe(200);
+    expect(await FleetTrip.countDocuments()).toBe(0);
+
+    const secondApprovalRes = await approvePayment(paymentB._id);
+    expect((secondApprovalRes as Response).status).toBe(200);
+
+    const trip = await FleetTrip.findOne({ fleet: truck._id });
+    expect(trip).toBeTruthy();
+    expect(trip!.bookingIds.length).toBe(2);
+    expect(trip!.loadWeightKg).toBe(30000);
+
+    const loadedTruck: any = await Truck.findById(truck._id);
+    expect(loadedTruck.currentLoadKg).toBe(30000);
+
+    const deliverReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/fleet-trips/${trip!._id}/status`,
+      transporter._id.toString(),
+      {
+        method: 'PATCH',
+        body: { status: 'delivered', location: 'Lagos', note: 'Delivered successfully' },
+        role: 'transporter',
+        email: transporter.email
+      }
+    );
+    const deliverRes = await import('@/app/api/transporters/fleet-trips/[tripId]/status/route').then((m) =>
+      m.PATCH(deliverReq, { params: { tripId: trip!._id.toString() } })
+    );
+    expect((deliverRes as Response).status).toBe(200);
+
+    const releasedTruck: any = await Truck.findById(truck._id);
+    expect(releasedTruck.currentLoadKg).toBe(0);
   });
 });

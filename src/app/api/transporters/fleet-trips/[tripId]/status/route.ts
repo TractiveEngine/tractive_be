@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
+import Truck from '@/models/truck';
 import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, syncTripOrders } from '@/lib/fleetTrip';
 
 const TRIP_STATUS = ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'] as const;
@@ -42,6 +43,7 @@ export async function PATCH(
   if (!TRIP_STATUS.includes(status)) {
     return NextResponse.json({ success: false, message: 'Invalid trip status' }, { status: 400 });
   }
+  const previousStatus = trip.status;
 
   trip.status = status;
   trip.currentLocation = body?.location ?? trip.currentLocation ?? null;
@@ -56,6 +58,19 @@ export async function PATCH(
   }
   trip.updatedAt = new Date();
   await trip.save();
+
+  if (
+    previousStatus !== 'delivered' &&
+    previousStatus !== 'cancelled' &&
+    (status === 'delivered' || status === 'cancelled')
+  ) {
+    const fleet = await Truck.findById((trip as any).fleet).select('_id currentLoadKg');
+    if (fleet) {
+      fleet.currentLoadKg = Math.max(0, Number(fleet.currentLoadKg || 0) - Number((trip as any).loadWeightKg || 0));
+      fleet.updatedAt = new Date();
+      await fleet.save();
+    }
+  }
 
   await appendFleetTripTrackingEvent({
     tripId: trip._id,

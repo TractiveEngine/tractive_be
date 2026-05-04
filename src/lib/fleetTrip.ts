@@ -3,6 +3,8 @@ import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
 import FleetBooking from '@/models/fleetBooking';
 import FleetPayment from '@/models/fleetPayment';
 import Order from '@/models/order';
+import Truck from '@/models/truck';
+import { buildCapacityMeta } from '@/lib/truckCapacity';
 
 function uniqueObjectIds(values: any[]) {
   return Array.from(new Map(values.filter(Boolean).map((value) => [value.toString(), value])).values());
@@ -236,4 +238,51 @@ export async function createFleetTripFromConfirmedBookings({
   });
 
   return trip;
+}
+
+export async function maybeAutoCreateSharedFleetTripForFullCapacity({
+  fleetId,
+  createdBy
+}: {
+  fleetId: any;
+  createdBy?: any;
+}) {
+  const fleet = await Truck.findById(fleetId).select('_id capacity capacityKg currentLoadKg wholeTruckOnly');
+  if (!fleet || fleet.wholeTruckOnly === true) {
+    return null;
+  }
+
+  const capacityMeta = buildCapacityMeta(fleet.toObject());
+  if (
+    capacityMeta.capacityKg === null ||
+    capacityMeta.currentLoadKg === null ||
+    capacityMeta.currentLoadKg < capacityMeta.capacityKg
+  ) {
+    return null;
+  }
+
+  const activeTrip = await FleetTrip.findOne({
+    fleet: fleetId,
+    status: { $in: ['planned', 'loaded', 'on_transit', 'arrived'] }
+  }).select('_id');
+  if (activeTrip) {
+    return activeTrip;
+  }
+
+  const bookings = await FleetBooking.find({
+    fleet: fleetId,
+    status: 'confirmed',
+    fleetTripId: null,
+    wholeTruckOnly: false
+  }).sort({ createdAt: 1 });
+
+  if (bookings.length === 0) {
+    return null;
+  }
+
+  return createFleetTripFromConfirmedBookings({
+    fleetId,
+    bookingIds: bookings.map((booking: any) => booking._id),
+    createdBy
+  });
 }
