@@ -43,6 +43,8 @@ const FleetTripSchema = new mongoose.Schema({
   origin: { type: String, default: null },
   destination: { type: String, default: null },
   currentLocation: { type: String, default: null },
+  currentLatitude: { type: Number, default: null },
+  currentLongitude: { type: Number, default: null },
   trackingCode: { type: String, default: null, index: true },
   loadWeightKg: { type: Number, required: true, min: 1 },
   wholeTruckOnly: { type: Boolean, default: false },

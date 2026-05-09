@@ -5,6 +5,8 @@ import '@/models/truck';
 import '@/models/fleetBid';
 import '@/models/fleetBooking';
 import { requireAdmin } from '@/lib/apiAdmin';
+import Product from '@/models/product';
+import { buildShipmentItemMeta } from '@/lib/orderView';
 
 export async function GET(request: Request) {
   const { error } = await requireAdmin(request);
@@ -49,10 +51,33 @@ export async function GET(request: Request) {
       FleetPayment.countDocuments(query)
     ]);
 
+    const productIds = Array.from(new Set(
+      payments.flatMap((payment: any) => (payment.shipmentItems || []).map((item: any) => item?.productId?.toString?.() || item?.productId)).filter(Boolean)
+    ));
+    const products = productIds.length > 0
+      ? await Product.find({ _id: { $in: productIds } }).select('_id unit unitWeightKg').lean()
+      : [];
+    const productMap = new Map(products.map((product: any) => [product._id.toString(), product]));
+
+    const enrichedPayments = payments.map((payment: any) => {
+      const paymentObj = payment.toObject();
+      return {
+        ...paymentObj,
+        shipmentItems: (paymentObj.shipmentItems || []).map((item: any) => {
+          const product = productMap.get(item?.productId?.toString?.() || item?.productId) || null;
+          return buildShipmentItemMeta({
+            ...item,
+            unit: item?.unit || product?.unit || null,
+            unitWeightKg: item?.unitWeightKg ?? product?.unitWeightKg ?? null
+          });
+        })
+      };
+    });
+
     return NextResponse.json({
       success: true,
       data: {
-        fleetPayments: payments,
+        fleetPayments: enrichedPayments,
         pagination: {
           page,
           limit,

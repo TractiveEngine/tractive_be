@@ -20,6 +20,10 @@ import Transaction from '@/models/transaction';
 import FleetBooking from '@/models/fleetBooking';
 import FleetPayment from '@/models/fleetPayment';
 import FleetTrip from '@/models/fleetTrip';
+import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
+import SellerFollow from '@/models/sellerFollow';
+import SupportTicket from '@/models/supportTicket';
+import Conversation from '@/models/conversation';
 import User from '@/models/user';
 
 describe('UI call follow-up fixes', () => {
@@ -471,5 +475,257 @@ describe('UI call follow-up fixes', () => {
     expect((detailRes as Response).status).toBe(200);
     expect(detailData.success).toBe(true);
     expect(detailData.data._id).toBe(payment._id.toString());
+  });
+
+  it('enriches admin fleet payment shipment items with unit weight metadata', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter();
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const truck = await createTruck({ transporter: transporter._id } as any);
+    const product = await createProduct({ owner: agent._id, unit: '100kg_bag', unitWeightKg: 100, name: 'Claister' });
+
+    await FleetPayment.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      amount: 50000,
+      loadWeightKg: 500,
+      shipmentItems: [{
+        orderId: new mongoose.Types.ObjectId(),
+        productId: product._id,
+        productName: product.name,
+        quantity: 5,
+        unit: '100kg_bag',
+        loadWeightKg: 500
+      }],
+      paymentMethod: 'bank_transfer',
+      status: 'pending'
+    });
+
+    const req = createAuthenticatedRequest('http://localhost:3000/api/admin/fleet-payments', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const res = await import('@/app/api/admin/fleet-payments/route').then((m) => m.GET(req));
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(data.data.fleetPayments[0].shipmentItems[0].unitWeightKg).toBe(100);
+    expect(data.data.fleetPayments[0].shipmentItems[0].isBagUnit).toBe(true);
+    expect(data.data.fleetPayments[0].shipmentItems[0].loadWeightTonnes).toBe(0.5);
+  });
+
+  it('enriches buyer orders with seller, transporter, fleet, payment method, and tracking summary', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const { user: transporter } = await createTransporter({ businessName: 'Road Haul Ltd', state: 'Kaduna', phone: '+2348000000000' });
+    const product = await createProduct({ owner: agent._id, name: 'Tomatoes' });
+    const truck = await createTruck({
+      transporter: transporter._id,
+      plateNumber: 'KRD-123',
+      model: 'Mack',
+      images: ['https://example.com/truck.png'],
+      iot: 'IOT-100'
+    } as any);
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 3 }],
+      totalAmount: 9000,
+      status: 'paid',
+      transportStatus: 'pending'
+    });
+    await createTransaction({ order: order._id, buyer: buyer._id, amount: 9000, status: 'approved', paymentMethod: 'card' });
+    const trip = await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      orderIds: [order._id],
+      buyerIds: [buyer._id],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'on_transit',
+      currentLocation: 'Kaduna',
+      trackingCode: 'TRIP-100',
+      loadWeightKg: 300,
+      wholeTruckOnly: false
+    });
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: order._id },
+      { $set: { fleetTripId: trip._id } }
+    );
+    await FleetTripTrackingEvent.create({
+      fleetTrip: trip._id,
+      status: 'loaded',
+      location: 'Kano',
+      note: 'Picked'
+    });
+    await FleetTripTrackingEvent.create({
+      fleetTrip: trip._id,
+      status: 'on_transit',
+      location: 'Kaduna',
+      note: 'Moving'
+    });
+
+    const req = createAuthenticatedRequest('http://localhost:3000/api/orders', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const res = await import('@/app/api/orders/route').then((m) => m.GET(req));
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(data.data[0].products[0].product.owner._id).toBe(agent._id.toString());
+    expect(data.data[0].paymentMethod).toBe('card');
+    expect(data.data[0].transporter.company).toBe('Road Haul Ltd');
+    expect(data.data[0].fleet.plateNumber).toBe('KRD-123');
+    expect(data.data[0].fleet.iotId).toBe('IOT-100');
+    expect(data.data[0].pickedAt).toBeTruthy();
+    expect(data.data[0].onTransitAt).toBeTruthy();
+    expect(data.data[0].statusHistory.length).toBe(2);
+  });
+
+  it('enriches buyer tracking response with current location object and stage timestamps', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const { user: transporter } = await createTransporter();
+    const product = await createProduct({ owner: agent._id });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 1000,
+      status: 'paid'
+    });
+    const trip = await FleetTrip.create({
+      fleet: new mongoose.Types.ObjectId(),
+      transporter: transporter._id,
+      orderIds: [order._id],
+      buyerIds: [buyer._id],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'delivered',
+      currentLocation: 'Lagos',
+      trackingCode: 'TRIP-200',
+      loadWeightKg: 100,
+      wholeTruckOnly: false
+    });
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: order._id },
+      { $set: { fleetTripId: trip._id } }
+    );
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'loaded', location: 'Kano' });
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'on_transit', location: 'Kaduna' });
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'delivered', location: 'Lagos' });
+
+    const req = createAuthenticatedRequest(`http://localhost:3000/api/transporters/orders/${order._id}/tracking`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const res = await import('@/app/api/transporters/orders/[orderId]/tracking/route').then((m) =>
+      m.GET(req, { params: { orderId: order._id.toString() } })
+    );
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(data.data.currentLocation.lat).toBeNull();
+    expect(data.data.currentLocation.lng).toBeNull();
+    expect(data.data.currentLocation.label).toBe('Lagos');
+    expect(data.data.lastUpdatedAt).toBeTruthy();
+    expect(data.data.pickedAt).toBeTruthy();
+    expect(data.data.onTransitAt).toBeTruthy();
+    expect(data.data.deliveredAt).toBeTruthy();
+  });
+
+  it('supports confirm receipt, transporter follow, receipt, issues, support config, and order-linked chats', async () => {
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent({ businessName: 'Seller Corp' });
+    const { user: transporter } = await createTransporter();
+    const product = await createProduct({ owner: agent._id, name: 'Rice', images: ['https://example.com/rice.png'] });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 2 }],
+      totalAmount: 4000,
+      status: 'paid',
+      transportStatus: 'on_transit',
+      transporter: transporter._id
+    });
+    await createTransaction({ order: order._id, buyer: buyer._id, amount: 4000, status: 'approved', paymentMethod: 'bank_transfer' });
+
+    const confirmReq = createAuthenticatedRequest(`http://localhost:3000/api/orders/${order._id}/confirm-receipt`, buyer._id.toString(), {
+      method: 'POST',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const confirmRes = await import('@/app/api/orders/[orderId]/confirm-receipt/route').then((m) =>
+      m.POST(confirmReq, { params: { orderId: order._id.toString() } })
+    );
+    const confirmData = await getResponseJson(confirmRes as unknown as Response);
+    expect((confirmRes as Response).status).toBe(200);
+    expect(confirmData.data.transportStatus).toBe('delivered');
+
+    const followReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/${transporter._id}/follow`, buyer._id.toString(), {
+      method: 'POST',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const followRes = await import('@/app/api/transporters/[id]/follow/route').then((m) =>
+      m.POST(followReq, { params: { id: transporter._id.toString() } })
+    );
+    expect((followRes as Response).status).toBe(201);
+    expect(await SellerFollow.countDocuments({ buyer: buyer._id, seller: transporter._id })).toBe(1);
+
+    const receiptReq = createAuthenticatedRequest(`http://localhost:3000/api/orders/${order._id}/receipt`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const receiptRes = await import('@/app/api/orders/[orderId]/receipt/route').then((m) =>
+      m.GET(receiptReq, { params: { orderId: order._id.toString() } })
+    );
+    const receiptData = await getResponseJson(receiptRes as unknown as Response);
+    expect((receiptRes as Response).status).toBe(200);
+    expect(receiptData.data.paymentMethod).toBe('bank_transfer');
+    expect(receiptData.data.products[0].product.owner._id).toBe(agent._id.toString());
+
+    const issueReq = createAuthenticatedRequest(`http://localhost:3000/api/orders/${order._id}/issues`, buyer._id.toString(), {
+      method: 'POST',
+      role: 'buyer',
+      email: buyer.email,
+      body: {
+        category: 'delivery_delay',
+        description: 'Truck arrived late',
+        attachments: ['https://example.com/evidence.png']
+      }
+    });
+    const issueRes = await import('@/app/api/orders/[orderId]/issues/route').then((m) =>
+      m.POST(issueReq, { params: { orderId: order._id.toString() } })
+    );
+    const issueData = await getResponseJson(issueRes as unknown as Response);
+    expect((issueRes as Response).status).toBe(201);
+    expect(issueData.data.category).toBe('delivery_delay');
+    expect((await SupportTicket.findById(issueData.data._id))?.attachments?.length).toBe(1);
+
+    const supportRes = await import('@/app/api/config/support/route').then((m) => m.GET());
+    const supportData = await getResponseJson(supportRes as unknown as Response);
+    expect((supportRes as Response).status).toBe(200);
+    expect(supportData.data.hotline).toBeTruthy();
+
+    const chatReq = createAuthenticatedRequest('http://localhost:3000/api/chats', buyer._id.toString(), {
+      method: 'POST',
+      role: 'buyer',
+      email: buyer.email,
+      body: {
+        orderId: order._id.toString(),
+        sellerId: agent._id.toString(),
+        initialMessage: 'Hello seller'
+      }
+    });
+    const chatRes = await import('@/app/api/chats/route').then((m) => m.POST(chatReq));
+    const chatData = await getResponseJson(chatRes as unknown as Response);
+    expect((chatRes as Response).status).toBe(201);
+    expect(chatData.data.threadId).toBeTruthy();
+    expect(await Conversation.countDocuments({ order: order._id })).toBe(1);
   });
 });

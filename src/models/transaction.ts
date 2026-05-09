@@ -5,7 +5,7 @@ const TransactionSchema = new mongoose.Schema({
   buyer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'refunded'], default: 'pending' },
-  paymentMethod: { type: String },
+  paymentMethod: { type: String, enum: ['cash', 'bank_transfer', 'card', 'wallet', 'deposit'] },
   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // admin who approved
   refundReason: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },

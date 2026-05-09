@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!orderId || !amount) {
     return NextResponse.json({ error: 'Order and amount required' }, { status: 400 });
   }
-  if (!['cash', 'bank_transfer', 'card'].includes(paymentMethod)) {
+  if (!['cash', 'bank_transfer', 'card', 'wallet', 'deposit'].includes(paymentMethod)) {
     return NextResponse.json({ error: 'Valid paymentMethod is required' }, { status: 400 });
   }
 
