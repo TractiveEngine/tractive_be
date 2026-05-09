@@ -18,6 +18,7 @@ export interface CreateUserOptions {
   state?: string;
   status?: 'active' | 'suspended' | 'removed';
   agentApprovalStatus?: 'pending' | 'approved' | 'rejected' | null;
+  transporterApprovalStatus?: 'pending' | 'approved' | 'rejected' | null;
 }
 
 /**
@@ -76,7 +77,12 @@ export async function createAgent(options: Omit<CreateUserOptions, 'roles'> = {}
  * Create a transporter user
  */
 export async function createTransporter(options: Omit<CreateUserOptions, 'roles'> = {}) {
-  return createUser({ ...options, roles: ['transporter'], activeRole: 'transporter' });
+  return createUser({
+    roles: ['transporter'],
+    activeRole: 'transporter',
+    transporterApprovalStatus: 'approved',
+    ...options
+  });
 }
 
 /**

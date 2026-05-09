@@ -83,8 +83,14 @@ export async function POST(request: Request) {
     body.estimatedDeliveryValue !== undefined && body.estimatedDeliveryValue !== null
       ? Number(body.estimatedDeliveryValue)
       : null;
+  const capacityTonnes =
+    body.capacityTonnes !== undefined && body.capacityTonnes !== null
+      ? Number(body.capacityTonnes)
+      : null;
   const capacityKg =
-    typeof body.capacityKg === 'number'
+    capacityTonnes !== null && Number.isFinite(capacityTonnes) && capacityTonnes > 0
+      ? Math.round(capacityTonnes * 1000)
+      : typeof body.capacityKg === 'number'
       ? body.capacityKg
       : parseCapacityToKg(body.capacity || body.size);
   if (pricingModel === 'flat_rate_whole_truck' && (capacityKg === null || capacityKg <= 0)) {
@@ -107,7 +113,9 @@ export async function POST(request: Request) {
     iot: body.iot || body.Iot || body.tracker,
     model: body.model || body.fleetName || body.name,
     size: body.size,
-    capacity: body.capacity || body.size,
+    capacity: capacityTonnes !== null && Number.isFinite(capacityTonnes) && capacityTonnes > 0
+      ? `${capacityTonnes} tonnes`
+      : body.capacity || body.size,
     capacityKg,
     currentLoadKg:
       typeof body.currentLoadKg === 'number' && body.currentLoadKg >= 0

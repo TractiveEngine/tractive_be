@@ -180,19 +180,35 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  if (!ensureActiveRole(user, 'buyer')) {
-    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
-  }
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
   const limitParam = searchParams.get('limit');
   const status = searchParams.get('status');
   const transportStatus = searchParams.get('transportStatus');
   const readyForTransport = searchParams.get('readyForTransport');
+  const buyerId = searchParams.get('buyerId');
   const page = Math.max(1, Number(pageParam) || 1);
   const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
   const skip = (page - 1) * limit;
-  const query: Record<string, unknown> = { buyer: user._id };
+  const query: Record<string, unknown> = {};
+
+  if (ensureActiveRole(user, 'buyer')) {
+    query.buyer = user._id;
+  } else if (ensureActiveRole(user, 'agent')) {
+    const productIds = await Product.find({ owner: user._id }).distinct('_id');
+    if (productIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0 }
+      }, { status: 200 });
+    }
+    query['products.product'] = { $in: productIds };
+  } else if (ensureActiveRole(user, 'admin')) {
+    if (buyerId) query.buyer = buyerId;
+  } else {
+    return NextResponse.json({ error: 'Buyer, agent, or admin access required' }, { status: 403 });
+  }
 
   if (status && ['pending', 'payment_pending', 'paid', 'delivered'].includes(status)) {
     query.status = status;
@@ -206,7 +222,7 @@ export async function GET(request: Request) {
   }
 
   const [orders, total] = await Promise.all([
-    Order.find(query).populate('products.product').skip(skip).limit(limit),
+    Order.find(query).populate('products.product').sort({ createdAt: -1 }).skip(skip).limit(limit),
     Order.countDocuments(query)
   ]);
 

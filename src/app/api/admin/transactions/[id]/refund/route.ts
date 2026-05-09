@@ -27,6 +27,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   transaction.status = 'refunded' as any;
+  transaction.refundReason = reason || null;
   transaction.updatedAt = new Date();
   await transaction.save();
 

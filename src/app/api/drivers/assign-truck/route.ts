@@ -4,6 +4,7 @@ import Driver from '@/models/driver';
 import Truck from '@/models/truck';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
+import { hasRole } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('transporter')) {
+  if (!hasRole(user as any, 'transporter')) {
     return NextResponse.json({ error: 'Only transporters can assign trucks' }, { status: 403 });
   }
 

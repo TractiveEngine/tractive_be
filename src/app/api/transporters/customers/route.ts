@@ -3,48 +3,19 @@ import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import NegotiationOffer from '@/models/negotiation';
 import ShippingRequest from '@/models/shipping';
-import User from '@/models/user';
 import FleetTrip from '@/models/fleetTrip';
 import FleetBooking from '@/models/fleetBooking';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 // GET /api/transporters/customers - Get list of customers served by transporter
 export async function GET(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('transporter')) {
+  if (!ensureActiveRole(user, 'transporter')) {
     return NextResponse.json({ error: 'Only transporters can view customers' }, { status: 403 });
   }
 

@@ -2,47 +2,18 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import ShippingRequest from '@/models/shipping';
 import Product from '@/models/product';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 // POST /api/shipping - Create shipping request
 export async function POST(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('buyer')) {
+  if (!ensureActiveRole(user, 'buyer')) {
     return NextResponse.json({ error: 'Only buyers can create shipping requests' }, { status: 403 });
   }
 
@@ -121,13 +92,11 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('buyer')) {
+  if (!ensureActiveRole(user, 'buyer')) {
     return NextResponse.json({ error: 'Only buyers can view shipping requests' }, { status: 403 });
   }
 

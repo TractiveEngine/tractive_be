@@ -85,9 +85,7 @@ export async function POST(request: Request) {
     // Update transaction status to refunded
     // Note: In production, this would integrate with payment gateway
     transaction.status = 'refunded' as any; // Type assertion since 'refunded' isn't in the enum yet
-    
-    // Store refund reason (would need to add this field to Transaction model)
-    // For now, we'll just update the status
+    transaction.refundReason = reason || null;
     await transaction.save();
 
     // Notify buyer about refund
