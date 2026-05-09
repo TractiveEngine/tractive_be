@@ -19,6 +19,14 @@ const FleetTripTrackingEventSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  latitude: {
+    type: Number,
+    default: null
+  },
+  longitude: {
+    type: Number,
+    default: null
+  },
   updatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

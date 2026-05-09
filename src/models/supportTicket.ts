@@ -15,6 +15,14 @@ const SupportTicketSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  category: {
+    type: String,
+    default: null
+  },
+  attachments: {
+    type: [String],
+    default: []
+  },
   status: {
     type: String,
     enum: ['open', 'in_progress', 'resolved', 'closed'],

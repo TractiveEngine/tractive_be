@@ -40,13 +40,23 @@ export async function PATCH(
 
   const body: any = await request.json().catch(() => ({}));
   const status = body?.status;
+  const lat = body?.lat;
+  const lng = body?.lng;
   if (!TRIP_STATUS.includes(status)) {
     return NextResponse.json({ success: false, message: 'Invalid trip status' }, { status: 400 });
+  }
+  if (lat !== undefined && (typeof lat !== 'number' || Number.isNaN(lat))) {
+    return NextResponse.json({ success: false, message: 'lat must be a valid number' }, { status: 400 });
+  }
+  if (lng !== undefined && (typeof lng !== 'number' || Number.isNaN(lng))) {
+    return NextResponse.json({ success: false, message: 'lng must be a valid number' }, { status: 400 });
   }
   const previousStatus = trip.status;
 
   trip.status = status;
   trip.currentLocation = body?.location ?? trip.currentLocation ?? null;
+  trip.currentLatitude = typeof lat === 'number' ? lat : trip.currentLatitude ?? null;
+  trip.currentLongitude = typeof lng === 'number' ? lng : trip.currentLongitude ?? null;
   if (status === 'on_transit' && !trip.startedAt) {
     trip.startedAt = new Date();
   }
@@ -77,6 +87,8 @@ export async function PATCH(
     status,
     note: body?.note || '',
     location: body?.location || '',
+    latitude: typeof lat === 'number' ? lat : null,
+    longitude: typeof lng === 'number' ? lng : null,
     updatedBy: user._id,
     updatedByRole: user.activeRole || null
   });
@@ -89,10 +101,14 @@ export async function PATCH(
       status: trip.status,
       transportStatus: mapTripStatusToOrderTransportStatus(trip.status),
       currentLocation: trip.currentLocation || '',
+      currentLatitude: trip.currentLatitude ?? null,
+      currentLongitude: trip.currentLongitude ?? null,
       latestTrackingEvent: {
         status,
         note: body?.note || '',
         location: body?.location || '',
+        latitude: typeof lat === 'number' ? lat : null,
+        longitude: typeof lng === 'number' ? lng : null,
         updatedByRole: user.activeRole || null
       }
     }

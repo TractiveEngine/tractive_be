@@ -3,11 +3,24 @@ import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
 import Product from '@/models/product';
 import Bid from '@/models/bid';
+import FleetTrip from '@/models/fleetTrip';
+import '@/models/truck';
+import '@/models/user';
 import { createNotification } from '@/lib/notifications';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import { buildOrderItemLocalTransport } from '@/lib/localTransport';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { getUnitWeightKg } from '@/lib/productUnit';
+import {
+  buildFleetSummaryForOrder,
+  buildOrderOwnerSummary,
+  buildOrderPaymentMethodMap,
+  computeEstimatedDeliveryDate,
+  buildTrackingSummaryFromEvents,
+  buildTransporterStatsMap,
+  buildTransporterSummaryForOrder,
+  buildTripTimelineMap
+} from '@/lib/orderView';
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -187,6 +200,8 @@ export async function GET(request: Request) {
   const transportStatus = searchParams.get('transportStatus');
   const readyForTransport = searchParams.get('readyForTransport');
   const buyerId = searchParams.get('buyerId');
+  const year = searchParams.get('year');
+  const month = searchParams.get('month');
   const page = Math.max(1, Number(pageParam) || 1);
   const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
   const skip = (page - 1) * limit;
@@ -220,15 +235,90 @@ export async function GET(request: Request) {
     query.status = 'paid';
     query.transportStatus = 'pending';
   }
+  if (year || month) {
+    const createdAt: Record<string, Date> = {};
+    const parsedYear = year ? Number(year) : undefined;
+    const parsedMonth = month ? Number(month) : undefined;
+    if (parsedYear && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12) {
+      createdAt.$gte = new Date(parsedYear, parsedMonth - 1, 1);
+      createdAt.$lt = new Date(parsedYear, parsedMonth, 1);
+    } else if (parsedYear) {
+      createdAt.$gte = new Date(parsedYear, 0, 1);
+      createdAt.$lt = new Date(parsedYear + 1, 0, 1);
+    }
+    if (Object.keys(createdAt).length > 0) query.createdAt = createdAt;
+  }
 
   const [orders, total] = await Promise.all([
-    Order.find(query).populate('products.product').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Order.find(query)
+      .populate({
+        path: 'products.product',
+        populate: { path: 'owner', select: '_id name businessName image' }
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
     Order.countDocuments(query)
   ]);
 
+  const orderIds = orders.map((order: any) => order._id.toString());
+  const tripIds = Array.from(new Set(
+    orders.map((order: any) => order.fleetTripId?.toString?.()).filter(Boolean)
+  ));
+  const paymentMethodMap = await buildOrderPaymentMethodMap(orderIds);
+  const tripTimelineMap = await buildTripTimelineMap(tripIds);
+  const trips = tripIds.length > 0
+    ? await FleetTrip.find({ _id: { $in: tripIds } })
+        .populate('fleet', '_id plateNumber fleetName fleetNumber iot tracker model images estimatedDeliveryValue estimatedDeliveryUnit')
+        .populate('transporter', '_id name businessName phone image address state createdAt')
+        .lean()
+    : [];
+  const tripMap = new Map(trips.map((trip: any) => [trip._id.toString(), trip]));
+  const transporterIds = Array.from(new Set(
+    trips.map((trip: any) => trip.transporter?._id?.toString?.() || trip.transporter?.toString?.()).filter(Boolean)
+  ));
+  const transporterStatsMap = await buildTransporterStatsMap(transporterIds);
+
+  const normalizedOrders = orders.map((order: any) => {
+    const orderObj = order.toObject();
+    const tripId = orderObj.fleetTripId?.toString?.() || null;
+    const trip = tripId ? tripMap.get(tripId) : null;
+    const transporter = trip?.transporter && typeof trip.transporter === 'object' ? trip.transporter : null;
+    const fleet = trip?.fleet && typeof trip.fleet === 'object' ? trip.fleet : null;
+    const transporterId = transporter?._id?.toString?.() || null;
+    const trackingSummary = buildTrackingSummaryFromEvents(
+      tripId ? (tripTimelineMap.get(tripId) || []) : [],
+      { estDeliveryDate: computeEstimatedDeliveryDate(trip) }
+    );
+
+    return {
+      ...orderObj,
+      products: (orderObj.products || []).map((item: any) => ({
+        ...item,
+        product: item.product && typeof item.product === 'object'
+          ? {
+              ...item.product,
+              owner: buildOrderOwnerSummary(item.product.owner)
+            }
+          : item.product
+      })),
+      paymentMethod: paymentMethodMap.get(orderObj._id.toString()) || null,
+      transporter: buildTransporterSummaryForOrder(transporter, transporterId ? transporterStatsMap.get(transporterId) : null),
+      fleet: buildFleetSummaryForOrder(fleet),
+      trackingCode: trip?.trackingCode || null,
+      currentLocation: {
+        lat: trip?.currentLatitude ?? null,
+        lng: trip?.currentLongitude ?? null,
+        label: trip?.currentLocation || ''
+      },
+      currentLocationLabel: trip?.currentLocation || '',
+      ...trackingSummary
+    };
+  });
+
   return NextResponse.json({
     success: true,
-    data: orders,
+    data: normalizedOrders,
     pagination: { page, limit, total }
   }, { status: 200 });
 }

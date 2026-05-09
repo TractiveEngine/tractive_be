@@ -7,6 +7,7 @@ import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 import { mapTripStatusToOrderTransportStatus } from '@/lib/fleetTrip';
+import { buildTrackingSummaryFromEvents, computeEstimatedDeliveryDate } from '@/lib/orderView';
 
 export async function GET(
   request: Request,
@@ -41,9 +42,15 @@ export async function GET(
   }
 
   if (order.fleetTripId) {
-    const trip = await FleetTrip.findById(order.fleetTripId).select('_id fleet trackingCode status currentLocation');
+    const trip = await FleetTrip.findById(order.fleetTripId)
+      .populate('fleet', '_id estimatedDeliveryValue estimatedDeliveryUnit')
+      .select('_id fleet trackingCode status currentLocation currentLatitude currentLongitude startedAt createdAt updatedAt');
     if (trip) {
       const tripTimeline = await FleetTripTrackingEvent.find({ fleetTrip: trip._id }).sort({ createdAt: 1 }).lean();
+      const trackingSummary = buildTrackingSummaryFromEvents(tripTimeline, {
+        estDeliveryDate: computeEstimatedDeliveryDate(trip)
+      });
+      const currentLocationLabel = trip.currentLocation || '';
       return NextResponse.json(
         {
           success: true,
@@ -53,12 +60,20 @@ export async function GET(
             fleetId: trip.fleet?.toString?.() || trip.fleet || null,
             trackingCode: trip.trackingCode || null,
             transportStatus: mapTripStatusToOrderTransportStatus(trip.status),
-            currentLocation: trip.currentLocation || '',
+            currentLocation: {
+              lat: trip.currentLatitude ?? null,
+              lng: trip.currentLongitude ?? null,
+              label: currentLocationLabel
+            },
+            currentLocationLabel,
+            ...trackingSummary,
             timeline: tripTimeline.map((t) => ({
               status: t.status,
               timestamp: t.createdAt,
               note: t.note,
               location: t.location,
+              lat: (t as any).latitude ?? null,
+              lng: (t as any).longitude ?? null
             })),
           },
         },
@@ -68,6 +83,8 @@ export async function GET(
   }
 
   const timeline = await TrackingEvent.find({ order: order._id }).sort({ createdAt: 1 }).lean();
+  const trackingSummary = buildTrackingSummaryFromEvents(timeline);
+  const currentLocationLabel = timeline.length > 0 ? (timeline[timeline.length - 1] as any).location || '' : '';
 
   return NextResponse.json(
     {
@@ -75,11 +92,20 @@ export async function GET(
       data: {
         orderId: order._id.toString(),
         transportStatus: order.transportStatus,
+        currentLocation: {
+          lat: null,
+          lng: null,
+          label: currentLocationLabel
+        },
+        currentLocationLabel,
+        ...trackingSummary,
         timeline: timeline.map((t) => ({
           status: t.status,
           timestamp: t.createdAt,
           note: t.note,
           location: t.location,
+          lat: null,
+          lng: null
         })),
       },
     },

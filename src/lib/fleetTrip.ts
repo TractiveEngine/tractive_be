@@ -62,6 +62,8 @@ export async function appendFleetTripTrackingEvent({
   status,
   note,
   location,
+  latitude,
+  longitude,
   updatedBy,
   updatedByRole
 }: {
@@ -69,6 +71,8 @@ export async function appendFleetTripTrackingEvent({
   status: string;
   note?: string | null;
   location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   updatedBy?: any;
   updatedByRole?: string | null;
 }) {
@@ -77,6 +81,8 @@ export async function appendFleetTripTrackingEvent({
     status,
     note: note || '',
     location: location || '',
+    latitude: typeof latitude === 'number' ? latitude : null,
+    longitude: typeof longitude === 'number' ? longitude : null,
     updatedBy: updatedBy || null,
     updatedByRole: updatedByRole || null
   });

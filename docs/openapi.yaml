@@ -2139,7 +2139,7 @@ paths:
   /api/transporters/orders/{orderId}/tracking:
     get:
       summary: Get tracking timeline for order
-      description: Shared tracking read endpoint for the transport flow. Although it lives under `/api/transporters/...`, it can be used by the buyer who owns the order, the assigned transporter, any seller/agent attached to a product in the order, or an admin. For legacy orders it returns order-level tracking events. For trip-backed orders it resolves through the linked fleet trip and may include `fleetTripId`, `fleetId`, `trackingCode`, and `currentLocation`.
+      description: Shared tracking read endpoint for the transport flow. Although it lives under `/api/transporters/...`, it can be used by the buyer who owns the order, the assigned transporter, any seller/agent attached to a product in the order, or an admin. For legacy orders it returns order-level tracking events. For trip-backed orders it resolves through the linked fleet trip and may include `fleetTripId`, `fleetId`, `trackingCode`, `currentLocation`, `lastUpdatedAt`, `pickedAt`, `onTransitAt`, `deliveredAt`, and `estDeliveryDate`.
       parameters:
         - in: path
           name: orderId
@@ -2159,22 +2159,52 @@ paths:
                   fleetId: "67defleet1234567890abc1"
                   trackingCode: "TRIP-1001"
                   transportStatus: "on_transit"
-                  currentLocation: "Enugu"
+                  currentLocation:
+                    lat: 6.4499
+                    lng: 7.5000
+                    label: "Enugu"
+                  currentLocationLabel: "Enugu"
+                  lastUpdatedAt: "2026-03-24T14:30:00.000Z"
+                  pickedAt: "2026-03-24T08:15:00.000Z"
+                  onTransitAt: "2026-03-24T14:30:00.000Z"
+                  deliveredAt: null
+                  estDeliveryDate: "2026-03-26T14:30:00.000Z"
                   timeline:
                     - status: "pending"
                       timestamp: "2026-03-23T10:00:00.000Z"
                       note: ""
                       location: ""
+                      lat: null
+                      lng: null
                     - status: "picked"
                       timestamp: "2026-03-24T08:15:00.000Z"
                       note: "Goods loaded"
                       location: "Abia"
+                      lat: null
+                      lng: null
                     - status: "on_transit"
                       timestamp: "2026-03-24T14:30:00.000Z"
                       note: "En route to buyer"
                       location: "Enugu"
+                      lat: 6.4499
+                      lng: 7.5000
         '403':
           description: Caller is not the buyer, assigned transporter, seller on the order, or admin
+  /api/orders/{id}/tracking:
+    get:
+      summary: Buyer-facing order tracking alias
+      description: Frontend-friendly alias of `GET /api/transporters/orders/{orderId}/tracking`. Returns the same tracking payload.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tracking info with timeline
   /api/transporters/fleet-trips:
     get:
       summary: List fleet trips
@@ -2390,13 +2420,38 @@ paths:
                   type: string
                 note:
                   type: string
+                lat:
+                  type: number
+                  nullable: true
+                lng:
+                  type: number
+                  nullable: true
             example:
               status: "on_transit"
               location: "Enugu"
+              lat: 6.4499
+              lng: 7.5000
               note: "Truck departed"
       responses:
         '200':
           description: Fleet trip updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "67detrip1234567890abc1"
+                  status: "on_transit"
+                  transportStatus: "on_transit"
+                  currentLocation: "Enugu"
+                  currentLatitude: 6.4499
+                  currentLongitude: 7.5000
+                  latestTrackingEvent:
+                    status: "on_transit"
+                    note: "Truck departed"
+                    location: "Enugu"
+                    latitude: 6.4499
+                    longitude: 7.5000
           content:
             application/json:
               example:
@@ -3201,6 +3256,109 @@ paths:
       responses:
         '200':
           description: Order deleted
+  /api/orders/{orderId}/confirm-receipt:
+    post:
+      summary: Buyer confirms order receipt
+      description: Buyer-only endpoint to confirm that the order has been received. Marks the order and transport status as delivered.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt confirmed
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  orderId: "67deorder1234567890abc1"
+                  status: "delivered"
+                  transportStatus: "delivered"
+                message: "Receipt confirmed successfully"
+  /api/orders/{orderId}/receipt:
+    get:
+      summary: Buyer order receipt
+      description: Buyer-only receipt endpoint with order, seller, and payment summary for receipt screens.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt payload
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  orderId: "67deorder1234567890abc1"
+                  status: "paid"
+                  transportStatus: "pending"
+                  totalAmount: 4000
+                  address: "123 Example Road"
+                  paymentMethod: "bank_transfer"
+                  transactionStatus: "approved"
+                  products:
+                    - quantity: 2
+                      unit: "kg"
+                      unitPrice: 2000
+                      lineSubtotal: 4000
+                      product:
+                        _id: "67deproduct1234567890abc1"
+                        name: "Rice"
+                        image: "https://example.com/rice.png"
+                        owner:
+                          _id: "67deagent1234567890abc1"
+                          name: "Agent One"
+                          businessName: "Seller Corp"
+                          image: "https://example.com/seller.png"
+                          email: "seller@example.com"
+                          phone: "+2348000000000"
+  /api/orders/{orderId}/issues:
+    post:
+      summary: Buyer reports an order issue
+      description: Buyer-only endpoint to create a support ticket linked to an order.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  nullable: true
+                description:
+                  type: string
+                attachments:
+                  type: array
+                  items:
+                    type: string
+            example:
+              category: "delivery_delay"
+              description: "Truck arrived late"
+              attachments:
+                - "https://example.com/evidence.png"
+      responses:
+        '201':
+          description: Issue reported successfully
   /api/transactions:
     get:
       summary: List buyer or agent transactions
@@ -3248,7 +3406,7 @@ paths:
             example:
               order: "507f1f77bcf86cd799439014"
               amount: 50000
-              paymentMethod: "bank_transfer"
+              paymentMethod: "wallet"
       responses:
         '201':
           description: Transaction created
@@ -3358,7 +3516,7 @@ paths:
           name: method
           schema:
             type: string
-            enum: [cash, bank_transfer, card]
+            enum: [cash, bank_transfer, card, wallet, deposit]
         - in: query
           name: fromDate
           schema:
@@ -3380,6 +3538,29 @@ paths:
       responses:
         '200':
           description: Fleet payments list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  fleetPayments:
+                    - _id: "67defleetpay1234567890ab1"
+                      amount: 210000
+                      shipmentItems:
+                        - orderId: "67deorder1234567890abc1"
+                          productId: "67deprod1234567890abc1"
+                          productName: "Maize"
+                          quantity: 100
+                          unit: "100kg_bag"
+                          unitWeightKg: 100
+                          isBagUnit: true
+                          loadWeightKg: 10000
+                          loadWeightTonnes: 10
+                  pagination:
+                    page: 1
+                    limit: 20
+                    total: 1
+                    totalPages: 1
   /api/admin/fleet-payments/{id}:
     get:
       summary: Get fleet payment by id
@@ -3408,13 +3589,19 @@ paths:
                       productName: "Maize"
                       quantity: 3000
                       unit: "kg"
+                      unitWeightKg: 1
+                      isBagUnit: false
                       loadWeightKg: 3000
+                      loadWeightTonnes: 3
                     - orderId: "67deorder1234567890abc2"
                       productId: "67deprod1234567890abc2"
                       productName: "Beans"
                       quantity: 2
                       unit: "ton"
+                      unitWeightKg: 1000
+                      isBagUnit: false
                       loadWeightKg: 2000
+                      loadWeightTonnes: 2
                   status: "pending"
                   paymentMethod: "bank_transfer"
                   note: "Paid via bank transfer for Kaduna to Lagos route"
@@ -5737,6 +5924,35 @@ paths:
       responses:
         '201':
           description: Success
+  /api/chats:
+    post:
+      summary: Open or create order-linked buyer/seller chat
+      description: Opens or creates a conversation thread for a buyer order and seller pair, and returns a thread ID for the live chat button.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId:
+                  type: string
+                sellerId:
+                  type: string
+                initialMessage:
+                  type: string
+                  nullable: true
+            example:
+              orderId: "67deorder1234567890abc1"
+              sellerId: "67deagent1234567890abc1"
+              initialMessage: "Hello seller"
+      responses:
+        '200':
+          description: Existing thread returned
+        '201':
+          description: New thread created
 
   /api/chat/{conversationId}:
     get:
@@ -6139,6 +6355,50 @@ paths:
       responses:
         '200':
           description: Success
+  /api/config/support:
+    get:
+      summary: Support contact configuration
+      description: Returns hotline and support contact numbers for buyer support screens.
+      responses:
+        '200':
+          description: Support config
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  hotline: "+2348000000000"
+                  whatsapp: "+2348000000000"
+                  email: "support@tractive.app"
+  /api/transporters/{id}/follow:
+    post:
+      summary: Buyer follows transporter
+      description: Buyer-only endpoint to follow a transporter profile.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Transporter followed
+    delete:
+      summary: Buyer unfollows transporter
+      description: Buyer-only endpoint to unfollow a transporter profile.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transporter unfollowed
 
   /api/transporters/customers:
     get:
