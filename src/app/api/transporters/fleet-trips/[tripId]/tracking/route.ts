@@ -4,6 +4,10 @@ import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
+import '@/models/truck';
+import '@/models/order';
+import '@/models/driver';
+import '@/models/fleetBooking';
 import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
 
 function getDocId(value: any) {

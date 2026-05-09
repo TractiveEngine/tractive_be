@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
 import FleetPayment from '@/models/fleetPayment';
 import FleetBooking from '@/models/fleetBooking';
+import '@/models/truck';
+import '@/models/fleetBid';
 import { requireAdmin } from '@/lib/apiAdmin';
 
 export async function GET(

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import FleetPayment from '@/models/fleetPayment';
+import '@/models/truck';
+import '@/models/fleetBid';
+import '@/models/fleetBooking';
 import { requireAdmin } from '@/lib/apiAdmin';
 
 export async function GET(request: Request) {

@@ -3,6 +3,10 @@ import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
+import '@/models/truck';
+import '@/models/order';
+import '@/models/driver';
+import '@/models/fleetBooking';
 import { buildFleetTripLoadMeta } from '@/lib/fleetTrip';
 import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
 

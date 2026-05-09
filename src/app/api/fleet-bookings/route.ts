@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetBooking from '@/models/fleetBooking';
+import '@/models/truck';
+import '@/models/fleetBid';
+import '@/models/fleetPayment';
 
 export async function GET(request: Request) {
   await dbConnect();
