@@ -17,8 +17,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Transporter or admin access required' }, { status: 403 });
   }
 
-  const query = isAdmin ? {} : { agent: user._id };
-  const reviews = await Review.find(query).populate('buyer', 'name email');
+  const { searchParams } = new URL(request.url);
+  const transporterId = searchParams.get('transporterId');
+  const effectiveTransporterId = transporterId || (!isAdmin ? user._id.toString() : null);
+  if (!effectiveTransporterId) {
+    return NextResponse.json({ success: false, message: 'transporterId required' }, { status: 400 });
+  }
 
-  return NextResponse.json({ success: true, data: reviews }, { status: 200 });
+  const reviews = await Review.find({ agent: effectiveTransporterId })
+    .populate('buyer', 'name email businessName phone image')
+    .sort({ createdAt: -1 });
+  const totalReviews = reviews.length;
+  const averageRating = totalReviews > 0
+    ? reviews.reduce((sum: number, review: any) => sum + Number(review.rating || 0), 0) / totalReviews
+    : 0;
+
+  return NextResponse.json({
+    success: true,
+    data: {
+      reviews,
+      averageRating,
+      totalReviews
+    },
+    reviews
+  }, { status: 200 });
 }

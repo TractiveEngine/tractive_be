@@ -6,6 +6,7 @@ import User from '@/models/user';
 import Truck from '@/models/truck';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { hasRole } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
   }
 
   const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('transporter')) {
+  if (!hasRole(user as any, 'transporter')) {
     return NextResponse.json({ error: 'Only transporters can view negotiations' }, { status: 403 });
   }
 
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
   }
 
   const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('transporter')) {
+  if (!hasRole(user as any, 'transporter')) {
     return NextResponse.json({ error: 'Only transporters can create negotiations' }, { status: 403 });
   }
 

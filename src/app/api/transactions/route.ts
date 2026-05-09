@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
 import Order from '@/models/order';
+import Product from '@/models/product';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function POST(request: Request) {
@@ -70,19 +71,62 @@ export async function GET(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  if (!ensureActiveRole(user, 'buyer')) {
-    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
-  }
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
   const limitParam = searchParams.get('limit');
+  const status = searchParams.get('status');
+  const fromDate = searchParams.get('fromDate');
+  const toDate = searchParams.get('toDate');
   const page = Math.max(1, Number(pageParam) || 1);
   const limit = Math.min(100, Math.max(1, Number(limitParam) || 20));
   const skip = (page - 1) * limit;
 
+  const query: Record<string, unknown> = {};
+  if (status && ['pending', 'approved', 'rejected', 'refunded'].includes(status)) {
+    query.status = status;
+  }
+  if (fromDate || toDate) {
+    const createdAt: Record<string, Date> = {};
+    if (fromDate) createdAt.$gte = new Date(fromDate);
+    if (toDate) createdAt.$lte = new Date(toDate);
+    query.createdAt = createdAt;
+  }
+
+  if (ensureActiveRole(user, 'buyer')) {
+    query.buyer = user._id;
+  } else if (ensureActiveRole(user, 'agent')) {
+    const productIds = await Product.find({ owner: user._id }).distinct('_id');
+    if (productIds.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        pagination: { page, limit, total: 0 }
+      }, { status: 200 });
+    }
+    const orderIds = await Order.find({ 'products.product': { $in: productIds } }).distinct('_id');
+    query.order = { $in: orderIds };
+  } else {
+    return NextResponse.json({ error: 'Buyer or agent access required' }, { status: 403 });
+  }
+
   const [transactions, total] = await Promise.all([
-    Transaction.find({ buyer: user._id }).populate('order').skip(skip).limit(limit),
-    Transaction.countDocuments({ buyer: user._id })
+    Transaction.find(query)
+      .populate('buyer', 'name email businessName phone')
+      .populate({
+        path: 'order',
+        populate: {
+          path: 'products.product',
+          model: Product,
+          populate: {
+            path: 'owner',
+            select: 'name email businessName'
+          }
+        }
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Transaction.countDocuments(query)
   ]);
 
   return NextResponse.json({

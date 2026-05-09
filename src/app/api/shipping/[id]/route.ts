@@ -4,6 +4,7 @@ import ShippingRequest from '@/models/shipping';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { hasRole } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -67,7 +68,7 @@ export async function GET(
 
     // Check authorization - buyer can see their own, transporter can see assigned ones
     const isBuyer = user.roles.includes('buyer') && shippingRequest.buyer._id.toString() === user._id.toString();
-    const isTransporter = user.roles.includes('transporter') && 
+    const isTransporter = hasRole(user as any, 'transporter') && 
       shippingRequest.transporter && 
       shippingRequest.transporter._id.toString() === user._id.toString();
     const isAdmin = user.roles.includes('admin');

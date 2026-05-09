@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 
     // Get users
     const users = await User.find(query)
-      .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus')
+      .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus transporterApprovalStatus')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -65,6 +65,7 @@ export async function GET(request: Request) {
       phone: u.phone,
       isVerified: u.isVerified,
       agentApprovalStatus: u.agentApprovalStatus,
+      transporterApprovalStatus: u.transporterApprovalStatus,
       createdAt: u.createdAt
     }));
 

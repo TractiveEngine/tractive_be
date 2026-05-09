@@ -4,6 +4,7 @@ import User from '@/models/user';
 import type { NextRequest } from 'next/server';
 import sendEmail from '@/lib/sendSmtpMail';
 import { verifyToken } from '@/lib/auth';
+import { hasRole } from '@/lib/apiAuth';
 
 interface AddAccountPayload {
   role: 'buyer' | 'agent' | 'transporter' | 'admin';
@@ -73,7 +74,15 @@ export async function POST(request: NextRequest) {
   if (!user.roles.includes(role)) {
     user.roles.push(role);
   }
-  user.activeRole = role;
+  if (role === 'agent' && user.agentApprovalStatus !== 'approved') {
+    user.agentApprovalStatus = 'pending';
+  }
+  if (role === 'transporter' && user.transporterApprovalStatus !== 'approved') {
+    user.transporterApprovalStatus = 'pending';
+  }
+  if (hasRole(user as any, role)) {
+    user.activeRole = role;
+  }
 
   // Update extra info
   if (name) user.name = name;
@@ -111,7 +120,17 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    message: 'Account type and info updated.',
-    user: { email: user.email, id: user._id, roles: user.roles, activeRole: user.activeRole },
+    message:
+      role === 'agent' || role === 'transporter'
+        ? 'Account type added and submitted for admin approval.'
+        : 'Account type and info updated.',
+    user: {
+      email: user.email,
+      id: user._id,
+      roles: user.roles,
+      activeRole: user.activeRole,
+      agentApprovalStatus: user.agentApprovalStatus ?? null,
+      transporterApprovalStatus: user.transporterApprovalStatus ?? null
+    },
   }, { status: 200 });
 }

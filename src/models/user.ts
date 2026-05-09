@@ -58,6 +58,11 @@ const UserSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: null
   },
+  transporterApprovalStatus: {
+    type: String,
+    enum: ["pending", "approved", "rejected"],
+    default: null
+  },
   approvalNotes: { type: String },
   
   createdAt: { type: Date, default: Date.now },

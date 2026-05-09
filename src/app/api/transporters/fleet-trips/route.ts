@@ -4,6 +4,7 @@ import dbConnect from '@/lib/dbConnect';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import Truck from '@/models/truck';
+import FleetBooking from '@/models/fleetBooking';
 import { buildFleetTripLoadMeta, createFleetTripFromConfirmedBookings } from '@/lib/fleetTrip';
 import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
 
@@ -88,12 +89,9 @@ export async function POST(request: Request) {
 
   const body: any = await request.json().catch(() => ({}));
   const fleetId = body?.fleetId;
-  const bookingIds = Array.isArray(body?.bookingIds) ? body.bookingIds : [];
+  let bookingIds = Array.isArray(body?.bookingIds) ? body.bookingIds : [];
   if (!fleetId || !mongoose.Types.ObjectId.isValid(fleetId)) {
     return NextResponse.json({ success: false, message: 'Valid fleetId is required' }, { status: 400 });
-  }
-  if (bookingIds.length === 0 || bookingIds.some((id: any) => !mongoose.Types.ObjectId.isValid(id))) {
-    return NextResponse.json({ success: false, message: 'At least one valid bookingId is required' }, { status: 400 });
   }
 
   const fleet = await Truck.findById(fleetId).select('_id transporter route');
@@ -102,6 +100,18 @@ export async function POST(request: Request) {
   }
   if (ensureActiveRole(user, 'transporter') && fleet.transporter?.toString() !== user._id.toString()) {
     return NextResponse.json({ success: false, message: 'Not authorized for this fleet' }, { status: 403 });
+  }
+
+  if (bookingIds.length === 0) {
+    const availableBookings = await FleetBooking.find({
+      fleet: fleet._id,
+      status: 'confirmed',
+      fleetTripId: null
+    }).select('_id');
+    bookingIds = availableBookings.map((booking: any) => booking._id.toString());
+  }
+  if (bookingIds.length === 0 || bookingIds.some((id: any) => !mongoose.Types.ObjectId.isValid(id))) {
+    return NextResponse.json({ success: false, message: 'At least one valid bookingId is required' }, { status: 400 });
   }
 
   try {

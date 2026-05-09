@@ -1,44 +1,21 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Order from '@/models/order';
-import jwt from 'jsonwebtoken';
 import { createNotification } from '@/lib/notifications';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
+  }
   const order = await Order.findById(id).populate('products.product');
-  if (!order || String(order.buyer) !== userData.userId) {
+  if (!order || String(order.buyer) !== user._id.toString()) {
     return NextResponse.json({ error: 'Order not found or access denied' }, { status: 404 });
   }
   return NextResponse.json({ order }, { status: 200 });
@@ -47,12 +24,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  if (!ensureActiveRole(user, 'buyer')) {
+    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
+  }
   const order = await Order.findById(id);
-  if (!order || String(order.buyer) !== userData.userId) {
+  if (!order || String(order.buyer) !== user._id.toString()) {
     return NextResponse.json({ error: 'Order not found or access denied' }, { status: 404 });
   }
 

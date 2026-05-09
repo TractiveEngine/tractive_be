@@ -2,48 +2,21 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Conversation from '@/models/conversation';
 import Message from '@/models/message';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUser } from '@/lib/apiAuth';
 
 // GET /api/chat - List user's conversations
 export async function GET(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
   try {
     // Find conversations where user is a participant
     const conversations = await Conversation.find({
-      participants: userData.userId
+      participants: user._id
     })
       .populate('participants', 'name email businessName roles')
       .sort({ lastMessageAt: -1 });
@@ -88,8 +61,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
@@ -106,7 +79,7 @@ export async function POST(request: Request) {
 
     // Check if user already has an open conversation
     const existingConversation = await Conversation.findOne({
-      participants: userData.userId,
+      participants: user._id,
       isClosed: false
     });
 
@@ -114,9 +87,9 @@ export async function POST(request: Request) {
       // Add message to existing conversation
       const message = await Message.create({
         conversation: existingConversation._id,
-        sender: userData.userId,
+        sender: user._id,
         text: initialMessage,
-        readBy: [userData.userId]
+        readBy: [user._id]
       });
 
       existingConversation.lastMessageAt = new Date();
@@ -134,7 +107,7 @@ export async function POST(request: Request) {
 
     // Create new conversation
     const conversation = await Conversation.create({
-      participants: [userData.userId],
+      participants: [user._id],
       isClosed: false,
       lastMessageAt: new Date()
     });
@@ -142,9 +115,9 @@ export async function POST(request: Request) {
     // Create first message
     const message = await Message.create({
       conversation: conversation._id,
-      sender: userData.userId,
+      sender: user._id,
       text: initialMessage,
-      readBy: [userData.userId]
+      readBy: [user._id]
     });
 
     return NextResponse.json({

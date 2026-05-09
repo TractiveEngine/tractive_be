@@ -1,35 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
-import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
 
 // GET /api/admin/users/:profession (alias) or /api/admin/users/:id
 export async function GET(request: Request, { params }: { params: { id: string } }) {
@@ -68,7 +41,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
       }
 
       const users = await User.find(query)
-        .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus')
+        .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus transporterApprovalStatus')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -85,6 +58,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
         phone: u.phone,
         isVerified: u.isVerified,
         agentApprovalStatus: u.agentApprovalStatus,
+        transporterApprovalStatus: u.transporterApprovalStatus,
         createdAt: u.createdAt
       }));
 
@@ -104,7 +78,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     if (mongoose.Types.ObjectId.isValid(id)) {
       const target = await User.findById(id)
-        .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus');
+        .select('_id name email roles activeRole status businessName phone createdAt isVerified agentApprovalStatus transporterApprovalStatus');
 
       if (!target) {
         return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
@@ -122,6 +96,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
           phone: target.phone,
           isVerified: target.isVerified,
           agentApprovalStatus: target.agentApprovalStatus,
+          transporterApprovalStatus: target.transporterApprovalStatus,
           createdAt: target.createdAt
         }
       }, { status: 200 });
@@ -141,13 +116,11 @@ export async function PATCH(
 ) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const adminUser = await getAuthUser(request);
+  if (!adminUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-
-  const adminUser = await User.findById(userData.userId);
-  if (!adminUser || !adminUser.roles.includes('admin')) {
+  if (!ensureActiveRole(adminUser, 'admin')) {
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 

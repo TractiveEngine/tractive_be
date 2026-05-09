@@ -1,46 +1,18 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
-import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 // GET /api/admin/approvals/agents - List agents pending approval
 export async function GET(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-
-  const user = await User.findById(userData.userId);
-  if (!user || !user.roles.includes('admin')) {
+  if (!ensureActiveRole(user, 'admin')) {
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 
@@ -74,13 +46,11 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const adminUser = await getAuthUser(request);
+  if (!adminUser) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-
-  const adminUser = await User.findById(userData.userId);
-  if (!adminUser || !adminUser.roles.includes('admin')) {
+  if (!ensureActiveRole(adminUser, 'admin')) {
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 

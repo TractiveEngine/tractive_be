@@ -2,44 +2,16 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Review from '@/models/review';
 import User from '@/models/user';
-import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUser, ensureActiveRole, hasRole } from '@/lib/apiAuth';
 
 // POST /api/reviews - buyer reviews an agent/transporter
 export async function POST(request: Request) {
   await dbConnect();
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const buyer = await getAuthUser(request);
+  if (!buyer) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const buyer = await User.findById(userData.userId);
-  if (!buyer || !buyer.roles.includes('buyer')) {
+  if (!ensureActiveRole(buyer, 'buyer')) {
     return NextResponse.json({ error: 'Only buyers can review agents' }, { status: 403 });
   }
 
@@ -80,9 +52,9 @@ export async function GET(request: Request) {
       ensureActiveRole(authUser, 'agent') ||
       ensureActiveRole(authUser, 'transporter') ||
       ensureActiveRole(authUser, 'admin') ||
-      authUser.roles?.includes('agent') ||
-      authUser.roles?.includes('transporter') ||
-      authUser.roles?.includes('admin');
+      hasRole(authUser, 'agent') ||
+      hasRole(authUser, 'transporter') ||
+      hasRole(authUser, 'admin');
 
     if (!canReadOwnReviews) {
       return NextResponse.json({ error: 'agentId required' }, { status: 400 });
@@ -90,7 +62,9 @@ export async function GET(request: Request) {
     effectiveAgentId = authUser._id.toString();
   }
 
-  const reviews = await Review.find({ agent: effectiveAgentId }).populate('buyer', 'name email');
+  const reviews = await Review.find({ agent: effectiveAgentId })
+    .populate('buyer', 'name email businessName phone image')
+    .sort({ createdAt: -1 });
   const totalReviews = reviews.length;
   const averageRating = totalReviews > 0
     ? reviews.reduce((sum: number, review: any) => sum + Number(review.rating || 0), 0) / totalReviews

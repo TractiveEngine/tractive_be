@@ -3,6 +3,12 @@ import User from '@/models/user';
 import { verifyToken } from './auth';
 
 export type Role = 'buyer' | 'agent' | 'transporter' | 'admin';
+type ApprovalAwareUser = {
+  roles?: string[];
+  activeRole?: Role | null;
+  agentApprovalStatus?: string | null;
+  transporterApprovalStatus?: string | null;
+};
 
 export async function getAuthUser(request: Request) {
   await dbConnect();
@@ -21,6 +27,17 @@ export async function getAuthUser(request: Request) {
   return user;
 }
 
-export function ensureActiveRole(user: { activeRole?: Role } | null | undefined, role: Role) {
-  return user?.activeRole === role;
+export function isRoleApproved(user: ApprovalAwareUser | null | undefined, role: Role) {
+  if (!user) return false;
+  if (role === 'agent') return user.agentApprovalStatus === 'approved';
+  if (role === 'transporter') return user.transporterApprovalStatus === 'approved';
+  return true;
+}
+
+export function hasRole(user: ApprovalAwareUser | null | undefined, role: Role) {
+  return !!user && Array.isArray(user.roles) && user.roles.includes(role) && isRoleApproved(user, role);
+}
+
+export function ensureActiveRole(user: ApprovalAwareUser | null | undefined, role: Role) {
+  return user?.activeRole === role && hasRole(user, role);
 }

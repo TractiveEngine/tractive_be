@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
+import { hasRole, isRoleApproved } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -74,6 +75,26 @@ export async function PATCH(request: Request) {
     );
   }
 
+  if (!hasRole(user as any, activeRole)) {
+    const message =
+      activeRole === 'agent' || activeRole === 'transporter'
+        ? `${activeRole} account is awaiting admin approval`
+        : `You cannot switch to '${activeRole}' right now`;
+    return NextResponse.json(
+      {
+        error: message,
+        approvalRequired: activeRole === 'agent' || activeRole === 'transporter',
+        approvalStatus:
+          activeRole === 'agent'
+            ? user.agentApprovalStatus
+            : activeRole === 'transporter'
+              ? user.transporterApprovalStatus
+              : null
+      },
+      { status: 403 }
+    );
+  }
+
   // Update active role
   user.activeRole = activeRole;
   await user.save();
@@ -108,5 +129,13 @@ export async function GET(request: Request) {
   return NextResponse.json({
     activeRole: user.activeRole,
     availableRoles: user.roles,
+    roleApprovals: {
+      agent: user.roles.includes('agent')
+        ? { approved: isRoleApproved(user as any, 'agent'), status: user.agentApprovalStatus ?? null }
+        : null,
+      transporter: user.roles.includes('transporter')
+        ? { approved: isRoleApproved(user as any, 'transporter'), status: user.transporterApprovalStatus ?? null }
+        : null
+    }
   }, { status: 200 });
 }

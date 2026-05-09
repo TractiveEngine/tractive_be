@@ -1,41 +1,14 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Notification from '@/models/notification';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUser } from '@/lib/apiAuth';
 
 // GET /api/notifications - List user's notifications
 export async function GET(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
@@ -49,7 +22,7 @@ export async function GET(request: Request) {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query: any = { user: userData.userId };
+    const query: any = { user: user._id };
     
     if (isRead !== null && isRead !== undefined) {
       query.isRead = isRead === 'true';
@@ -63,7 +36,7 @@ export async function GET(request: Request) {
 
     const total = await Notification.countDocuments(query);
     const unreadCount = await Notification.countDocuments({ 
-      user: userData.userId, 
+      user: user._id, 
       isRead: false 
     });
 
@@ -92,8 +65,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
@@ -103,7 +76,7 @@ export async function PATCH(request: Request) {
 
     // Update all user's notifications
     const result = await Notification.updateMany(
-      { user: userData.userId, isRead: !isRead },
+      { user: user._id, isRead: !isRead },
       { isRead: isRead }
     );
 

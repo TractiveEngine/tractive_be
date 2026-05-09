@@ -774,6 +774,7 @@ paths:
                       toState: "Lagos"
     post:
       summary: Create fleet truck
+      description: Preferred payload uses `capacityTonnes` for frontend entry. Backend still accepts `capacity` and `capacityKg` for compatibility, but transporter UI should use tonnes.
       requestBody:
         required: true
         content:
@@ -789,6 +790,7 @@ paths:
                 size: { type: string }
                 capacity: { type: string }
                 capacityKg: { type: number }
+                capacityTonnes: { type: number }
                 price: { type: number }
                 pricingModel:
                   type: string
@@ -813,9 +815,7 @@ paths:
               fleetNumber: "ABC-123"
               iot: "IOT-TRK-001"
               model: "Volvo"
-              size: "20 tons"
-              capacity: "20 tons"
-              capacityKg: 20000
+              capacityTonnes: 20
               price: 250000
               pricingModel: "flat_rate_whole_truck"
               estimatedDeliveryValue: 2
@@ -1614,7 +1614,7 @@ paths:
   /api/transporters/fleet/{id}/bookings:
     get:
       summary: List bookings for a fleet
-      description: Buyer sees their own bookings for the fleet. Fleet owner transporter sees all bookings for that fleet. Admin can also view all bookings.
+      description: Buyer sees their own bookings for the fleet. Fleet owner transporter sees all bookings for that fleet. Admin can also view all bookings. For manual trip creation UI, use `status=confirmed&unassigned=true` after selecting a fleet so the user can choose which confirmed bookings should go into the trip.
       parameters:
         - in: path
           name: id
@@ -1626,9 +1626,48 @@ paths:
           schema:
             type: string
             enum: [pending_payment, confirmed, rejected, cancelled, completed]
+        - in: query
+          name: unassigned
+          schema:
+            type: boolean
+          description: Use `true` to return only bookings that are not yet attached to a trip.
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
           description: Fleet bookings for fleet
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetbooking1234567890ab"
+                    amount: 210000
+                    loadWeightKg: 5000
+                    wholeTruckOnly: false
+                    status: "confirmed"
+                    fleetTripId: null
+                    buyer:
+                      _id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      businessName: "Buyer One Ltd"
+                      phone: "+2348000000000"
+                      state: "Abia"
+                    payment:
+                      _id: "67defleetpay1234567890abc"
+                      paymentMethod: "bank_transfer"
+                      status: "approved"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
   /api/transporters/fleets/{id}/bookings:
     get:
       summary: Alias of /api/transporters/fleet/{id}/bookings (list bookings for a fleet)
@@ -2217,7 +2256,7 @@ paths:
           description: Transporter or admin access required
     post:
       summary: Create fleet trip from confirmed bookings
-      description: Manual trip creation for shared-load bookings. Whole-truck bookings are created automatically on payment approval, but shared-load confirmed bookings can be grouped into a trip with this endpoint.
+      description: Manual trip creation for shared-load bookings. Whole-truck bookings are created automatically on payment approval, but shared-load confirmed bookings can be grouped into a trip with this endpoint. Frontend can either send `fleetId` plus explicit `bookingIds`, or send only `fleetId` to let backend include all confirmed unassigned bookings currently attached to that fleet.
       security:
         - bearerAuth: []
       requestBody:
@@ -2226,7 +2265,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [fleetId, bookingIds]
+              required: [fleetId]
               properties:
                 fleetId:
                   type: string
@@ -2234,6 +2273,7 @@ paths:
                   type: array
                   items:
                     type: string
+                  description: Optional explicit subset of confirmed bookings to include. If omitted, backend uses all confirmed unassigned bookings on the fleet.
                 driverId:
                   type: string
                 origin:
@@ -3042,7 +3082,8 @@ paths:
           description: Orders list
   /api/orders:
     get:
-      summary: List your orders
+      summary: List orders for buyer, agent, or admin
+      description: Buyer gets own orders. Agent gets orders containing the agent's products. Admin can use the same route for system-wide order listing. `readyForTransport=true` returns paid orders waiting for transport and is sorted newest first.
       security:
         - bearerAuth: []
       parameters:
@@ -3071,6 +3112,11 @@ paths:
           schema:
             type: boolean
           description: Use `true` to return only orders that are paid and not yet shipped, which is the correct dataset for the transporter selection page.
+        - in: query
+          name: buyerId
+          schema:
+            type: string
+          description: Admin-only filter for a specific buyer.
       responses:
         '200':
           description: List of orders
@@ -3155,10 +3201,26 @@ paths:
           description: Order deleted
   /api/transactions:
     get:
-      summary: List your transactions
+      summary: List buyer or agent transactions
+      description: Buyer gets own transactions. Agent gets transactions for orders that contain the agent's products. Supports pagination and status/date filters.
       security:
         - bearerAuth: []
       parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, refunded]
+        - in: query
+          name: fromDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: toDate
+          schema:
+            type: string
+            format: date-time
         - in: query
           name: page
           schema:
@@ -4692,6 +4754,33 @@ paths:
       responses:
         '200':
           description: Agent updated
+  /api/admin/approvals/transporters/{id}:
+    patch:
+      summary: Approve or reject transporter by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+            example:
+              status: "approved"
+              reason: "Verified transporter documents"
+      responses:
+        '200':
+          description: Transporter updated
   /api/admin/approvals/farmers/{id}:
     patch:
       summary: Approve or reject farmer by id
@@ -4919,7 +5008,13 @@ paths:
   /api/transporters/reviews:
     get:
       summary: Transporter review list (self or admin)
-      description: Review list for the authenticated transporter's own review page. Admin can also use this route. For a public buyer-facing transporter review page, use `GET /api/transporters/{id}/reviews`.
+      description: Review list for the authenticated transporter's own review page. Admin can also use this route. For a public buyer-facing transporter review page, use `GET /api/transporters/{id}/reviews`. Admin may pass `transporterId` to inspect a specific transporter.
+      parameters:
+        - in: query
+          name: transporterId
+          schema:
+            type: string
+          description: Optional for admin. When omitted, transporter self-view uses the authenticated transporter id.
       responses:
         '200':
           description: Reviews list
@@ -4928,16 +5023,19 @@ paths:
               example:
                 success: true
                 data:
-                  - _id: "67dereview1234567890abc"
-                    rating: 5
-                    comment: "Very reliable transporter"
-                    reply: null
-                    likes: []
-                    createdAt: "2026-03-25T12:00:00.000Z"
-                    buyer:
-                      _id: "67debuyer1234567890abc1"
-                      name: "Buyer One"
-                      email: "buyer@example.com"
+                  reviews:
+                    - _id: "67dereview1234567890abc"
+                      rating: 5
+                      comment: "Very reliable transporter"
+                      reply: null
+                      likes: []
+                      createdAt: "2026-03-25T12:00:00.000Z"
+                      buyer:
+                        _id: "67debuyer1234567890abc1"
+                        name: "Buyer One"
+                        email: "buyer@example.com"
+                  averageRating: 5
+                  totalReviews: 1
   /api/admin/users/{id}/onboard:
     post:
       summary: Onboard user (reactivate)
@@ -5004,6 +5102,45 @@ paths:
               agentId: "507f1f77bcf86cd799439011"
               status: "approved"
               reason: "Verified documents"
+      responses:
+        '200':
+          description: Success
+  /api/admin/approvals/transporters:
+    get:
+      summary: GET /api/admin/approvals/transporters
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Success
+    patch:
+      summary: PATCH /api/admin/approvals/transporters
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              transporterId: "507f1f77bcf86cd799439011"
+              status: "approved"
+              reason: "Verified transporter documents"
       responses:
         '200':
           description: Success
@@ -5912,6 +6049,13 @@ paths:
   /api/reviews:
     get:
       summary: GET /api/reviews
+      description: Public/admin/buyer view should pass `agentId`. Authenticated agent or transporter self-view can omit `agentId` and the backend will return their own reviews.
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+          description: Required for public, buyer, or admin lookup of a seller/agent review page. Optional for authenticated self-view.
       security:
         - bearerAuth: []
       responses:
@@ -6145,6 +6289,22 @@ paths:
       responses:
         '201':
           description: Success
+
+  /api/trucks/{id}:
+    get:
+      summary: Truck detail alias
+      description: Frontend-friendly alias of `GET /api/transporters/trucks/{id}`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Truck detail
 
   /api/wishlist:
     delete:
