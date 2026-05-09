@@ -3152,6 +3152,7 @@ paths:
   /api/orders/{id}:
     get:
       summary: Get order by ID
+      description: Buyer-only detail endpoint. Requires bearer auth with `activeRole` set to `buyer`, and only returns orders owned by the authenticated buyer.
       security:
         - bearerAuth: []
       parameters:
@@ -3165,6 +3166,7 @@ paths:
           description: Order details
     patch:
       summary: Update order status/transport
+      description: Buyer-only legacy update endpoint. Requires `activeRole` `buyer` and only allows the authenticated buyer to update their own order.
       security:
         - bearerAuth: []
       parameters:
@@ -3253,6 +3255,7 @@ paths:
   /api/transactions/{id}:
     get:
       summary: Get transaction by ID
+      description: Buyer-only detail endpoint. Requires bearer auth with `activeRole` set to `buyer`, and only returns transactions owned by the authenticated buyer.
       security:
         - bearerAuth: []
       parameters:
@@ -5174,6 +5177,7 @@ paths:
   /api/admin/dashboard:
     get:
       summary: GET /api/admin/dashboard
+      description: Admin-only dashboard metrics endpoint. Requires bearer auth with `activeRole` set to `admin`.
       security:
         - bearerAuth: []
       responses:
@@ -5183,6 +5187,7 @@ paths:
   /api/admin/transactions:
     get:
       summary: List product payment transactions
+      description: Admin-only product payment transaction list. Requires bearer auth with `activeRole` set to `admin`.
       security:
         - bearerAuth: []
       parameters:
@@ -5251,6 +5256,7 @@ paths:
   /api/admin/transactions/{id}:
     get:
       summary: Get product payment transaction by id
+      description: Admin-only product payment transaction detail. Requires bearer auth with `activeRole` set to `admin`.
       security:
         - bearerAuth: []
       parameters:
@@ -5377,6 +5383,7 @@ paths:
   /api/admin/users/{id}:
     get:
       summary: GET /api/admin/users/{id}
+      description: Admin-only user detail endpoint. Also accepts a profession alias in place of an id for filtered list behavior.
       security:
         - bearerAuth: []
       parameters:
@@ -5390,6 +5397,7 @@ paths:
           description: Success
     patch:
       summary: PATCH /api/admin/users/{id}
+      description: Admin-only user update endpoint. Supports status changes and adding/switching professions.
       security:
         - bearerAuth: []
       parameters:
@@ -5707,6 +5715,7 @@ paths:
   /api/chat:
     get:
       summary: GET /api/chat
+      description: Authenticated user conversation list. Uses the bearer token user identity directly; no specific active role is required.
       security:
         - bearerAuth: []
       responses:
@@ -5714,6 +5723,7 @@ paths:
           description: Success
     post:
       summary: POST /api/chat
+      description: Authenticated user support conversation create/send endpoint. Uses the bearer token user identity directly; no specific active role is required.
       security:
         - bearerAuth: []
       requestBody:
@@ -5905,6 +5915,7 @@ paths:
   /api/notifications:
     get:
       summary: GET /api/notifications
+      description: Authenticated user notification list. Uses the bearer token user identity directly; no specific active role is required.
       security:
         - bearerAuth: []
       responses:
@@ -5912,6 +5923,7 @@ paths:
           description: Success
     patch:
       summary: PATCH /api/notifications
+      description: Authenticated user bulk notification update. Uses the bearer token user identity directly; no specific active role is required.
       security:
         - bearerAuth: []
       requestBody:
@@ -6049,7 +6061,7 @@ paths:
   /api/reviews:
     get:
       summary: GET /api/reviews
-      description: Public/admin/buyer view should pass `agentId`. Authenticated agent or transporter self-view can omit `agentId` and the backend will return their own reviews.
+      description: Public/admin/buyer view should pass `agentId`. Authenticated self-view for agent/transporter/admin can omit `agentId`, but self-view still depends on the currently usable role and approval state.
       parameters:
         - in: query
           name: agentId
@@ -6063,6 +6075,7 @@ paths:
           description: Success
     post:
       summary: POST /api/reviews
+      description: Buyer-only review creation endpoint. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       requestBody:
@@ -6072,7 +6085,7 @@ paths:
             schema:
               type: object
             example:
-              agent: "507f1f77bcf86cd799439011"
+              agentId: "507f1f77bcf86cd799439011"
               rating: 5
               comment: "Excellent service and quality products!"
       responses:
@@ -6082,6 +6095,7 @@ paths:
   /api/shipping:
     get:
       summary: GET /api/shipping
+      description: Buyer-only shipping request list. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       responses:
@@ -6089,6 +6103,7 @@ paths:
           description: Success
     post:
       summary: POST /api/shipping
+      description: Buyer-only shipping request creation endpoint. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       requestBody:
@@ -6128,7 +6143,7 @@ paths:
   /api/transporters/customers:
     get:
       summary: Get transporter customers
-      description: Returns the authenticated transporter's customers. Customers are derived from orders assigned to the transporter and from accepted negotiations/shipping requests. Useful for transporter customer list pages.
+      description: Returns the authenticated transporter's customers. Requires bearer auth with `activeRole` set to `transporter`. Customers are derived from orders assigned to the transporter, accepted negotiations/shipping requests, trips, and confirmed bookings.
       security:
         - bearerAuth: []
       responses:
@@ -6149,6 +6164,7 @@ paths:
   /api/transporters/dashboard:
     get:
       summary: GET /api/transporters/dashboard
+      description: Transporter-only dashboard metrics endpoint. Requires bearer auth with `activeRole` set to `transporter`.
       security:
         - bearerAuth: []
       responses:
@@ -6158,7 +6174,7 @@ paths:
   /api/transporters/transactions:
     get:
       summary: Get transporter transactions
-      description: Returns transactions for orders assigned to the authenticated transporter. Supports filtering by transaction status and paginating the result set.
+      description: Returns transactions for orders assigned to the authenticated transporter. Requires bearer auth with `activeRole` set to `transporter`. Supports filtering by transaction status and paginating the result set.
       security:
         - bearerAuth: []
       parameters:
@@ -6264,6 +6280,7 @@ paths:
   /api/trucks:
     get:
       summary: GET /api/trucks
+      description: Legacy transporter truck list endpoint. Requires bearer auth with `activeRole` set to `transporter`.
       security:
         - bearerAuth: []
       responses:
@@ -6271,6 +6288,7 @@ paths:
           description: Success
     post:
       summary: POST /api/trucks
+      description: Legacy transporter truck creation endpoint. Requires bearer auth with `activeRole` set to `transporter`.
       security:
         - bearerAuth: []
       requestBody:
@@ -6309,6 +6327,7 @@ paths:
   /api/wishlist:
     delete:
       summary: DELETE /api/wishlist
+      description: Buyer-only wishlist removal endpoint. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       requestBody:
@@ -6324,6 +6343,7 @@ paths:
           description: Success
     get:
       summary: GET /api/wishlist
+      description: Buyer-only wishlist list endpoint. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       parameters:
@@ -6340,6 +6360,7 @@ paths:
           description: Success
     post:
       summary: POST /api/wishlist
+      description: Buyer-only wishlist add endpoint. Requires bearer auth with `activeRole` set to `buyer`.
       security:
         - bearerAuth: []
       requestBody:
