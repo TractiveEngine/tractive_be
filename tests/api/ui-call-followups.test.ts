@@ -18,6 +18,7 @@ import {
 } from '../factories';
 import Transaction from '@/models/transaction';
 import FleetBooking from '@/models/fleetBooking';
+import FleetPayment from '@/models/fleetPayment';
 import FleetTrip from '@/models/fleetTrip';
 import User from '@/models/user';
 
@@ -413,5 +414,62 @@ describe('UI call follow-up fixes', () => {
     expect((reviewRes as Response).status).toBe(403);
     expect((shippingRes as Response).status).toBe(403);
     expect((wishlistRes as Response).status).toBe(403);
+  });
+
+  it('returns admin fleet payments list and detail without intermittent populate failures', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter();
+    const { user: buyer } = await createBuyer();
+    const truck = await createTruck({ transporter: transporter._id, capacity: '30 tonnes' } as any);
+
+    const booking = await FleetBooking.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      amount: 20000,
+      loadWeightKg: 5000,
+      shipmentItems: [],
+      wholeTruckOnly: false,
+      status: 'confirmed'
+    });
+
+    const payment = await FleetPayment.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      booking: booking._id,
+      amount: 20000,
+      loadWeightKg: 5000,
+      shipmentItems: [],
+      paymentMethod: 'bank_transfer',
+      status: 'pending'
+    });
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/admin/fleet-payments?page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const listRes = await import('@/app/api/admin/fleet-payments/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.success).toBe(true);
+    expect(listData.data.fleetPayments.length).toBe(1);
+    expect(listData.data.fleetPayments[0]._id).toBe(payment._id.toString());
+
+    const detailReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/fleet-payments/${payment._id}`, admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const detailRes = await import('@/app/api/admin/fleet-payments/[id]/route').then((m) =>
+      m.GET(detailReq, { params: { id: payment._id.toString() } })
+    );
+    const detailData = await getResponseJson(detailRes as unknown as Response);
+
+    expect((detailRes as Response).status).toBe(200);
+    expect(detailData.success).toBe(true);
+    expect(detailData.data._id).toBe(payment._id.toString());
   });
 });

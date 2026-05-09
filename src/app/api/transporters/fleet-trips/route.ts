@@ -5,6 +5,8 @@ import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import Truck from '@/models/truck';
 import FleetBooking from '@/models/fleetBooking';
+import '@/models/order';
+import '@/models/driver';
 import { buildFleetTripLoadMeta, createFleetTripFromConfirmedBookings } from '@/lib/fleetTrip';
 import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
 
