@@ -7,7 +7,7 @@ import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ orderId: string }> | { orderId: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   await dbConnect();
   const user = await getAuthUser(request);
@@ -18,12 +18,12 @@ export async function GET(
     return NextResponse.json({ success: false, message: 'Buyer access required' }, { status: 403 });
   }
 
-  const { orderId } = await Promise.resolve(params);
-  if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+  const { id } = await Promise.resolve(params);
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid order id' }, { status: 400 });
   }
 
-  const order = await Order.findById(orderId).populate({
+  const order = await Order.findById(id).populate({
     path: 'products.product',
     populate: { path: 'owner', select: '_id name businessName image email phone' }
   });
