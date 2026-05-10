@@ -7,7 +7,7 @@ import { createNotification } from '@/lib/notifications';
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ orderId: string }> | { orderId: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   await dbConnect();
   const user = await getAuthUser(request);
@@ -18,12 +18,12 @@ export async function POST(
     return NextResponse.json({ success: false, message: 'Buyer access required' }, { status: 403 });
   }
 
-  const { orderId } = await Promise.resolve(params);
-  if (!orderId || !mongoose.Types.ObjectId.isValid(orderId)) {
+  const { id } = await Promise.resolve(params);
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid order id' }, { status: 400 });
   }
 
-  const order = await Order.findById(orderId).populate('products.product');
+  const order = await Order.findById(id).populate('products.product');
   if (!order || order.buyer?.toString() !== user._id.toString()) {
     return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
   }
