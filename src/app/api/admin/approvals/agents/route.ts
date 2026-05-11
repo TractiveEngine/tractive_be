@@ -74,21 +74,25 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const { agentId, status, reason } = await request.json();
+    const { agentId, agentIds, status, reason } = await request.json();
+    const ids = Array.isArray(agentIds)
+      ? agentIds
+      : agentId
+        ? [agentId]
+        : [];
 
     // Validate required fields
-    if (!agentId || !status) {
+    if (ids.length === 0 || !status) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Agent ID and status are required' 
+        message: 'Agent ID(s) and status are required' 
       }, { status: 400 });
     }
 
-    // Validate ObjectId format
-    if (!mongoose.Types.ObjectId.isValid(agentId)) {
+    if (!ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Invalid agent ID format' 
+        message: 'One or more agent IDs are invalid' 
       }, { status: 400 });
     }
 
@@ -100,32 +104,35 @@ export async function PATCH(request: Request) {
       }, { status: 400 });
     }
 
-    // Find agent
-    const agent = await User.findById(agentId);
-    if (!agent || !agent.roles.includes('agent')) {
+    const agents = await User.find({
+      _id: { $in: ids },
+      roles: 'agent'
+    });
+    if (agents.length !== ids.length) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Agent not found' 
+        message: 'One or more agents were not found' 
       }, { status: 404 });
     }
 
-    // Update approval status
-    agent.agentApprovalStatus = status;
-    if (reason) {
-      agent.approvalNotes = reason;
+    for (const agent of agents) {
+      agent.agentApprovalStatus = status;
+      if (reason) {
+        agent.approvalNotes = reason;
+      }
+      await agent.save();
     }
-    await agent.save();
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: agents.map((agent) => ({
         _id: agent._id,
         name: agent.name || agent.businessName,
         email: agent.email,
         agentApprovalStatus: agent.agentApprovalStatus,
         approvalNotes: agent.approvalNotes
-      },
-      message: `Agent ${status} successfully`
+      })),
+      message: ids.length === 1 ? `Agent ${status} successfully` : `${ids.length} agents ${status} successfully`
     }, { status: 200 });
 
   } catch (error) {

@@ -5284,7 +5284,9 @@ paths:
             schema:
               type: object
             example:
-              agentId: "507f1f77bcf86cd799439011"
+              agentIds:
+                - "507f1f77bcf86cd799439011"
+                - "507f1f77bcf86cd799439012"
               status: "approved"
               reason: "Verified documents"
       responses:
@@ -5323,7 +5325,9 @@ paths:
             schema:
               type: object
             example:
-              transporterId: "507f1f77bcf86cd799439011"
+              transporterIds:
+                - "507f1f77bcf86cd799439011"
+                - "507f1f77bcf86cd799439012"
               status: "approved"
               reason: "Verified transporter documents"
       responses:
@@ -5624,6 +5628,47 @@ paths:
             type: string
       responses:
         '201':
+          description: Success
+
+  /api/admin/users/status:
+    patch:
+      summary: PATCH /api/admin/users/status
+      description: Bulk admin user status update for suspend, reactivate via active, or remove actions.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              userIds:
+                - "507f1f77bcf86cd799439011"
+                - "507f1f77bcf86cd799439012"
+              status: "suspended"
+      responses:
+        '200':
+          description: Success
+
+  /api/admin/users/reactivate:
+    post:
+      summary: POST /api/admin/users/reactivate
+      description: Bulk user reactivation endpoint that preserves agent/transporter approval status.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              userIds:
+                - "507f1f77bcf86cd799439011"
+                - "507f1f77bcf86cd799439012"
+      responses:
+        '200':
           description: Success
 
   /api/admin/users/removed:
