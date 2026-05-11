@@ -72,19 +72,24 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const { transporterId, status, reason } = await request.json();
+    const { transporterId, transporterIds, status, reason } = await request.json();
+    const ids = Array.isArray(transporterIds)
+      ? transporterIds
+      : transporterId
+        ? [transporterId]
+        : [];
 
-    if (!transporterId || !status) {
+    if (ids.length === 0 || !status) {
       return NextResponse.json({
         success: false,
-        message: 'Transporter ID and status are required'
+        message: 'Transporter ID(s) and status are required'
       }, { status: 400 });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(transporterId)) {
+    if (!ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return NextResponse.json({
         success: false,
-        message: 'Invalid transporter ID format'
+        message: 'One or more transporter IDs are invalid'
       }, { status: 400 });
     }
 
@@ -95,30 +100,35 @@ export async function PATCH(request: Request) {
       }, { status: 400 });
     }
 
-    const transporter = await User.findById(transporterId);
-    if (!transporter || !transporter.roles.includes('transporter')) {
+    const transporters = await User.find({
+      _id: { $in: ids },
+      roles: 'transporter'
+    });
+    if (transporters.length !== ids.length) {
       return NextResponse.json({
         success: false,
-        message: 'Transporter not found'
+        message: 'One or more transporters were not found'
       }, { status: 404 });
     }
 
-    transporter.transporterApprovalStatus = status;
-    if (reason) {
-      transporter.approvalNotes = reason;
+    for (const transporter of transporters) {
+      transporter.transporterApprovalStatus = status;
+      if (reason) {
+        transporter.approvalNotes = reason;
+      }
+      await transporter.save();
     }
-    await transporter.save();
 
     return NextResponse.json({
       success: true,
-      data: {
+      data: transporters.map((transporter) => ({
         _id: transporter._id,
         name: transporter.name || transporter.businessName,
         email: transporter.email,
         transporterApprovalStatus: transporter.transporterApprovalStatus,
         approvalNotes: transporter.approvalNotes
-      },
-      message: `Transporter ${status} successfully`
+      })),
+      message: ids.length === 1 ? `Transporter ${status} successfully` : `${ids.length} transporters ${status} successfully`
     }, { status: 200 });
   } catch (error) {
     console.error('Error updating transporter approval:', error);
