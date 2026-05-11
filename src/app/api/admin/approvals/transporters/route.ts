@@ -21,15 +21,20 @@ export async function GET(request: Request) {
     const page = Math.max(1, Number(searchParams.get('page')) || 1);
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
     const skip = (page - 1) * limit;
+    const approvalQuery =
+      statusFilter === 'pending'
+        ? { $in: ['pending', null] }
+        : statusFilter;
 
     const query = {
       roles: 'transporter',
-      transporterApprovalStatus: statusFilter
+      status: { $ne: 'removed' },
+      transporterApprovalStatus: approvalQuery
     };
 
     const [transporters, total] = await Promise.all([
       User.find(query)
-        .select('_id name email businessName phone transporterApprovalStatus approvalNotes createdAt')
+        .select('_id name email businessName phone status transporterApprovalStatus approvalNotes createdAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),

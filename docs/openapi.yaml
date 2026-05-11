@@ -1131,11 +1131,6 @@ paths:
                       unitWeightKg: 100
                       loadWeightKg: 10000
                       loadWeightTonnes: 10
-                      quantity: 100
-                      unit: "100kg_bag"
-                      unitWeightKg: 100
-                      loadWeightKg: 10000
-                      loadWeightTonnes: 10
                   buyer:
                     _id: "67debuyer1234567890abc1"
                     name: "Buyer One"
