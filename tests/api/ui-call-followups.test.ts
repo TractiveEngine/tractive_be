@@ -319,6 +319,38 @@ describe('UI call follow-up fixes', () => {
     expect(usersData.data[0].transporterApprovalStatus).toBe('approved');
   });
 
+  it('lists pending agents with pagination and includes legacy null approval status as pending', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: pendingAgent } = await createUser({
+      roles: ['agent'],
+      activeRole: 'agent',
+      agentApprovalStatus: 'pending',
+      businessName: 'Pending Agent Ltd'
+    });
+    const { user: legacyAgent } = await createUser({
+      roles: ['agent'],
+      activeRole: 'agent',
+      agentApprovalStatus: null,
+      businessName: 'Legacy Agent Ltd'
+    });
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/admin/approvals/agents?status=pending&page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const listRes = await import('@/app/api/admin/approvals/agents/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+
+    expect((listRes as Response).status).toBe(200);
+    expect(Array.isArray(listData.data)).toBe(true);
+    expect(listData.pagination.page).toBe(1);
+    expect(listData.pagination.limit).toBe(10);
+    expect(listData.data.map((entry: any) => entry._id)).toEqual(
+      expect.arrayContaining([pendingAgent._id.toString(), legacyAgent._id.toString()])
+    );
+  });
+
   it('blocks unapproved transporter routes and switch-role activation until approved', async () => {
     const { user: transporter } = await createTransporter({
       transporterApprovalStatus: 'pending'
@@ -658,8 +690,8 @@ describe('UI call follow-up fixes', () => {
       role: 'buyer',
       email: buyer.email
     });
-    const confirmRes = await import('@/app/api/orders/[orderId]/confirm-receipt/route').then((m) =>
-      m.POST(confirmReq, { params: { orderId: order._id.toString() } })
+    const confirmRes = await import('@/app/api/orders/[id]/confirm-receipt/route').then((m) =>
+      m.POST(confirmReq, { params: { id: order._id.toString() } })
     );
     const confirmData = await getResponseJson(confirmRes as unknown as Response);
     expect((confirmRes as Response).status).toBe(200);
@@ -681,8 +713,8 @@ describe('UI call follow-up fixes', () => {
       role: 'buyer',
       email: buyer.email
     });
-    const receiptRes = await import('@/app/api/orders/[orderId]/receipt/route').then((m) =>
-      m.GET(receiptReq, { params: { orderId: order._id.toString() } })
+    const receiptRes = await import('@/app/api/orders/[id]/receipt/route').then((m) =>
+      m.GET(receiptReq, { params: { id: order._id.toString() } })
     );
     const receiptData = await getResponseJson(receiptRes as unknown as Response);
     expect((receiptRes as Response).status).toBe(200);
@@ -699,8 +731,8 @@ describe('UI call follow-up fixes', () => {
         attachments: ['https://example.com/evidence.png']
       }
     });
-    const issueRes = await import('@/app/api/orders/[orderId]/issues/route').then((m) =>
-      m.POST(issueReq, { params: { orderId: order._id.toString() } })
+    const issueRes = await import('@/app/api/orders/[id]/issues/route').then((m) =>
+      m.POST(issueReq, { params: { id: order._id.toString() } })
     );
     const issueData = await getResponseJson(issueRes as unknown as Response);
     expect((issueRes as Response).status).toBe(201);
