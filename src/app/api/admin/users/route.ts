@@ -21,6 +21,8 @@ export async function GET(request: Request) {
     // Query parameters
     const profession = searchParams.get('profession'); // buyer, agent, transporter, admin
     const status = searchParams.get('status'); // active, suspended, removed
+    const agentApprovalStatus = searchParams.get('agentApprovalStatus'); // pending, approved, rejected
+    const transporterApprovalStatus = searchParams.get('transporterApprovalStatus'); // pending, approved, rejected
     const search = searchParams.get('search'); // name or email search
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
@@ -35,6 +37,14 @@ export async function GET(request: Request) {
     
     if (status) {
       query.status = status;
+    }
+
+    if (agentApprovalStatus && ['pending', 'approved', 'rejected'].includes(agentApprovalStatus)) {
+      query.agentApprovalStatus = agentApprovalStatus;
+    }
+
+    if (transporterApprovalStatus && ['pending', 'approved', 'rejected'].includes(transporterApprovalStatus)) {
+      query.transporterApprovalStatus = transporterApprovalStatus;
     }
     
     if (search) {

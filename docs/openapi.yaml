@@ -5547,6 +5547,16 @@ paths:
             type: string
             enum: [active, suspended, removed]
         - in: query
+          name: agentApprovalStatus
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - in: query
+          name: transporterApprovalStatus
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - in: query
           name: search
           schema:
             type: string

@@ -351,6 +351,28 @@ describe('UI call follow-up fixes', () => {
     );
   });
 
+  it('reactivates suspended approved transporter without clearing approval status', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter({
+      status: 'suspended',
+      transporterApprovalStatus: 'approved'
+    });
+
+    const reactivateReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/users/${transporter._id}/reactivate`, admin._id.toString(), {
+      method: 'POST',
+      role: 'admin',
+      email: admin.email
+    });
+    const reactivateRes = await import('@/app/api/admin/users/[id]/reactivate/route').then((m) =>
+      m.POST(reactivateReq, { params: { id: transporter._id.toString() } })
+    );
+    const reactivateData = await getResponseJson(reactivateRes as unknown as Response);
+
+    expect((reactivateRes as Response).status).toBe(200);
+    expect(reactivateData.data.status).toBe('active');
+    expect(reactivateData.data.transporterApprovalStatus).toBe('approved');
+  });
+
   it('blocks unapproved transporter routes and switch-role activation until approved', async () => {
     const { user: transporter } = await createTransporter({
       transporterApprovalStatus: 'pending'
