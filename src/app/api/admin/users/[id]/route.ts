@@ -5,7 +5,10 @@ import mongoose from 'mongoose';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 
 // GET /api/admin/users/:profession (alias) or /api/admin/users/:id
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
 
   const user = await getAuthUser(request);
@@ -16,7 +19,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     return NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 });
   }
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   const professions = ['buyer', 'agent', 'transporter', 'admin'];
 
   try {
@@ -112,7 +115,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 // PATCH /api/admin/users/[id] - Update user status or profession
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   await dbConnect();
 
@@ -125,7 +128,7 @@ export async function PATCH(
   }
 
   try {
-    const { id } = params;
+    const { id } = await Promise.resolve(params);
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
