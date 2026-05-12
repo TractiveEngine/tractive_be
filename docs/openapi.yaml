@@ -5616,22 +5616,76 @@ paths:
           description: Success
 
   /api/admin/users/{id}/reactivate:
-    post:
-      summary: POST /api/admin/users/{id}/reactivate
-      security:
-        - bearerAuth: []
+      post:
+        summary: POST /api/admin/users/{id}/reactivate
+        security:
+          - bearerAuth: []
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: string
-      responses:
-        '201':
-          description: Success
-
-  /api/admin/users/status:
-    patch:
+        responses:
+          '201':
+            description: Success
+  
+    /api/admin/users/{id}/history:
+      get:
+        summary: GET /api/admin/users/{id}/history
+        description: Canonical admin-only paginated user history endpoint. Use query params to select the role and history resource instead of separate hardcoded paths.
+        security:
+          - bearerAuth: []
+        parameters:
+          - in: path
+            name: id
+            required: true
+            schema:
+              type: string
+          - in: query
+            name: role
+            required: true
+            schema:
+              type: string
+              enum: [buyer, agent, transporter]
+          - in: query
+            name: resource
+            required: true
+            schema:
+              type: string
+              enum: [orders, transactions, transport-payments, sales, products, payments, trips]
+          - in: query
+            name: page
+            schema:
+              type: integer
+          - in: query
+            name: limit
+            schema:
+              type: integer
+          - in: query
+            name: status
+            schema:
+              type: string
+          - in: query
+            name: transportStatus
+            schema:
+              type: string
+          - in: query
+            name: fromDate
+            schema:
+              type: string
+              format: date-time
+          - in: query
+            name: toDate
+            schema:
+              type: string
+              format: date-time
+        responses:
+          '200':
+            description: Success
+  
+    /api/admin/users/status:
+      patch:
       summary: PATCH /api/admin/users/status
       description: Bulk admin user status update for suspend, reactivate via active, or remove actions.
       security:

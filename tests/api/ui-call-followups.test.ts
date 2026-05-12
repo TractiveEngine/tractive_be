@@ -373,6 +373,128 @@ describe('UI call follow-up fixes', () => {
     expect(reactivateData.data.transporterApprovalStatus).toBe('approved');
   });
 
+  it('returns rich admin user detail with buyer, agent, and transporter history', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: multiRoleUser } = await createUser({
+      roles: ['buyer', 'agent', 'transporter'],
+      activeRole: 'buyer',
+      agentApprovalStatus: 'approved',
+      transporterApprovalStatus: 'approved',
+      businessName: 'Multi Role Ltd',
+      phone: '+2348001112222'
+    });
+    const { user: buyerCustomer } = await createBuyer();
+    const product = await createProduct({ owner: multiRoleUser._id, name: 'Admin Detail Product' });
+    const buyerOrder = await createOrder({
+      buyer: multiRoleUser._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 1200,
+      status: 'paid',
+      transportStatus: 'delivered'
+    });
+    await createTransaction({
+      order: buyerOrder._id,
+      buyer: multiRoleUser._id,
+      amount: 1200,
+      status: 'approved',
+      paymentMethod: 'card'
+    });
+
+    await createOrder({
+      buyer: buyerCustomer._id,
+      products: [{ product: product._id, quantity: 2, lineSubtotal: 2400 } as any],
+      totalAmount: 2400,
+      status: 'paid',
+      transportStatus: 'pending',
+      transporter: multiRoleUser._id
+    });
+
+    const trip = await FleetTrip.create({
+      fleet: new mongoose.Types.ObjectId(),
+      transporter: multiRoleUser._id,
+      buyerIds: [buyerCustomer._id],
+      orderIds: [],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'on_transit',
+      trackingCode: 'TRIP-DETAIL',
+      loadWeightKg: 500,
+      wholeTruckOnly: false
+    });
+
+    await FleetPayment.create({
+      fleet: new mongoose.Types.ObjectId(),
+      transporter: multiRoleUser._id,
+      buyer: buyerCustomer._id,
+      amount: 5000,
+      loadWeightKg: 500,
+      shipmentItems: [{
+        orderId: buyerOrder._id,
+        productId: product._id,
+        productName: product.name,
+        quantity: 1,
+        unit: 'kg',
+        loadWeightKg: 1
+      }],
+      paymentMethod: 'bank_transfer',
+      status: 'approved',
+      fleetTripId: trip._id
+    });
+
+    const req = createAuthenticatedRequest(`http://localhost:3000/api/admin/users/${multiRoleUser._id}`, admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const res = await import('@/app/api/admin/users/[id]/route').then((m) =>
+      m.GET(req, { params: { id: multiRoleUser._id.toString() } })
+    );
+    const data = await getResponseJson(res as unknown as Response);
+
+    expect((res as Response).status).toBe(200);
+    expect(data.data.roles).toEqual(expect.arrayContaining(['buyer', 'agent', 'transporter']));
+    expect(data.data.history.buyer.totalSpentApproved).toBe(1200);
+    expect(data.data.history.agent.productsCount).toBeGreaterThanOrEqual(1);
+    expect(data.data.history.transporter.approvedTransportRevenue).toBe(5000);
+
+    const buyerOrdersReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/users/${multiRoleUser._id}/history?role=buyer&resource=orders&page=1&limit=10`, admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const buyerOrdersRes = await import('@/app/api/admin/users/[id]/history/route').then((m) =>
+      m.GET(buyerOrdersReq, { params: { id: multiRoleUser._id.toString() } })
+    );
+    const buyerOrdersData = await getResponseJson(buyerOrdersRes as unknown as Response);
+    expect((buyerOrdersRes as Response).status).toBe(200);
+    expect(buyerOrdersData.data.length).toBeGreaterThanOrEqual(1);
+
+    const agentSalesReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/users/${multiRoleUser._id}/history?role=agent&resource=sales&page=1&limit=10`, admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const agentSalesRes = await import('@/app/api/admin/users/[id]/history/route').then((m) =>
+      m.GET(agentSalesReq, { params: { id: multiRoleUser._id.toString() } })
+    );
+    const agentSalesData = await getResponseJson(agentSalesRes as unknown as Response);
+    expect((agentSalesRes as Response).status).toBe(200);
+    expect(Array.isArray(agentSalesData.data)).toBe(true);
+
+    const transporterPaymentsReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/users/${multiRoleUser._id}/history?role=transporter&resource=payments&page=1&limit=10`, admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const transporterPaymentsRes = await import('@/app/api/admin/users/[id]/history/route').then((m) =>
+      m.GET(transporterPaymentsReq, { params: { id: multiRoleUser._id.toString() } })
+    );
+    const transporterPaymentsData = await getResponseJson(transporterPaymentsRes as unknown as Response);
+    expect((transporterPaymentsRes as Response).status).toBe(200);
+    expect(transporterPaymentsData.data.length).toBeGreaterThanOrEqual(1);
+    expect(transporterPaymentsData.pagination.page).toBe(1);
+  });
+
   it('blocks unapproved transporter routes and switch-role activation until approved', async () => {
     const { user: transporter } = await createTransporter({
       transporterApprovalStatus: 'pending'
