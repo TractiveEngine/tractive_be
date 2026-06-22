@@ -306,6 +306,8 @@ export async function GET(request: Request) {
       transporter: buildTransporterSummaryForOrder(transporter, transporterId ? transporterStatsMap.get(transporterId) : null),
       fleet: buildFleetSummaryForOrder(fleet),
       trackingCode: trip?.trackingCode || null,
+      fromLocation: trip?.origin || fleet?.route?.fromState || null,
+      toLocation: trip?.destination || fleet?.route?.toState || null,
       currentLocation: {
         lat: trip?.currentLatitude ?? null,
         lng: trip?.currentLongitude ?? null,
@@ -318,7 +320,10 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     success: true,
-    data: normalizedOrders,
+    data: normalizedOrders.map((order: any) => ({
+      ...order,
+      receiptConfirmed: Boolean(order.receiptConfirmedAt)
+    })),
     pagination: { page, limit, total }
   }, { status: 200 });
 }

@@ -9,6 +9,7 @@ import '@/models/order';
 import '@/models/driver';
 import '@/models/fleetBooking';
 import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
+import { buildTrackingSummaryFromEvents, computeEstimatedDeliveryDate } from '@/lib/orderView';
 
 function getDocId(value: any) {
   return value?._id?.toString?.() || value?.toString?.() || null;
@@ -30,7 +31,7 @@ export async function GET(
   }
 
   const trip = await FleetTrip.findById(tripId)
-    .populate('fleet', '_id plateNumber fleetName fleetNumber model route')
+    .populate('fleet', '_id plateNumber fleetName fleetNumber iot tracker model route images estimatedDeliveryValue estimatedDeliveryUnit')
     .populate('transporter', '_id name businessName phone email address state image')
     .populate('driver', '_id name phone trackingNumber')
     .populate('bookingIds', '_id shipmentItems')
@@ -49,6 +50,10 @@ export async function GET(
 
   const timeline = await FleetTripTrackingEvent.find({ fleetTrip: trip._id }).sort({ createdAt: 1 }).lean();
   const packages = await buildFleetTripPackages((trip as any).bookingIds || []);
+  const trackingSummary = buildTrackingSummaryFromEvents(timeline, {
+    estDeliveryDate: computeEstimatedDeliveryDate(trip)
+  });
+  const currentLocationLabel = trip.currentLocation || '';
   return NextResponse.json({
     success: true,
     data: {
@@ -56,7 +61,16 @@ export async function GET(
       trackingCode: trip.trackingCode,
       fleetId: trip.fleet?._id?.toString?.() || null,
       status: trip.status,
-      currentLocation: trip.currentLocation || '',
+      origin: trip.origin || null,
+      destination: trip.destination || null,
+      currentLocation: {
+        lat: trip.currentLatitude ?? null,
+        lng: trip.currentLongitude ?? null,
+        label: currentLocationLabel
+      },
+      currentLatitude: trip.currentLatitude ?? null,
+      currentLongitude: trip.currentLongitude ?? null,
+      locationLabel: currentLocationLabel,
       fleet: trip.fleet,
       transporter: buildTransporterSummary((trip as any).transporter),
       driver: (trip as any).driver ? {
@@ -72,11 +86,14 @@ export async function GET(
         transportStatus: order.transportStatus
       })),
       packages,
+      ...trackingSummary,
       timeline: timeline.map((event) => ({
         status: event.status,
         timestamp: event.createdAt,
         note: event.note || '',
-        location: event.location || ''
+        location: event.location || '',
+        lat: (event as any).latitude ?? null,
+        lng: (event as any).longitude ?? null
       }))
     }
   }, { status: 200 });

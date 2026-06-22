@@ -280,6 +280,23 @@ describe('UI call follow-up fixes', () => {
       transporterApprovalStatus: 'pending',
       businessName: 'Pending Transport Ltd'
     });
+    const { user: approvedTransporter } = await createTransporter({
+      transporterApprovalStatus: 'approved',
+      businessName: 'Approved Transport Ltd'
+    });
+
+    const defaultListReq = createAuthenticatedRequest('http://localhost:3000/api/admin/approvals/transporters', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const defaultListRes = await import('@/app/api/admin/approvals/transporters/route').then((m) => m.GET(defaultListReq));
+    const defaultListData = await getResponseJson(defaultListRes as unknown as Response);
+
+    expect((defaultListRes as Response).status).toBe(200);
+    expect(defaultListData.data.map((entry: any) => entry._id)).toEqual(
+      expect.arrayContaining([transporter._id.toString(), approvedTransporter._id.toString()])
+    );
 
     const listReq = createAuthenticatedRequest('http://localhost:3000/api/admin/approvals/transporters?status=pending', admin._id.toString(), {
       method: 'GET',
@@ -700,6 +717,7 @@ describe('UI call follow-up fixes', () => {
     const product = await createProduct({ owner: agent._id, name: 'Tomatoes' });
     const truck = await createTruck({
       transporter: transporter._id,
+      fleetName: 'Kaduna Route Truck',
       plateNumber: 'KRD-123',
       model: 'Mack',
       images: ['https://example.com/truck.png'],
@@ -721,6 +739,8 @@ describe('UI call follow-up fixes', () => {
       bookingIds: [],
       paymentIds: [],
       status: 'on_transit',
+      origin: 'Kano',
+      destination: 'Kaduna',
       currentLocation: 'Kaduna',
       trackingCode: 'TRIP-100',
       loadWeightKg: 300,
@@ -756,7 +776,10 @@ describe('UI call follow-up fixes', () => {
     expect(data.data[0].paymentMethod).toBe('card');
     expect(data.data[0].transporter.company).toBe('Road Haul Ltd');
     expect(data.data[0].fleet.plateNumber).toBe('KRD-123');
+    expect(data.data[0].fleet.fleetName).toBeTruthy();
     expect(data.data[0].fleet.iotId).toBe('IOT-100');
+    expect(data.data[0].fromLocation).toBe('Kano');
+    expect(data.data[0].toLocation).toBe('Kaduna');
     expect(data.data[0].pickedAt).toBeTruthy();
     expect(data.data[0].onTransitAt).toBeTruthy();
     expect(data.data[0].statusHistory.length).toBe(2);
@@ -808,6 +831,7 @@ describe('UI call follow-up fixes', () => {
     expect(data.data.currentLocation.lat).toBeNull();
     expect(data.data.currentLocation.lng).toBeNull();
     expect(data.data.currentLocation.label).toBe('Lagos');
+    expect(data.data.locationLabel).toBe('Lagos');
     expect(data.data.lastUpdatedAt).toBeTruthy();
     expect(data.data.pickedAt).toBeTruthy();
     expect(data.data.onTransitAt).toBeTruthy();
@@ -840,6 +864,8 @@ describe('UI call follow-up fixes', () => {
     const confirmData = await getResponseJson(confirmRes as unknown as Response);
     expect((confirmRes as Response).status).toBe(200);
     expect(confirmData.data.transportStatus).toBe('delivered');
+    expect(confirmData.data.receiptConfirmed).toBe(true);
+    expect(confirmData.data.receiptConfirmedAt).toBeTruthy();
 
     const followReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/${transporter._id}/follow`, buyer._id.toString(), {
       method: 'POST',
@@ -903,5 +929,147 @@ describe('UI call follow-up fixes', () => {
     expect((chatRes as Response).status).toBe(201);
     expect(chatData.data.threadId).toBeTruthy();
     expect(await Conversation.countDocuments({ order: order._id })).toBe(1);
+  });
+
+  it('maps planned filter to legacy pending trips, accepts picked status alias, and enriches trip tracking detail', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter();
+    const { user: buyer } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, name: 'Cassava', images: ['https://example.com/cassava.png'] });
+    const truck = await createTruck({
+      transporter: transporter._id,
+      fleetName: 'Northern Route',
+      plateNumber: 'ABC-123',
+      model: 'Volvo',
+      iot: 'TRK-009',
+      images: ['https://example.com/truck.png'],
+      estimatedDeliveryValue: 2,
+      estimatedDeliveryUnit: 'days',
+      route: { fromState: 'Kano', toState: 'Lagos' }
+    } as any);
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 1000,
+      status: 'paid'
+    });
+    const booking = await FleetBooking.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyer: buyer._id,
+      amount: 5000,
+      loadWeightKg: 100,
+      shipmentItems: [{
+        orderId: order._id,
+        productId: product._id,
+        productName: product.name,
+        quantity: 1,
+        unit: 'kg',
+        loadWeightKg: 100
+      }],
+      wholeTruckOnly: false,
+      status: 'confirmed'
+    });
+    const trip = await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyerIds: [buyer._id],
+      orderIds: [order._id],
+      bookingIds: [booking._id],
+      paymentIds: [],
+      status: 'planned',
+      origin: 'Kano',
+      destination: 'Lagos',
+      currentLocation: 'Kano',
+      loadWeightKg: 100,
+      wholeTruckOnly: false
+    } as any);
+    await mongoose.connection.collection('fleettrips').updateOne(
+      { _id: trip._id },
+      { $set: { status: 'pending' } }
+    );
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'planned', location: 'Kano' });
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/fleet-trips?status=planned', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const listRes = await import('@/app/api/transporters/fleet-trips/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.data[0].fleet.iotId).toBe('TRK-009');
+    expect(listData.data[0].fleet.image).toBe('https://example.com/truck.png');
+    expect(listData.data[0].buyers[0].name).toBeTruthy();
+
+    const patchReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/fleet-trips/${trip._id}/status`, transporter._id.toString(), {
+      method: 'PATCH',
+      role: 'transporter',
+      email: transporter.email,
+      body: { status: 'picked', lat: 12.0, lng: 8.0, location: 'Kaduna' }
+    });
+    const patchRes = await import('@/app/api/transporters/fleet-trips/[tripId]/status/route').then((m) =>
+      m.PATCH(patchReq, { params: { tripId: trip._id.toString() } })
+    );
+    const patchData = await getResponseJson(patchRes as unknown as Response);
+    expect((patchRes as Response).status).toBe(200);
+    expect(patchData.data.status).toBe('loaded');
+
+    const detailReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/fleet-trips/${trip._id}/tracking`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const detailRes = await import('@/app/api/transporters/fleet-trips/[tripId]/tracking/route').then((m) =>
+      m.GET(detailReq, { params: { tripId: trip._id.toString() } })
+    );
+    const detailData = await getResponseJson(detailRes as unknown as Response);
+    expect((detailRes as Response).status).toBe(200);
+    expect(detailData.data.origin).toBe('Kano');
+    expect(detailData.data.destination).toBe('Lagos');
+    expect(detailData.data.currentLocation.lat).toBe(12);
+    expect(detailData.data.currentLocation.lng).toBe(8);
+    expect(detailData.data.pickedAt).toBeTruthy();
+    expect(detailData.data.estDeliveryDate).toBeTruthy();
+    expect(detailData.data.packages[0].name).toBe('Cassava');
+  });
+
+  it('returns explicit approval/auth errors for transporter fleet bookings access', async () => {
+    const { user: transporter } = await createTransporter();
+    const { user: pendingTransporter } = await createTransporter({
+      transporterApprovalStatus: 'pending'
+    });
+    const truck = await createTruck({ transporter: transporter._id } as any);
+
+    const approvedReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/fleet/${truck._id}/bookings?status=confirmed&unassigned=true`,
+      transporter._id.toString(),
+      {
+        method: 'GET',
+        role: 'transporter',
+        email: transporter.email
+      }
+    );
+    const approvedRes = await import('@/app/api/transporters/fleet/[id]/bookings/route').then((m) =>
+      m.GET(approvedReq, { params: { id: truck._id.toString() } })
+    );
+    expect((approvedRes as Response).status).toBe(200);
+
+    const pendingReq = createAuthenticatedRequest(
+      `http://localhost:3000/api/transporters/fleet/${truck._id}/bookings?status=confirmed&unassigned=true`,
+      pendingTransporter._id.toString(),
+      {
+        method: 'GET',
+        role: 'transporter',
+        email: pendingTransporter.email
+      }
+    );
+    const pendingRes = await import('@/app/api/transporters/fleet/[id]/bookings/route').then((m) =>
+      m.GET(pendingReq, { params: { id: truck._id.toString() } })
+    );
+    const pendingData = await getResponseJson(pendingRes as unknown as Response);
+    expect((pendingRes as Response).status).toBe(403);
+    expect(String(pendingData.message || '')).toMatch(/awaiting admin approval/i);
   });
 });

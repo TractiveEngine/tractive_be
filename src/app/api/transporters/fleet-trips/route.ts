@@ -8,7 +8,7 @@ import FleetBooking from '@/models/fleetBooking';
 import '@/models/order';
 import '@/models/driver';
 import { buildFleetTripLoadMeta, createFleetTripFromConfirmedBookings } from '@/lib/fleetTrip';
-import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
+import { buildBuyerSummaries, buildFleetSummary, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
 
 async function serializeTrip(trip: any) {
   const tripObject = trip.toObject();
@@ -16,6 +16,7 @@ async function serializeTrip(trip: any) {
   return {
     ...tripObject,
     ...buildFleetTripLoadMeta(tripObject.loadWeightKg),
+    fleet: buildFleetSummary(tripObject.fleet),
     transporter: buildTransporterSummary(tripObject.transporter),
     buyers: buildBuyerSummaries(tripObject.buyerIds),
     packages,
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     query.transporter = user._id;
   }
   if (status && ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'].includes(status)) {
-    query.status = status;
+    query.status = status === 'planned' ? { $in: ['planned', 'pending'] } : status;
   }
   if (fleetId && mongoose.Types.ObjectId.isValid(fleetId)) {
     query.fleet = fleetId;
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
 
   const [trips, total] = await Promise.all([
     FleetTrip.find(query)
-      .populate('fleet', '_id plateNumber fleetName fleetNumber model route')
+      .populate('fleet', '_id plateNumber fleetName fleetNumber iot tracker model route images')
       .populate('transporter', '_id name businessName phone email address state image')
       .populate('driver', '_id name phone trackingNumber')
       .populate('bookingIds', '_id shipmentItems')
@@ -127,7 +128,7 @@ export async function POST(request: Request) {
     });
 
     const populatedTrip = await FleetTrip.findById(trip._id)
-      .populate('fleet', '_id plateNumber fleetName fleetNumber model route')
+      .populate('fleet', '_id plateNumber fleetName fleetNumber iot tracker model route images')
       .populate('transporter', '_id name businessName phone email address state image')
       .populate('driver', '_id name phone trackingNumber')
       .populate('bookingIds', '_id shipmentItems')

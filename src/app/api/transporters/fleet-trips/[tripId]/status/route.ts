@@ -7,6 +7,9 @@ import Truck from '@/models/truck';
 import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, syncTripOrders } from '@/lib/fleetTrip';
 
 const TRIP_STATUS = ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'] as const;
+const STATUS_ALIASES: Record<string, typeof TRIP_STATUS[number]> = {
+  picked: 'loaded'
+};
 
 function getDocId(value: any) {
   return value?._id?.toString?.() || value?.toString?.() || null;
@@ -39,7 +42,8 @@ export async function PATCH(
   }
 
   const body: any = await request.json().catch(() => ({}));
-  const status = body?.status;
+  const requestedStatus = body?.status;
+  const status = STATUS_ALIASES[requestedStatus] || requestedStatus;
   const lat = body?.lat;
   const lng = body?.lng;
   if (!TRIP_STATUS.includes(status)) {
@@ -105,6 +109,7 @@ export async function PATCH(
       currentLongitude: trip.currentLongitude ?? null,
       latestTrackingEvent: {
         status,
+        requestedStatus: requestedStatus || status,
         note: body?.note || '',
         location: body?.location || '',
         latitude: typeof lat === 'number' ? lat : null,

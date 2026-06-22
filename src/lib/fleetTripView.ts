@@ -58,3 +58,17 @@ export function buildBuyerSummaries(buyers: any[]) {
     image: buyer.image || null
   }));
 }
+
+export function buildFleetSummary(fleet: any) {
+  if (!fleet || typeof fleet !== 'object') return null;
+  return {
+    id: fleet._id,
+    name: fleet.fleetName || fleet.fleetNumber || null,
+    fleetName: fleet.fleetName || null,
+    plateNumber: fleet.plateNumber || null,
+    iotId: fleet.iot || fleet.tracker || null,
+    model: fleet.model || null,
+    image: Array.isArray(fleet.images) && fleet.images.length > 0 ? fleet.images[0] : null,
+    route: fleet.route || null
+  };
+}

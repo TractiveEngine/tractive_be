@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import { ensureActiveRole, getAuthUser, hasRole } from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBooking from '@/models/fleetBooking';
 import '@/models/fleetBid';
@@ -41,15 +41,18 @@ export async function GET(
     query.fleetTripId = null;
   }
 
-  if (ensureActiveRole(user, 'buyer')) {
-    query.buyer = user._id;
-  } else if (ensureActiveRole(user, 'transporter')) {
+  if (ensureActiveRole(user, 'transporter')) {
     if (fleet.transporter?.toString() !== user._id.toString()) {
       return NextResponse.json({ success: false, message: 'Not authorized for this fleet' }, { status: 403 });
     }
+  } else if (user.activeRole === 'transporter' && !hasRole(user as any, 'transporter')) {
+    return NextResponse.json(
+      { success: false, message: 'Transporter account is awaiting admin approval' },
+      { status: 403 }
+    );
   } else if (!ensureActiveRole(user, 'admin')) {
     return NextResponse.json(
-      { success: false, message: 'Buyer, transporter, or admin access required' },
+      { success: false, message: 'Transporter or admin access required' },
       { status: 403 }
     );
   }
