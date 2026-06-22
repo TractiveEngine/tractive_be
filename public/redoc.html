@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tractive API Docs</title>
+    <style>
+      html, body, #redoc-container {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="redoc-container"></div>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const specUrl = params.get('url') || '/docs/openapi.yaml';
+      Redoc.init(specUrl, {}, document.getElementById('redoc-container'));
+    </script>
+  </body>
+</html>
