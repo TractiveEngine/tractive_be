@@ -2186,9 +2186,9 @@ paths:
         '403':
           description: Caller is not the buyer, assigned transporter, seller on the order, or admin
   /api/orders/{id}/tracking:
-    get:
-      summary: Buyer-facing order tracking alias
-      description: Frontend-friendly alias of `GET /api/transporters/orders/{orderId}/tracking`. Returns the same tracking payload.
+      get:
+        summary: Buyer-facing order tracking alias
+        description: Frontend-friendly alias of `GET /api/transporters/orders/{orderId}/tracking`. Returns the same tracking payload.
       security:
         - bearerAuth: []
       parameters:
@@ -2197,21 +2197,56 @@ paths:
           required: true
           schema:
             type: string
-      responses:
-        '200':
-          description: Tracking info with timeline
+        responses:
+          '200':
+            description: Tracking info with timeline
+            content:
+              application/json:
+                example:
+                  success: true
+                  data:
+                    orderId: "67deorder1234567890abc1"
+                    fleetTripId: "67detrip1234567890abc1"
+                    fleetId: "67defleet1234567890abc1"
+                    trackingCode: "TRIP-1001"
+                    transportStatus: "on_transit"
+                    currentLocation:
+                      lat: 6.5244
+                      lng: 3.3792
+                      label: "Ibadan toll gate"
+                    locationLabel: "Ibadan toll gate"
+                    currentLocationLabel: "Ibadan toll gate"
+                    lastUpdatedAt: "2026-06-12T10:30:00.000Z"
+                    pickedAt: "2026-06-12T06:00:00.000Z"
+                    onTransitAt: "2026-06-12T08:15:00.000Z"
+                    deliveredAt: null
+                    estDeliveryDate: "2026-06-14T08:15:00.000Z"
+                    timeline:
+                      - status: "loaded"
+                        timestamp: "2026-06-12T06:00:00.000Z"
+                        note: "Goods loaded"
+                        location: "Abia"
+                        lat: null
+                        lng: null
+                      - status: "on_transit"
+                        timestamp: "2026-06-12T10:30:00.000Z"
+                        note: "En route"
+                        location: "Ibadan toll gate"
+                        lat: 6.5244
+                        lng: 3.3792
   /api/transporters/fleet-trips:
     get:
       summary: List fleet trips
       description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip.
       security:
         - bearerAuth: []
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
+        parameters:
+          - in: query
+            name: status
+            schema:
+              type: string
+              enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
+            description: Use `planned` for both current planned trips and legacy trips still stored as `pending`.
         - in: query
           name: fleetId
           schema:
@@ -2238,28 +2273,27 @@ paths:
                 success: true
                 data:
                   - _id: "67detrip1234567890abc1"
-                    fleet:
-                      _id: "67defleet1234567890abc1"
-                      plateNumber: "ABC-123"
-                      fleetName: "North Route Fleet"
-                      fleetNumber: "ABC-123"
-                      model: "Volvo"
-                      route:
-                        fromState: "Abia"
-                        toState: "Anambra"
+                      fleet:
+                        _id: "67defleet1234567890abc1"
+                        name: "North Route Fleet"
+                        plateNumber: "ABC-123"
+                        fleetName: "North Route Fleet"
+                        fleetNumber: "ABC-123"
+                        iotId: "TRK-1001"
+                        model: "Volvo"
+                        image: "https://example.com/truck.png"
+                        route:
+                          fromState: "Abia"
+                          toState: "Anambra"
                     driver:
                       _id: "67dedriver1234567890abc1"
                       name: "Driver John"
                       phone: "+2348000000000"
                       trackingNumber: "TRK-1001"
-                    buyerIds:
-                      - _id: "67debuyer1234567890abc1"
-                        name: "Buyer One"
-                        phone: "+2348011111111"
-                    orderIds:
-                      - _id: "67deorder1234567890abc1"
-                        buyer: "67debuyer1234567890abc1"
-                        transportStatus: "on_transit"
+                      buyers:
+                        - id: "67debuyer1234567890abc1"
+                          name: "Buyer One"
+                          phone: "+2348011111111"
                     status: "planned"
                     origin: "Abia"
                     destination: "Anambra"
@@ -2365,29 +2399,52 @@ paths:
             application/json:
               example:
                 success: true
-                data:
-                  tripId: "67detrip1234567890abc1"
-                  trackingCode: "TRIP-1001"
-                  fleetId: "67defleet1234567890abc1"
-                  status: "on_transit"
-                  currentLocation: "Enugu"
-                  buyers:
-                    - id: "67debuyer1234567890abc1"
-                      name: "Buyer One"
-                      phone: "+2348011111111"
-                  orders:
-                    - id: "67deorder1234567890abc1"
-                      buyerId: "67debuyer1234567890abc1"
-                      transportStatus: "on_transit"
-                  timeline:
-                    - status: "planned"
-                      timestamp: "2026-05-03T10:00:00.000Z"
-                      note: "Trip created"
-                      location: "Abia"
-                    - status: "on_transit"
-                      timestamp: "2026-05-03T14:00:00.000Z"
-                      note: "Truck departed"
-                      location: "Enugu"
+                  data:
+                    tripId: "67detrip1234567890abc1"
+                    trackingCode: "TRIP-1001"
+                    fleetId: "67defleet1234567890abc1"
+                    status: "on_transit"
+                    origin: "Abia"
+                    destination: "Anambra"
+                    currentLocation:
+                      lat: 6.4499
+                      lng: 7.5000
+                      label: "Enugu"
+                    currentLatitude: 6.4499
+                    currentLongitude: 7.5000
+                    locationLabel: "Enugu"
+                    pickedAt: "2026-05-03T10:00:00.000Z"
+                    onTransitAt: "2026-05-03T14:00:00.000Z"
+                    deliveredAt: null
+                    estDeliveryDate: "2026-05-05T14:00:00.000Z"
+                    buyers:
+                      - id: "67debuyer1234567890abc1"
+                        name: "Buyer One"
+                        phone: "+2348011111111"
+                        state: "Abia"
+                        address: "No 24 Umuahia road"
+                        image: "https://example.com/buyer.png"
+                    orders:
+                      - id: "67deorder1234567890abc1"
+                        buyerId: "67debuyer1234567890abc1"
+                        transportStatus: "on_transit"
+                    packages:
+                      - productId: "67deproduct1234567890abc1"
+                        name: "Tomatoes"
+                        image: "https://example.com/tomatoes.png"
+                    timeline:
+                      - status: "planned"
+                        timestamp: "2026-05-03T10:00:00.000Z"
+                        note: "Trip created"
+                        location: "Abia"
+                        lat: null
+                        lng: null
+                      - status: "on_transit"
+                        timestamp: "2026-05-03T14:00:00.000Z"
+                        note: "Truck departed"
+                        location: "Enugu"
+                        lat: 6.4499
+                        lng: 7.5000
   /api/transporters/fleet-trips/{tripId}/status:
     patch:
       summary: Update fleet trip tracking status
@@ -2407,10 +2464,11 @@ paths:
             schema:
               type: object
               required: [status]
-              properties:
-                status:
-                  type: string
-                  enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
+                properties:
+                  status:
+                    type: string
+                    enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
+                    description: "`picked` is accepted as a frontend alias and stored internally as `loaded`."
                 location:
                   type: string
                 note:
@@ -2421,12 +2479,12 @@ paths:
                 lng:
                   type: number
                   nullable: true
-            example:
-              status: "on_transit"
-              location: "Enugu"
-              lat: 6.4499
-              lng: 7.5000
-              note: "Truck departed"
+              example:
+                status: "picked"
+                location: "Enugu"
+                lat: 6.4499
+                lng: 7.5000
+                note: "Truck departed"
       responses:
         '200':
           description: Fleet trip updated
@@ -2434,33 +2492,20 @@ paths:
             application/json:
               example:
                 success: true
-                data:
-                  _id: "67detrip1234567890abc1"
-                  status: "on_transit"
-                  transportStatus: "on_transit"
-                  currentLocation: "Enugu"
-                  currentLatitude: 6.4499
-                  currentLongitude: 7.5000
-                  latestTrackingEvent:
-                    status: "on_transit"
-                    note: "Truck departed"
-                    location: "Enugu"
-                    latitude: 6.4499
-                    longitude: 7.5000
-          content:
-            application/json:
-              example:
-                success: true
-                data:
-                  _id: "67detrip1234567890abc1"
-                  status: "on_transit"
-                  transportStatus: "on_transit"
-                  currentLocation: "Enugu"
-                  latestTrackingEvent:
-                    status: "on_transit"
-                    note: "Truck departed"
-                    location: "Enugu"
-                    updatedByRole: "transporter"
+                  data:
+                    _id: "67detrip1234567890abc1"
+                    status: "loaded"
+                    transportStatus: "picked"
+                    currentLocation: "Enugu"
+                    currentLatitude: 6.4499
+                    currentLongitude: 7.5000
+                    latestTrackingEvent:
+                      status: "loaded"
+                      requestedStatus: "picked"
+                      note: "Truck departed"
+                      location: "Enugu"
+                      latitude: 6.4499
+                      longitude: 7.5000
   /api/transporters/orders/{orderId}/buyer:
     get:
       summary: Get buyer info for assigned order
@@ -3268,13 +3313,15 @@ paths:
           description: Receipt confirmed
           content:
             application/json:
-              example:
-                success: true
-                data:
-                  orderId: "67deorder1234567890abc1"
-                  status: "delivered"
-                  transportStatus: "delivered"
-                message: "Receipt confirmed successfully"
+                example:
+                  success: true
+                  data:
+                    orderId: "67deorder1234567890abc1"
+                    status: "delivered"
+                    transportStatus: "delivered"
+                    receiptConfirmed: true
+                    receiptConfirmedAt: "2026-06-12T18:00:00.000Z"
+                  message: "Receipt confirmed successfully"
   /api/orders/{orderId}/receipt:
     get:
       summary: Buyer order receipt
@@ -5266,13 +5313,30 @@ paths:
           description: Customers list
 
   /api/admin/approvals/agents:
-    get:
-      summary: GET /api/admin/approvals/agents
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Success
+      get:
+        summary: GET /api/admin/approvals/agents
+        security:
+          - bearerAuth: []
+        description: Lists agent approval records. When `status` is omitted, returns all agent approval states. Use `status=pending|approved|rejected` to filter.
+        parameters:
+          - in: query
+            name: status
+            required: false
+            schema:
+              type: string
+              enum: [pending, approved, rejected]
+            description: Optional approval status filter. Omit to return all approval states.
+          - in: query
+            name: page
+            schema:
+              type: integer
+          - in: query
+            name: limit
+            schema:
+              type: integer
+        responses:
+          '200':
+            description: Success
     patch:
       summary: PATCH /api/admin/approvals/agents
       security:
@@ -5293,20 +5357,23 @@ paths:
         '200':
           description: Success
   /api/admin/approvals/transporters:
-    get:
-      summary: GET /api/admin/approvals/transporters
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: status
-          schema:
-            type: string
-            enum: [pending, approved, rejected]
-        - in: query
-          name: page
-          schema:
-            type: integer
+      get:
+        summary: GET /api/admin/approvals/transporters
+        security:
+          - bearerAuth: []
+        description: Lists transporter approval records. When `status` is omitted, returns all transporter approval states. Use `status=pending|approved|rejected` to filter.
+        parameters:
+          - in: query
+            name: status
+            required: false
+            schema:
+              type: string
+              enum: [pending, approved, rejected]
+            description: Optional approval status filter. Omit to return all approval states.
+          - in: query
+            name: page
+            schema:
+              type: integer
         - in: query
           name: limit
           schema:

@@ -18,19 +18,21 @@ export async function GET(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status') || 'pending';
+    const statusFilter = searchParams.get('status');
     const page = Math.max(1, Number(searchParams.get('page')) || 1);
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
     const skip = (page - 1) * limit;
-    const approvalQuery =
-      statusFilter === 'pending'
-        ? { $in: ['pending', null] }
-        : statusFilter;
-    const query = {
+    const query: Record<string, unknown> = {
       roles: 'agent',
-      status: { $ne: 'removed' },
-      agentApprovalStatus: approvalQuery
+      status: { $ne: 'removed' }
     };
+
+    if (statusFilter && ['pending', 'approved', 'rejected'].includes(statusFilter)) {
+      query.agentApprovalStatus =
+        statusFilter === 'pending'
+          ? { $in: ['pending', null] }
+          : statusFilter;
+    }
 
     const [agents, total] = await Promise.all([
       User.find(query)

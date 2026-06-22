@@ -28,12 +28,16 @@ export async function POST(
     return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
   }
 
+  const alreadyConfirmedAt = order.receiptConfirmedAt || null;
   order.transportStatus = 'delivered';
   order.status = 'delivered';
+  if (!order.receiptConfirmedAt) {
+    order.receiptConfirmedAt = new Date();
+  }
   order.updatedAt = new Date();
   await order.save();
 
-  if (order.transporter) {
+  if (order.transporter && !alreadyConfirmedAt) {
     await createNotification({
       userId: order.transporter.toString(),
       type: 'order_status_changed',
@@ -48,8 +52,10 @@ export async function POST(
     data: {
       orderId: order._id.toString(),
       status: order.status,
-      transportStatus: order.transportStatus
+      transportStatus: order.transportStatus,
+      receiptConfirmed: Boolean(order.receiptConfirmedAt),
+      receiptConfirmedAt: order.receiptConfirmedAt
     },
-    message: 'Receipt confirmed successfully'
+    message: alreadyConfirmedAt ? 'Receipt was already confirmed' : 'Receipt confirmed successfully'
   }, { status: 200 });
 }

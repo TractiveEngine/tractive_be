@@ -175,10 +175,12 @@ export function buildFleetSummaryForOrder(fleet: any) {
   if (!fleet || typeof fleet !== 'object') return null;
   return {
     _id: fleet._id,
+    fleetName: fleet.fleetName || null,
     plateNumber: fleet.plateNumber || null,
     iotId: fleet.iot || fleet.tracker || null,
     model: fleet.model || null,
-    image: Array.isArray(fleet.images) && fleet.images.length > 0 ? fleet.images[0] : null
+    image: Array.isArray(fleet.images) && fleet.images.length > 0 ? fleet.images[0] : null,
+    route: fleet.route || null
   };
 }
 

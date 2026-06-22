@@ -65,6 +65,7 @@ export async function GET(
               lng: trip.currentLongitude ?? null,
               label: currentLocationLabel
             },
+            locationLabel: currentLocationLabel,
             currentLocationLabel,
             ...trackingSummary,
             timeline: tripTimeline.map((t) => ({
@@ -97,6 +98,7 @@ export async function GET(
           lng: null,
           label: currentLocationLabel
         },
+        locationLabel: currentLocationLabel,
         currentLocationLabel,
         ...trackingSummary,
         timeline: timeline.map((t) => ({
