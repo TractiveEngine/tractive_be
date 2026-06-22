@@ -1,10 +1,4 @@
-'use client';
-import dynamic from 'next/dynamic';
-
-// Dynamically import SwaggerUI with SSR disabled
-const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false });
-
-import 'swagger-ui-react/swagger-ui.css';
+import Link from 'next/link';
 
 const callouts = [
   {
@@ -21,7 +15,7 @@ const callouts = [
   },
   {
     title: 'Collections',
-    body: 'Postman: docs/Tractive-API.postman_collection.json. OpenAPI: docs/openapi.yaml (served below).',
+    body: 'Postman: docs/Tractive-API.postman_collection.json. OpenAPI: /docs/openapi.yaml.',
   },
   {
     title: 'Endpoint inventory',
@@ -31,16 +25,16 @@ const callouts = [
 
 export default function ApiDocsPage() {
   return (
-    <div style={{ minHeight: '100vh' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 320px' }}>
             <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 700, color: '#0f172a' }}>Tractive Platform API</h1>
             <p style={{ margin: '8px 0 16px', color: '#475569' }}>
-              Swagger view of docs/openapi.yaml. Use the quick notes to keep calls aligned with frontend expectations.
+              Swagger view of the live OpenAPI spec. Use the quick notes to keep calls aligned with frontend expectations.
             </p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <a
+              <Link
                 href="/api-docs"
                 style={{
                   padding: '8px 12px',
@@ -53,8 +47,8 @@ export default function ApiDocsPage() {
                 }}
               >
                 Swagger
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/api-docs/redoc"
                 style={{
                   padding: '8px 12px',
@@ -68,6 +62,23 @@ export default function ApiDocsPage() {
                 }}
               >
                 Redoc
+              </Link>
+              <a
+                href="/docs/openapi.yaml"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '8px 12px',
+                  background: '#fff',
+                  color: '#0f172a',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none',
+                  border: '1px solid #cbd5e1',
+                }}
+              >
+                Raw YAML
               </a>
             </div>
           </div>
@@ -76,7 +87,7 @@ export default function ApiDocsPage() {
               <div
                 key={c.title}
                 style={{
-                  background: '#f8fafc',
+                  background: '#fff',
                   border: '1px solid #e2e8f0',
                   borderRadius: 10,
                   padding: '10px 12px',
@@ -92,7 +103,17 @@ export default function ApiDocsPage() {
         </div>
       </div>
       <div style={{ padding: '0 16px 24px' }}>
-        <SwaggerUI url="/docs/openapi.yaml" docExpansion="list" deepLinking />
+        <iframe
+          title="Swagger Docs"
+          src="/swagger.html?url=/docs/openapi.yaml"
+          style={{
+            width: '100%',
+            minHeight: 'calc(100vh - 180px)',
+            border: '1px solid #e2e8f0',
+            borderRadius: 12,
+            background: '#fff',
+          }}
+        />
       </div>
     </div>
   );
