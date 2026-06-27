@@ -6,6 +6,8 @@ import {
   createAdmin,
   createAgent,
   createBuyer,
+  createDriver,
+  createFarmer,
   createUser,
   createOrder,
   createProduct,
@@ -25,6 +27,7 @@ import SellerFollow from '@/models/sellerFollow';
 import SupportTicket from '@/models/supportTicket';
 import Conversation from '@/models/conversation';
 import User from '@/models/user';
+import Notification from '@/models/notification';
 
 describe('UI call follow-up fixes', () => {
   beforeEach(async () => {
@@ -1071,5 +1074,826 @@ describe('UI call follow-up fixes', () => {
     const pendingData = await getResponseJson(pendingRes as unknown as Response);
     expect((pendingRes as Response).status).toBe(403);
     expect(String(pendingData.message || '')).toMatch(/awaiting admin approval/i);
+  });
+
+  it('supports transporter customer list, detail, chat, and shared reference data endpoints', async () => {
+    const { user: transporter } = await createTransporter();
+    const { user: buyer } = await createBuyer({ name: 'Grace Buyer', state: 'Kaduna', phone: '+2348111111111' });
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, name: 'Sesame' });
+    await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 2 }],
+      totalAmount: 5000,
+      status: 'paid',
+      transportStatus: 'pending',
+      transporter: transporter._id
+    });
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/customers?search=grace&page=1&limit=10', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const listRes = await import('@/app/api/transporters/customers/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.data[0].name).toBe('Grace Buyer');
+    expect(listData.pagination.total).toBe(1);
+
+    const detailReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/customers/${buyer._id}`, transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const detailRes = await import('@/app/api/transporters/customers/[id]/route').then((m) =>
+      m.GET(detailReq, { params: { id: buyer._id.toString() } })
+    );
+    const detailData = await getResponseJson(detailRes as unknown as Response);
+    expect((detailRes as Response).status).toBe(200);
+    expect(detailData.data.ordersCount).toBe(1);
+    expect(detailData.data.recentOrders[0].products[0].product.owner._id).toBe(agent._id.toString());
+
+    const chatReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/customers/${buyer._id}/chat`, transporter._id.toString(), {
+      method: 'POST',
+      role: 'transporter',
+      email: transporter.email,
+      body: { subject: 'Support', message: 'Checking in on your delivery' }
+    });
+    const chatRes = await import('@/app/api/transporters/customers/[id]/chat/route').then((m) =>
+      m.POST(chatReq, { params: { id: buyer._id.toString() } })
+    );
+    const chatData = await getResponseJson(chatRes as unknown as Response);
+    expect((chatRes as Response).status).toBe(201);
+    expect(chatData.data.conversationId).toBeTruthy();
+
+    const statesRes = await import('@/app/api/states/route').then((m) => m.GET());
+    const statesData = await getResponseJson(statesRes as unknown as Response);
+    expect((statesRes as Response).status).toBe(200);
+    expect(statesData.data).toContain('Lagos');
+
+    const fleetStatusesRes = await import('@/app/api/transporters/fleet-statuses/route').then((m) => m.GET());
+    const fleetStatusesData = await getResponseJson(fleetStatusesRes as unknown as Response);
+    expect((fleetStatusesRes as Response).status).toBe(200);
+    expect(fleetStatusesData.data).toContain('under_maintenance');
+  });
+
+  it('supports transporter order list and location ping updates for trip-backed tracking', async () => {
+    const { user: transporter } = await createTransporter({ businessName: 'Transit Hub' });
+    const { user: buyer } = await createBuyer({ name: 'Tola Buyer', phone: '+2348222222222' });
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, name: 'Millet' });
+    const truck = await createTruck({
+      transporter: transporter._id,
+      fleetName: 'West Route',
+      plateNumber: 'WR-500',
+      model: 'DAF',
+      iot: 'IOT-500',
+      images: ['https://example.com/west-route.png'],
+      route: { fromState: 'Kano', toState: 'Ibadan' }
+    } as any);
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 4 }],
+      totalAmount: 8000,
+      status: 'paid',
+      transportStatus: 'on_transit',
+      transporter: transporter._id
+    });
+    const trip = await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyerIds: [buyer._id],
+      orderIds: [order._id],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'on_transit',
+      origin: 'Kano',
+      destination: 'Ibadan',
+      currentLocation: 'Kaduna',
+      loadWeightKg: 400,
+      wholeTruckOnly: false
+    });
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: order._id },
+      { $set: { fleetTripId: trip._id } }
+    );
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/orders?status=on_transit&page=1&limit=10', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const listRes = await import('@/app/api/transporters/orders/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.data[0].buyer.name).toBe('Tola Buyer');
+    expect(listData.data[0].fleet.plateNumber).toBe('WR-500');
+    expect(listData.data[0].fromLocation).toBe('Kano');
+
+    const locationReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/orders/${order._id}/locations`, transporter._id.toString(), {
+      method: 'POST',
+      role: 'transporter',
+      email: transporter.email,
+      body: { lat: 7.3775, lng: 3.947, location: 'Ibadan toll gate', note: 'GPS ping' }
+    });
+    const locationRes = await import('@/app/api/transporters/orders/[orderId]/locations/route').then((m) =>
+      m.POST(locationReq, { params: { orderId: order._id.toString() } })
+    );
+    const locationData = await getResponseJson(locationRes as unknown as Response);
+    expect((locationRes as Response).status).toBe(200);
+    expect(locationData.data.currentLocation.label).toBe('Ibadan toll gate');
+
+    const trackingReq = createAuthenticatedRequest(`http://localhost:3000/api/orders/${order._id}/tracking`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const trackingRes = await import('@/app/api/orders/[id]/tracking/route').then((m) =>
+      m.GET(trackingReq, { params: { orderId: order._id.toString() } } as any)
+    );
+    const trackingData = await getResponseJson(trackingRes as unknown as Response);
+    expect((trackingRes as Response).status).toBe(200);
+    expect(trackingData.data.currentLocation.lat).toBe(7.3775);
+    expect(trackingData.data.locationLabel).toBe('Ibadan toll gate');
+  });
+
+  it('supports transporter dashboard overview, revenue, top customers, transit, and review summary endpoints', async () => {
+    const { user: transporter } = await createTransporter({ businessName: 'Haul Masters' });
+    const { user: buyer } = await createBuyer({ name: 'Ada Buyer' });
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, name: 'Beans' });
+    const truck = await createTruck({ transporter: transporter._id, fleetName: 'Central Fleet' } as any);
+    const driver = await createDriver({ transporter: transporter._id, assignedTruck: truck._id, name: 'Driver One' });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 12000,
+      status: 'paid',
+      transportStatus: 'pending',
+      transporter: transporter._id
+    });
+    await createTransaction({
+      order: order._id,
+      buyer: buyer._id,
+      amount: 12000,
+      status: 'approved',
+      paymentMethod: 'wallet'
+    });
+    await createReview({ agent: transporter._id, buyer: buyer._id, rating: 5 });
+    await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      driver: driver._id,
+      buyerIds: [buyer._id],
+      orderIds: [order._id],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'on_transit',
+      currentLocation: 'Lokoja',
+      loadWeightKg: 100,
+      wholeTruckOnly: false
+    });
+
+    const overviewReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/dashboard/overview', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const overviewRes = await import('@/app/api/transporters/dashboard/overview/route').then((m) => m.GET(overviewReq));
+    const overviewData = await getResponseJson(overviewRes as unknown as Response);
+    expect((overviewRes as Response).status).toBe(200);
+    expect(overviewData.data.revenue).toBe(12000);
+    expect(overviewData.data.drivers).toBe(1);
+
+    const revenueReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/dashboard/revenue', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const revenueRes = await import('@/app/api/transporters/dashboard/revenue/route').then((m) => m.GET(revenueReq));
+    const revenueData = await getResponseJson(revenueRes as unknown as Response);
+    expect((revenueRes as Response).status).toBe(200);
+    expect(revenueData.data.totalRevenue).toBe(12000);
+
+    const topCustomersReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/dashboard/top-customers?limit=5', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const topCustomersRes = await import('@/app/api/transporters/dashboard/top-customers/route').then((m) => m.GET(topCustomersReq));
+    const topCustomersData = await getResponseJson(topCustomersRes as unknown as Response);
+    expect((topCustomersRes as Response).status).toBe(200);
+    expect(topCustomersData.data[0].name).toBe('Ada Buyer');
+
+    const transitReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/dashboard/transit?status=in_progress&limit=10', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const transitRes = await import('@/app/api/transporters/dashboard/transit/route').then((m) => m.GET(transitReq));
+    const transitData = await getResponseJson(transitRes as unknown as Response);
+    expect((transitRes as Response).status).toBe(200);
+    expect(transitData.data[0].currentLocation).toBe('Lokoja');
+
+    const mostHiredReq = createAuthenticatedRequest('http://localhost:3000/api/transporters/dashboard/most-hired-drivers?limit=5', transporter._id.toString(), {
+      method: 'GET',
+      role: 'transporter',
+      email: transporter.email
+    });
+    const mostHiredRes = await import('@/app/api/transporters/dashboard/most-hired-drivers/route').then((m) => m.GET(mostHiredReq));
+    const mostHiredData = await getResponseJson(mostHiredRes as unknown as Response);
+    expect((mostHiredRes as Response).status).toBe(200);
+    expect(mostHiredData.data[0].name).toBe('Driver One');
+
+    const summaryReq = createAuthenticatedRequest(`http://localhost:3000/api/transporters/${transporter._id}/reviews/summary`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const summaryRes = await import('@/app/api/transporters/[id]/reviews/summary/route').then((m) =>
+      m.GET(summaryReq, { params: { id: transporter._id.toString() } })
+    );
+    const summaryData = await getResponseJson(summaryRes as unknown as Response);
+    expect((summaryRes as Response).status).toBe(200);
+    expect(summaryData.data.overallRating).toBe(5);
+    expect(summaryData.data.totalReviews).toBe(1);
+  });
+
+  it('supports agent me, review summary, enriched categories, transporter directory, buyer bank accounts, payment confirmation, banners, and unread notifications filter', async () => {
+    const { user: agent } = await createAgent({ businessName: 'Agent House', state: 'Kaduna' });
+    const { user: buyer } = await createBuyer({ name: 'Mira Buyer' });
+    const { user: transporter } = await createTransporter({ businessName: 'MoveFast Logistics', state: 'Lagos' });
+    const product = await createProduct({
+      owner: agent._id,
+      name: 'Rice',
+      category: 'Grains',
+      subcategory: 'Rice',
+      categories: ['Grains']
+    } as any);
+    const truck = await createTruck({
+      transporter: transporter._id,
+      route: { fromState: 'Lagos', toState: 'Oyo' }
+    } as any);
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 7000,
+      status: 'pending',
+      transporter: transporter._id
+    });
+    const transaction = await createTransaction({
+      order: order._id,
+      buyer: buyer._id,
+      amount: 7000,
+      status: 'pending',
+      paymentMethod: 'bank_transfer',
+      paymentReference: 'PAY-CONFIRM-100'
+    });
+    await createReview({ agent: agent._id, buyer: buyer._id, rating: 4 });
+    await Notification.create({
+      user: buyer._id,
+      type: 'generic',
+      title: 'Unread note',
+      message: 'Still unread',
+      isRead: false
+    });
+    await Notification.create({
+      user: buyer._id,
+      type: 'generic',
+      title: 'Read note',
+      message: 'Already read',
+      isRead: true
+    });
+
+    const meReq = createAuthenticatedRequest('http://localhost:3000/api/agents/me', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const meRes = await import('@/app/api/agents/me/route').then((m) => m.GET(meReq));
+    const meData = await getResponseJson(meRes as unknown as Response);
+    expect((meRes as Response).status).toBe(200);
+    expect(meData.data.businessName).toBe('Agent House');
+
+    const reviewSummaryReq = createAuthenticatedRequest(`http://localhost:3000/api/reviews/summary?agentId=${agent._id}`, buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const reviewSummaryRes = await import('@/app/api/reviews/summary/route').then((m) => m.GET(reviewSummaryReq));
+    const reviewSummaryData = await getResponseJson(reviewSummaryRes as unknown as Response);
+    expect((reviewSummaryRes as Response).status).toBe(200);
+    expect(reviewSummaryData.data.totalReviews).toBe(1);
+    expect(reviewSummaryData.data.ratingDistribution.find((item: any) => item.rating === 4).count).toBe(1);
+
+    const categoriesReq = createAuthenticatedRequest('http://localhost:3000/api/categories?withSubcategories=true', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const categoriesRes = await import('@/app/api/categories/route').then((m) => m.GET(categoriesReq));
+    const categoriesData = await getResponseJson(categoriesRes as unknown as Response);
+    expect((categoriesRes as Response).status).toBe(200);
+    expect(categoriesData.data[0].id).toBeTruthy();
+    expect(categoriesData.data[0].subcategories[0].id).toBeTruthy();
+
+    const transportersReq = createAuthenticatedRequest('http://localhost:3000/api/transporters', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const transportersRes = await import('@/app/api/transporters/route').then((m) => m.GET(transportersReq));
+    const transportersData = await getResponseJson(transportersRes as unknown as Response);
+    expect((transportersRes as Response).status).toBe(200);
+    expect(transportersData.data[0].coverageStates).toEqual(expect.arrayContaining(['Lagos', 'Oyo']));
+    expect(transportersData.data[0].customersCount).toBe(1);
+
+    const bankAccountsRes = await import('@/app/api/payment/bank-accounts/route').then((m) => m.GET());
+    const bankAccountsData = await getResponseJson(bankAccountsRes as unknown as Response);
+    expect((bankAccountsRes as Response).status).toBe(200);
+    expect(bankAccountsData.data.length).toBeGreaterThan(0);
+
+    const confirmReq = createAuthenticatedRequest(`http://localhost:3000/api/payments/${transaction.paymentReference}/confirm`, buyer._id.toString(), {
+      method: 'POST',
+      role: 'buyer',
+      email: buyer.email,
+      body: {
+        bankUsed: 'Access Bank',
+        narration: 'Manual transfer',
+        screenshotUrl: 'https://example.com/proof.png'
+      }
+    });
+    const confirmRes = await import('@/app/api/payments/[paymentRef]/confirm/route').then((m) =>
+      m.POST(confirmReq, { params: { paymentRef: String(transaction.paymentReference) } })
+    );
+    const confirmData = await getResponseJson(confirmRes as unknown as Response);
+    expect((confirmRes as Response).status).toBe(200);
+    expect(confirmData.data.paymentConfirmation.bankUsed).toBe('Access Bank');
+
+    const bannersRes = await import('@/app/api/buyers/banners/route').then((m) => m.GET());
+    const bannersData = await getResponseJson(bannersRes as unknown as Response);
+    expect((bannersRes as Response).status).toBe(200);
+    expect(bannersData.data[0].imageUrl).toBeTruthy();
+
+    const notificationsReq = createAuthenticatedRequest('http://localhost:3000/api/notifications?unread=true&page=1&limit=10', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const notificationsRes = await import('@/app/api/notifications/route').then((m) => m.GET(notificationsReq));
+    const notificationsData = await getResponseJson(notificationsRes as unknown as Response);
+    expect((notificationsRes as Response).status).toBe(200);
+    expect(Array.isArray(notificationsData.data)).toBe(true);
+    expect(notificationsData.data.length).toBe(1);
+    expect(notificationsData.data[0].title).toBe('Unread note');
+  });
+
+  it('supports agent dashboard and agent order detail/tracking endpoints', async () => {
+    const { user: agent } = await createAgent({ businessName: 'North Agent' });
+    const { user: buyer } = await createBuyer({ name: 'Buyer Agent Test' });
+    const { user: transporter } = await createTransporter({ businessName: 'Transit Agent Test' });
+    await createFarmer({ createdBy: agent._id, approvalStatus: 'approved' });
+    const productA = await createProduct({
+      owner: agent._id,
+      name: 'Maize',
+      category: 'Grains',
+      quantity: 25
+    } as any);
+    const productB = await createProduct({
+      owner: agent._id,
+      name: 'Cassava',
+      category: 'Tubers',
+      quantity: 0,
+      status: 'out_of_stock'
+    } as any);
+    const truck = await createTruck({
+      transporter: transporter._id,
+      plateNumber: 'AGT-200',
+      iot: 'AGENT-IOT',
+      route: { fromState: 'Kaduna', toState: 'Lagos' }
+    } as any);
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [
+        { product: productA._id, quantity: 3, lineSubtotal: 9000 } as any,
+        { product: productB._id, quantity: 1, lineSubtotal: 1000 } as any
+      ],
+      totalAmount: 10000,
+      status: 'paid',
+      transportStatus: 'on_transit',
+      transporter: transporter._id
+    });
+    await createTransaction({
+      order: order._id,
+      buyer: buyer._id,
+      amount: 10000,
+      status: 'approved',
+      paymentMethod: 'card'
+    });
+    const trip = await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      buyerIds: [buyer._id],
+      orderIds: [order._id],
+      bookingIds: [],
+      paymentIds: [],
+      status: 'on_transit',
+      origin: 'Kaduna',
+      destination: 'Lagos',
+      currentLocation: 'Lokoja',
+      loadWeightKg: 400,
+      wholeTruckOnly: false
+    });
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: order._id },
+      { $set: { fleetTripId: trip._id } }
+    );
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'loaded', location: 'Kaduna' });
+    await FleetTripTrackingEvent.create({ fleetTrip: trip._id, status: 'on_transit', location: 'Lokoja', latitude: 8.0, longitude: 6.7 });
+
+    const overviewReq = createAuthenticatedRequest('http://localhost:3000/api/agents/dashboard/overview', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const overviewRes = await import('@/app/api/agents/dashboard/overview/route').then((m) => m.GET(overviewReq));
+    const overviewData = await getResponseJson(overviewRes as unknown as Response);
+    expect((overviewRes as Response).status).toBe(200);
+    expect(overviewData.data.products).toBe(2);
+    expect(overviewData.data.customers).toBe(1);
+
+    const revenueReq = createAuthenticatedRequest('http://localhost:3000/api/agents/dashboard/revenue', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const revenueRes = await import('@/app/api/agents/dashboard/revenue/route').then((m) => m.GET(revenueReq));
+    const revenueData = await getResponseJson(revenueRes as unknown as Response);
+    expect((revenueRes as Response).status).toBe(200);
+    expect(Array.isArray(revenueData.data)).toBe(true);
+
+    const topCustomersReq = createAuthenticatedRequest('http://localhost:3000/api/agents/dashboard/top-customers?limit=5', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const topCustomersRes = await import('@/app/api/agents/dashboard/top-customers/route').then((m) => m.GET(topCustomersReq));
+    const topCustomersData = await getResponseJson(topCustomersRes as unknown as Response);
+    expect((topCustomersRes as Response).status).toBe(200);
+    expect(topCustomersData.data[0].name).toBe('Buyer Agent Test');
+
+    const soldItemsRes = await import('@/app/api/agents/dashboard/most-sold-items/route').then((m) => m.GET(overviewReq));
+    const soldItemsData = await getResponseJson(soldItemsRes as unknown as Response);
+    expect((soldItemsRes as Response).status).toBe(200);
+    expect(soldItemsData.data[0].name).toBeTruthy();
+
+    const categoriesRes = await import('@/app/api/agents/dashboard/most-sold-categories/route').then((m) => m.GET(overviewReq));
+    const categoriesData = await getResponseJson(categoriesRes as unknown as Response);
+    expect((categoriesRes as Response).status).toBe(200);
+    expect(categoriesData.data.length).toBeGreaterThan(0);
+
+    const outOfStockReq = createAuthenticatedRequest('http://localhost:3000/api/agents/dashboard/out-of-stock?limit=7', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const outOfStockRes = await import('@/app/api/agents/dashboard/out-of-stock/route').then((m) => m.GET(outOfStockReq));
+    const outOfStockData = await getResponseJson(outOfStockRes as unknown as Response);
+    expect((outOfStockRes as Response).status).toBe(200);
+    expect(outOfStockData.data[0].name).toBe('Cassava');
+
+    const orderReq = createAuthenticatedRequest(`http://localhost:3000/api/agents/orders/${order._id}`, agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const orderRes = await import('@/app/api/agents/orders/[orderId]/route').then((m) =>
+      m.GET(orderReq, { params: { orderId: order._id.toString() } })
+    );
+    const orderData = await getResponseJson(orderRes as unknown as Response);
+    expect((orderRes as Response).status).toBe(200);
+    expect(orderData.data.buyer.name).toBe('Buyer Agent Test');
+    expect(orderData.data.plateNumber).toBe('AGT-200');
+    expect(orderData.data.iotId).toBe('AGENT-IOT');
+
+    const trackingReq = createAuthenticatedRequest(`http://localhost:3000/api/agents/orders/${order._id}/tracking`, agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const trackingRes = await import('@/app/api/agents/orders/[orderId]/tracking/route').then((m) =>
+      m.GET(trackingReq, { params: { orderId: order._id.toString() } })
+    );
+    const trackingData = await getResponseJson(trackingRes as unknown as Response);
+    expect((trackingRes as Response).status).toBe(200);
+    expect(trackingData.data.fromState).toBe('Kaduna');
+    expect(trackingData.data.toState).toBe('Lagos');
+    expect(trackingData.data.mapMarkers.length).toBe(2);
+  });
+
+  it('supports admin dashboard aliases and admin track-order/detail endpoints', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: agent } = await createAgent({ businessName: 'Admin Agent' });
+    const { user: buyer } = await createBuyer({ name: 'Admin Buyer' });
+    const { user: transporter } = await createTransporter({ businessName: 'Admin Transporter' });
+    const product = await createProduct({ owner: agent._id, name: 'Soya' });
+    const order = await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 2 }],
+      totalAmount: 6000,
+      status: 'paid',
+      transportStatus: 'picked',
+      transporter: transporter._id
+    });
+    await createTransaction({
+      order: order._id,
+      buyer: buyer._id,
+      amount: 6000,
+      status: 'approved',
+      paymentMethod: 'wallet'
+    });
+
+    const overviewReq = createAuthenticatedRequest('http://localhost:3000/api/admin/dashboard/overview', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const overviewRes = await import('@/app/api/admin/dashboard/overview/route').then((m) => m.GET(overviewReq));
+    const overviewData = await getResponseJson(overviewRes as unknown as Response);
+    expect((overviewRes as Response).status).toBe(200);
+    expect(overviewData.data.users.value).toBeGreaterThan(0);
+
+    const revenueReq = createAuthenticatedRequest('http://localhost:3000/api/admin/dashboard/revenue', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const revenueRes = await import('@/app/api/admin/dashboard/revenue/route').then((m) => m.GET(revenueReq));
+    const revenueData = await getResponseJson(revenueRes as unknown as Response);
+    expect((revenueRes as Response).status).toBe(200);
+    expect(Array.isArray(revenueData.data)).toBe(true);
+
+    const topAgentsRes = await import('@/app/api/admin/dashboard/top-agents/route').then((m) => m.GET(overviewReq));
+    const topAgentsData = await getResponseJson(topAgentsRes as unknown as Response);
+    expect((topAgentsRes as Response).status).toBe(200);
+    expect(Array.isArray(topAgentsData.data)).toBe(true);
+
+    const topBuyersRes = await import('@/app/api/admin/dashboard/top-buyers/route').then((m) => m.GET(overviewReq));
+    const topBuyersData = await getResponseJson(topBuyersRes as unknown as Response);
+    expect((topBuyersRes as Response).status).toBe(200);
+    expect(Array.isArray(topBuyersData.data)).toBe(true);
+
+    const topTransportersRes = await import('@/app/api/admin/dashboard/top-transporters/route').then((m) => m.GET(overviewReq));
+    const topTransportersData = await getResponseJson(topTransportersRes as unknown as Response);
+    expect((topTransportersRes as Response).status).toBe(200);
+    expect(Array.isArray(topTransportersData.data)).toBe(true);
+
+    const trackAgentReq = createAuthenticatedRequest('http://localhost:3000/api/admin/orders/track/agent?status=paid&page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const trackAgentRes = await import('@/app/api/admin/orders/track/agent/route').then((m) => m.GET(trackAgentReq));
+    const trackAgentData = await getResponseJson(trackAgentRes as unknown as Response);
+    expect((trackAgentRes as Response).status).toBe(200);
+    expect(trackAgentData.data[0].buyer.name).toBe('Admin Buyer');
+
+    const trackTransporterReq = createAuthenticatedRequest('http://localhost:3000/api/admin/orders/track/transporter?status=picked&page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const trackTransporterRes = await import('@/app/api/admin/orders/track/transporter/route').then((m) => m.GET(trackTransporterReq));
+    const trackTransporterData = await getResponseJson(trackTransporterRes as unknown as Response);
+    expect((trackTransporterRes as Response).status).toBe(200);
+    expect(trackTransporterData.data[0].transportStatus).toBe('picked');
+
+    const buyerInfoRes = await import('@/app/api/admin/orders/[orderId]/buyer-info/route').then((m) =>
+      m.GET(overviewReq, { params: { orderId: order._id.toString() } })
+    );
+    const buyerInfoData = await getResponseJson(buyerInfoRes as unknown as Response);
+    expect((buyerInfoRes as Response).status).toBe(200);
+    expect(buyerInfoData.data.name).toBe('Admin Buyer');
+
+    const sellerInfoRes = await import('@/app/api/admin/orders/[orderId]/seller-info/route').then((m) =>
+      m.GET(overviewReq, { params: { orderId: order._id.toString() } })
+    );
+    const sellerInfoData = await getResponseJson(sellerInfoRes as unknown as Response);
+    expect((sellerInfoRes as Response).status).toBe(200);
+    expect(sellerInfoData.data[0].businessName).toBe('Admin Agent');
+
+    const transporterInfoRes = await import('@/app/api/admin/orders/[orderId]/transporter-info/route').then((m) =>
+      m.GET(overviewReq, { params: { orderId: order._id.toString() } })
+    );
+    const transporterInfoData = await getResponseJson(transporterInfoRes as unknown as Response);
+    expect((transporterInfoRes as Response).status).toBe(200);
+    expect(transporterInfoData.data.businessName).toBe('Admin Transporter');
+
+    const adminTrackingRes = await import('@/app/api/admin/orders/[orderId]/tracking/route').then((m) =>
+      m.GET(overviewReq, { params: { orderId: order._id.toString() } })
+    );
+    expect((adminTrackingRes as Response).status).toBe(200);
+  });
+
+  it('supports notifications SSE stream with initial snapshot payload', async () => {
+    const { user: buyer } = await createBuyer();
+    await Notification.create({
+      user: buyer._id,
+      type: 'generic',
+      title: 'Fresh alert',
+      message: 'You have a new update',
+      isRead: false
+    });
+
+    const req = createAuthenticatedRequest('http://localhost:3000/api/notifications/stream?unread=true&limit=10', buyer._id.toString(), {
+      method: 'GET',
+      role: 'buyer',
+      email: buyer.email
+    });
+    const res = await import('@/app/api/notifications/stream/route').then((m) => m.GET(req));
+
+    expect((res as Response).status).toBe(200);
+    expect((res as Response).headers.get('content-type')).toContain('text/event-stream');
+
+    const reader = (res as Response).body!.getReader();
+    const firstChunk = await reader.read();
+    const secondChunk = await reader.read();
+    await reader.cancel();
+
+    const decoder = new TextDecoder();
+    const payload = `${decoder.decode(firstChunk.value || new Uint8Array())}${decoder.decode(secondChunk.value || new Uint8Array())}`;
+    expect(payload).toContain('event: connected');
+    expect(payload).toContain('event: snapshot');
+    expect(payload).toContain('Fresh alert');
+    expect(payload).toContain('"unreadCount":1');
+  });
+
+  it('supports generic admin approvals compatibility endpoints and exact admin dashboard list shapes', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: agent } = await createUser({
+      roles: ['agent'],
+      activeRole: 'agent',
+      agentApprovalStatus: 'pending',
+      businessName: 'Compat Agent'
+    });
+    const { user: transporter } = await createTransporter({ transporterApprovalStatus: 'pending', businessName: 'Compat Transporter' });
+    const farmer = await createFarmer({ createdBy: agent._id, approvalStatus: 'pending', name: 'Compat Farmer' });
+
+    const listReq = createAuthenticatedRequest('http://localhost:3000/api/admin/approvals?type=agent&status=pending&page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const listRes = await import('@/app/api/admin/approvals/route').then((m) => m.GET(listReq));
+    const listData = await getResponseJson(listRes as unknown as Response);
+    expect((listRes as Response).status).toBe(200);
+    expect(listData.data.some((item: any) => item._id === agent._id.toString())).toBe(true);
+
+    const approveReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/approvals/${transporter._id}/approve`, admin._id.toString(), {
+      method: 'POST',
+      role: 'admin',
+      email: admin.email,
+      body: { type: 'transporter', note: 'Approved from compat route' }
+    });
+    const approveRes = await import('@/app/api/admin/approvals/[id]/approve/route').then((m) =>
+      m.POST(approveReq, { params: { id: transporter._id.toString() } })
+    );
+    const approveData = await getResponseJson(approveRes as unknown as Response);
+    expect((approveRes as Response).status).toBe(200);
+    expect(approveData.data.status).toBe('approved');
+
+    const declineReq = createAuthenticatedRequest(`http://localhost:3000/api/admin/approvals/${farmer._id}/decline`, admin._id.toString(), {
+      method: 'POST',
+      role: 'admin',
+      email: admin.email,
+      body: { type: 'farmer', reason: 'Incomplete KYC' }
+    });
+    const declineRes = await import('@/app/api/admin/approvals/[id]/decline/route').then((m) =>
+      m.POST(declineReq, { params: { id: farmer._id.toString() } })
+    );
+    const declineData = await getResponseJson(declineRes as unknown as Response);
+    expect((declineRes as Response).status).toBe(200);
+    expect(declineData.data.status).toBe('rejected');
+
+    const topAgentReq = createAuthenticatedRequest('http://localhost:3000/api/admin/top-agents?limit=5', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const topAgentRes = await import('@/app/api/admin/top-agents/route').then((m) => m.GET(topAgentReq));
+    const topAgentData = await getResponseJson(topAgentRes as unknown as Response);
+    expect((topAgentRes as Response).status).toBe(200);
+    if (topAgentData.data.length > 0) {
+      expect(topAgentData.data[0]).toHaveProperty('id');
+      expect(topAgentData.data[0]).toHaveProperty('revenue');
+      expect(topAgentData.data[0]).toHaveProperty('orders');
+    }
+  });
+
+  it('supports admin user state/month filters and agent customer location/month aliases', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: agent } = await createAgent({ state: 'Kano' });
+    const { user: buyer } = await createBuyer({ state: 'Kano', name: 'Kano Buyer' });
+    const product = await createProduct({ owner: agent._id, name: 'Groundnut' });
+    await createOrder({
+      buyer: buyer._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 2000,
+      status: 'paid'
+    });
+    await mongoose.connection.collection('users').updateOne(
+      { _id: buyer._id },
+      { $set: { createdAt: new Date('2026-03-15T00:00:00.000Z') } }
+    );
+
+    const usersReq = createAuthenticatedRequest('http://localhost:3000/api/admin/users?state=Kano&year=2026&month=3&page=1&limit=10', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const usersRes = await import('@/app/api/admin/users/route').then((m) => m.GET(usersReq));
+    const usersData = await getResponseJson(usersRes as unknown as Response);
+    expect((usersRes as Response).status).toBe(200);
+    expect(usersData.data.some((item: any) => item.email === buyer.email)).toBe(true);
+
+    const customersReq = createAuthenticatedRequest('http://localhost:3000/api/customers?location=Kano&year=2026&month=3&page=1&limit=10', agent._id.toString(), {
+      method: 'GET',
+      role: 'agent',
+      email: agent.email
+    });
+    const customersRes = await import('@/app/api/customers/route').then((m) => m.GET(customersReq));
+    const customersData = await getResponseJson(customersRes as unknown as Response);
+    expect((customersRes as Response).status).toBe(200);
+    expect(customersData.data.customers.some((item: any) => item.email === buyer.email)).toBe(true);
+  });
+
+  it('computes non-placeholder admin overview deltas and exposes visitor proxy metrics', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: buyerOld } = await createBuyer();
+    const { user: buyerNew } = await createBuyer();
+    const { user: agent } = await createAgent();
+    const product = await createProduct({ owner: agent._id, name: 'Delta Rice' });
+    const oldOrder = await createOrder({
+      buyer: buyerOld._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 1000,
+      status: 'paid'
+    });
+    const newOrder = await createOrder({
+      buyer: buyerNew._id,
+      products: [{ product: product._id, quantity: 1 }],
+      totalAmount: 3000,
+      status: 'paid'
+    });
+    await createTransaction({ order: oldOrder._id, buyer: buyerOld._id, amount: 1000, status: 'approved' });
+    await createTransaction({ order: newOrder._id, buyer: buyerNew._id, amount: 3000, status: 'approved' });
+
+    const now = new Date();
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+    const fortyDaysAgo = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    await mongoose.connection.collection('users').updateMany(
+      { _id: { $in: [buyerNew._id, agent._id] } },
+      { $set: { createdAt: fiveDaysAgo, updatedAt: fiveDaysAgo } }
+    );
+    await mongoose.connection.collection('users').updateOne(
+      { _id: buyerOld._id },
+      { $set: { createdAt: fortyDaysAgo, updatedAt: fortyDaysAgo } }
+    );
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: newOrder._id },
+      { $set: { createdAt: fiveDaysAgo } }
+    );
+    await mongoose.connection.collection('orders').updateOne(
+      { _id: oldOrder._id },
+      { $set: { createdAt: fortyDaysAgo } }
+    );
+    await mongoose.connection.collection('transactions').updateOne(
+      { order: newOrder._id },
+      { $set: { createdAt: fiveDaysAgo } }
+    );
+    await mongoose.connection.collection('transactions').updateOne(
+      { order: oldOrder._id },
+      { $set: { createdAt: fortyDaysAgo } }
+    );
+
+    const overviewReq = createAuthenticatedRequest('http://localhost:3000/api/admin/dashboard/overview', admin._id.toString(), {
+      method: 'GET',
+      role: 'admin',
+      email: admin.email
+    });
+    const overviewRes = await import('@/app/api/admin/dashboard/overview/route').then((m) => m.GET(overviewReq));
+    const overviewData = await getResponseJson(overviewRes as unknown as Response);
+    expect((overviewRes as Response).status).toBe(200);
+    expect(typeof overviewData.data.users.deltaPercent).toBe('number');
+    expect(overviewData.data.users.deltaPercent).not.toBe(0);
+    expect(overviewData.data.payments.deltaPercent).not.toBe(0);
+    expect(overviewData.data.visitors.metricSource).toBe('user_activity_proxy');
+
+    const visitorsRes = await import('@/app/api/admin/dashboard/visitors/route').then((m) => m.GET(overviewReq));
+    const visitorsData = await getResponseJson(visitorsRes as unknown as Response);
+    expect((visitorsRes as Response).status).toBe(200);
+    expect(visitorsData.data.metricSource).toBe('user_activity_proxy');
+    expect(visitorsData.data.totalVisitors).toBeGreaterThan(0);
   });
 });

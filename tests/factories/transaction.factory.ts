@@ -7,6 +7,7 @@ export interface CreateTransactionOptions {
   amount?: number;
   status?: 'pending' | 'approved';
   paymentMethod?: string;
+  paymentReference?: string;
   approvedBy?: mongoose.Types.ObjectId | string;
 }
 
@@ -20,6 +21,7 @@ export async function createTransaction(options: CreateTransactionOptions = {}) 
     amount = Math.floor(Math.random() * 50000) + 1000,
     status = 'pending',
     paymentMethod = 'bank_transfer',
+    paymentReference = `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     ...rest
   } = options;
 
@@ -37,6 +39,7 @@ export async function createTransaction(options: CreateTransactionOptions = {}) 
     amount,
     status,
     paymentMethod,
+    paymentReference,
     ...rest,
   });
 

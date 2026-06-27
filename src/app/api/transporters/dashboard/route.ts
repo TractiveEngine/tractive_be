@@ -1,78 +1,36 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/dbConnect';
-import Transaction from '@/models/transaction';
-import Order from '@/models/order';
-import Truck from '@/models/truck';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import { getTransporterOverview } from '@/lib/transporterPortal';
 
 // GET /api/transporters/dashboard - Get transporter dashboard metrics
 export async function GET(request: Request) {
-  await dbConnect();
-
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
   if (!ensureActiveRole(user, 'transporter')) {
-    return NextResponse.json({ error: 'Only transporters can view dashboard' }, { status: 403 });
+    return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
   }
 
-  try {
-    // Get all transactions where transporter is involved
-    // Note: The current Transaction model doesn't have a payeeId field
-    // We'll calculate based on orders assigned to this transporter
-    const allOrders = await Order.find({ transporter: user._id });
-    const orderIds = allOrders.map(order => order._id);
-
-    // Get transactions for these orders
-    const transactions = await Transaction.find({ 
-      order: { $in: orderIds }
-    });
-
-    // Calculate total revenue from approved transactions
-    const totalRevenue = transactions
-      .filter(t => t.status === 'approved')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    // Count active orders (pending, paid, not delivered)
-    const activeOrders = allOrders.filter(order => 
-      order.status !== 'delivered' && order.transportStatus !== 'delivered'
-    ).length;
-
-    // Count completed orders (delivered)
-    const completedOrders = allOrders.filter(order => 
-      order.status === 'delivered' || order.transportStatus === 'delivered'
-    ).length;
-
-    // Get fleet information
-    const trucks = await Truck.find({ transporter: user._id });
-    const totalFleet = trucks.length;
-
-    // Calculate fleet status (simplified - based on whether assigned to driver)
-    const fleetStatus = {
-      available: trucks.filter(t => !t.assignedDriver).length,
-      on_transit: trucks.filter(t => t.assignedDriver).length,
-      under_maintenance: 0 // This would need a maintenance field in the Truck model
-    };
-
-    // Get unique buyers served
-    const uniqueBuyerIds = new Set(allOrders.map(order => order.buyer.toString()));
-    const customersServed = uniqueBuyerIds.size;
-
-    return NextResponse.json({ 
-      success: true, 
-      data: {
-        totalRevenue,
-        activeOrders,
-        completedOrders,
-        totalFleet,
-        fleetStatus,
-        customersServed
-      }
-    }, { status: 200 });
-
-  } catch (error) {
-    console.error('Error fetching dashboard:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+  const overview = await getTransporterOverview(user._id.toString());
+  return NextResponse.json({
+    success: true,
+    data: {
+      totalRevenue: overview.revenue,
+      activeOrders: overview.transit.length,
+      completedOrders: Math.max(0, overview.bookings - overview.transit.length),
+      totalFleet: overview.fleets,
+      fleetStatus: {
+        available: Math.max(0, overview.fleets - overview.transit.length),
+        on_transit: overview.transit.length,
+        under_maintenance: 0
+      },
+      customersServed: overview.topCustomers.length,
+      revenue: overview.revenue,
+      bookings: overview.bookings,
+      drivers: overview.drivers,
+      fleets: overview.fleets,
+      deltas: overview.deltas
+    }
+  }, { status: 200 });
 }

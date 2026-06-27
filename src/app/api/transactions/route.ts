@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
   }
 
-  const { order: orderId, amount, paymentMethod } = await request.json();
+  const { order: orderId, amount, paymentMethod, paymentReference } = await request.json();
   if (!orderId || !amount) {
     return NextResponse.json({ error: 'Order and amount required' }, { status: 400 });
   }
@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     buyer: user._id,
     amount,
     paymentMethod,
+    paymentReference: paymentReference || `PAY-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     status: 'pending'
   });
 
