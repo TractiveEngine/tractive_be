@@ -24,6 +24,9 @@ export async function GET(request: Request) {
     const agentApprovalStatus = searchParams.get('agentApprovalStatus'); // pending, approved, rejected
     const transporterApprovalStatus = searchParams.get('transporterApprovalStatus'); // pending, approved, rejected
     const search = searchParams.get('search'); // name or email search
+    const state = searchParams.get('state');
+    const year = searchParams.get('year');
+    const month = searchParams.get('month');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -53,6 +56,26 @@ export async function GET(request: Request) {
         { email: { $regex: search, $options: 'i' } },
         { businessName: { $regex: search, $options: 'i' } }
       ];
+    }
+
+    if (state) {
+      query.state = { $regex: state, $options: 'i' };
+    }
+
+    if (year || month) {
+      const createdAt: Record<string, Date> = {};
+      const parsedYear = year ? Number(year) : undefined;
+      const parsedMonth = month ? Number(month) : undefined;
+      if (parsedYear && parsedMonth && parsedMonth >= 1 && parsedMonth <= 12) {
+        createdAt.$gte = new Date(parsedYear, parsedMonth - 1, 1);
+        createdAt.$lt = new Date(parsedYear, parsedMonth, 1);
+      } else if (parsedYear) {
+        createdAt.$gte = new Date(parsedYear, 0, 1);
+        createdAt.$lt = new Date(parsedYear + 1, 0, 1);
+      }
+      if (Object.keys(createdAt).length > 0) {
+        query.createdAt = createdAt;
+      }
     }
 
     // Get users

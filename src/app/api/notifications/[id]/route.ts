@@ -1,35 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Notification from '@/models/notification';
-import User from '@/models/user';
-import jwt from 'jsonwebtoken';
+import { getAuthUser } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
-
-type JwtUserPayload = {
-  userId: string;
-  email?: string;
-  iat?: number;
-  exp?: number;
-};
-
-function isJwtUserPayload(p: unknown): p is JwtUserPayload {
-  return typeof p === 'object' && p !== null && 'userId' in p && typeof (p as JwtUserPayload).userId === 'string';
-}
-
-function getUserFromRequest(request: Request): JwtUserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice('Bearer '.length).trim();
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string' || !isJwtUserPayload(decoded)) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
 
 // PATCH /api/notifications/[id] - Mark single notification as read/unread
 export async function PATCH(
@@ -38,8 +11,8 @@ export async function PATCH(
 ) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
@@ -67,7 +40,7 @@ export async function PATCH(
     // Find notification
     const notification = await Notification.findOne({
       _id: id,
-      user: userData.userId
+      user: user._id
     });
 
     if (!notification) {
@@ -103,8 +76,8 @@ export async function DELETE(
 ) {
   await dbConnect();
 
-  const userData = getUserFromRequest(request);
-  if (!userData) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
@@ -122,7 +95,7 @@ export async function DELETE(
     // Delete notification (only if it belongs to the user)
     const result = await Notification.deleteOne({
       _id: id,
-      user: userData.userId
+      user: user._id
     });
 
     if (result.deletedCount === 0) {

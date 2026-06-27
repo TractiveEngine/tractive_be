@@ -34,8 +34,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search');
   const name = searchParams.get('name');
-  const state = searchParams.get('state');
+  const state = searchParams.get('state') || searchParams.get('location');
   const year = searchParams.get('year');
+  const month = searchParams.get('month');
   const page = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '20');
   const skip = (page - 1) * limit;
@@ -50,13 +51,19 @@ export async function GET(request: Request) {
   }
   if (name) userQuery.name = { $regex: name, $options: 'i' };
   if (state) userQuery.state = { $regex: state, $options: 'i' };
-  if (year) {
-    const y = Number(year);
-    if (!Number.isNaN(y)) {
-      userQuery.createdAt = {
-        $gte: new Date(Date.UTC(y, 0, 1)),
-        $lt: new Date(Date.UTC(y + 1, 0, 1))
-      };
+  if (year || month) {
+    const createdAt: Record<string, Date> = {};
+    const y = year ? Number(year) : undefined;
+    const m = month ? Number(month) : undefined;
+    if (y && m && m >= 1 && m <= 12) {
+      createdAt.$gte = new Date(Date.UTC(y, m - 1, 1));
+      createdAt.$lt = new Date(Date.UTC(y, m, 1));
+    } else if (y && !Number.isNaN(y)) {
+      createdAt.$gte = new Date(Date.UTC(y, 0, 1));
+      createdAt.$lt = new Date(Date.UTC(y + 1, 0, 1));
+    }
+    if (Object.keys(createdAt).length > 0) {
+      userQuery.createdAt = createdAt;
     }
   }
 

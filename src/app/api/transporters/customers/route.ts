@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Order from '@/models/order';
-import NegotiationOffer from '@/models/negotiation';
-import ShippingRequest from '@/models/shipping';
-import FleetTrip from '@/models/fleetTrip';
-import FleetBooking from '@/models/fleetBooking';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import { getTransporterCustomerSummaries } from '@/lib/transporterPortal';
 
 // GET /api/transporters/customers - Get list of customers served by transporter
 export async function GET(request: Request) {
@@ -20,102 +16,33 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get buyers from orders assigned to this transporter
-    const orders = await Order.find({ transporter: user._id })
-      .populate('buyer', 'name email businessName phone');
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
+    const search = searchParams.get('search');
+    const year = searchParams.get('year');
+    const month = searchParams.get('month');
+    const allCustomers = await getTransporterCustomerSummaries(user._id.toString(), {
+      search,
+      year,
+      month
+    });
+    const total = allCustomers.length;
+    const start = (page - 1) * limit;
+    const customers = allCustomers.slice(start, start + limit);
 
-    // Get buyers from accepted negotiations
-    const acceptedNegotiations = await NegotiationOffer.find({
-      transporter: user._id,
-      negotiationStatus: 'accepted'
-    }).populate('shippingRequest');
-
-    const shippingRequestIds = acceptedNegotiations.map(n => n.shippingRequest._id);
-    const shippingRequests = await ShippingRequest.find({
-      _id: { $in: shippingRequestIds }
-    }).populate('buyer', 'name email businessName phone');
-
-    const [trips, bookings] = await Promise.all([
-      FleetTrip.find({ transporter: user._id })
-        .populate('buyerIds', 'name email businessName phone'),
-      FleetBooking.find({ transporter: user._id, status: { $in: ['confirmed', 'completed'] } })
-        .populate('buyer', 'name email businessName phone')
-    ]);
-
-    // Combine and deduplicate buyers
-    const buyerMap = new Map();
-
-    // Add buyers from orders
-    orders.forEach(order => {
-      if (order.buyer) {
-        const buyerId = order.buyer._id.toString();
-        if (!buyerMap.has(buyerId)) {
-          buyerMap.set(buyerId, {
-            buyerId: order.buyer._id,
-            name: order.buyer.name || order.buyer.businessName || 'Unknown',
-            email: order.buyer.email,
-            ordersCount: 0
-          });
-        }
-        buyerMap.get(buyerId).ordersCount++;
+    return NextResponse.json({
+      success: true,
+      data: customers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
       }
-    });
-
-    // Add buyers from shipping requests
-    shippingRequests.forEach(request => {
-      if (request.buyer) {
-        const buyerId = request.buyer._id.toString();
-        if (!buyerMap.has(buyerId)) {
-          buyerMap.set(buyerId, {
-            buyerId: request.buyer._id,
-            name: request.buyer.name || request.buyer.businessName || 'Unknown',
-            email: request.buyer.email,
-            ordersCount: 0
-          });
-        }
-        // Count shipping requests as orders
-        buyerMap.get(buyerId).ordersCount++;
-      }
-    });
-
-    trips.forEach((trip: any) => {
-      (trip.buyerIds || []).forEach((buyer: any) => {
-        const buyerId = buyer._id.toString();
-        if (!buyerMap.has(buyerId)) {
-          buyerMap.set(buyerId, {
-            buyerId: buyer._id,
-            name: buyer.name || buyer.businessName || 'Unknown',
-            email: buyer.email,
-            ordersCount: 0
-          });
-        }
-      });
-    });
-
-    bookings.forEach((booking: any) => {
-      if (booking.buyer) {
-        const buyerId = booking.buyer._id.toString();
-        if (!buyerMap.has(buyerId)) {
-          buyerMap.set(buyerId, {
-            buyerId: booking.buyer._id,
-            name: booking.buyer.name || booking.buyer.businessName || 'Unknown',
-            email: booking.buyer.email,
-            ordersCount: 0
-          });
-        }
-        buyerMap.get(buyerId).ordersCount++;
-      }
-    });
-
-    const customers = Array.from(buyerMap.values());
-
-    return NextResponse.json({ 
-      success: true, 
-      data: customers 
     }, { status: 200 });
-
   } catch (error) {
     console.error('Error fetching customers:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }

@@ -361,7 +361,13 @@ paths:
   /api/categories:
     get:
       summary: List supported product categories and subcategories
+      description: Default response returns the simple category tree. Use `withSubcategories=true` to get frontend-friendly ids on both categories and subcategories.
       security: []
+      parameters:
+        - in: query
+          name: withSubcategories
+          schema:
+            type: boolean
       responses:
         '200':
           description: Category tree for buyer and seller filters
@@ -2158,6 +2164,80 @@ paths:
                     lat: 6.4499
                     lng: 7.5000
                     label: "Enugu"
+  /api/transporters/orders:
+    get:
+      summary: List transporter delivery orders
+      description: Returns the authenticated transporter's delivery-board orders. Supports the frontend status tabs `new`, `picked`, `on_transit`, and `delivered`, plus `search`, `year`, `month`, `page`, and `limit`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [new, picked, on_transit, delivered]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated transporter order list with buyer, fleet, route, timeline, and payment method data
+  /api/transporters/orders/{orderId}/locations:
+    post:
+      summary: Push live location for an order
+      description: Persists a transporter/admin GPS ping. For trip-backed orders this updates the linked fleet trip coordinates and adds a tracking event.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat:
+                  type: number
+                lng:
+                  type: number
+                location:
+                  type: string
+                note:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+            example:
+              lat: 7.3775
+              lng: 3.947
+              location: "Ibadan toll gate"
+              note: "GPS ping"
+      responses:
+        '200':
+          description: Updated live location snapshot
                   currentLocationLabel: "Enugu"
                   lastUpdatedAt: "2026-03-24T14:30:00.000Z"
                   pickedAt: "2026-03-24T08:15:00.000Z"
@@ -3436,7 +3516,7 @@ paths:
           description: List of transactions
     post:
       summary: Create transaction for paid order
-      description: Use this after creating an order. This endpoint records the buyer payment intent for an order. It requires `activeRole` `buyer`, requires `amount` to exactly match `order.totalAmount`, and reuses any existing pending or approved transaction for the same order instead of creating duplicates.
+      description: Use this after creating an order. This endpoint records the buyer payment intent for an order. It requires `activeRole` `buyer`, requires `amount` to exactly match `order.totalAmount`, and reuses any existing pending or approved transaction for the same order instead of creating duplicates. The backend stores a `paymentReference` that can later be used with `POST /api/payments/{paymentRef}/confirm`.
       security:
         - bearerAuth: []
       requestBody:
@@ -3449,9 +3529,48 @@ paths:
               order: "507f1f77bcf86cd799439014"
               amount: 50000
               paymentMethod: "wallet"
+              paymentReference: "PAY-20260627-1001"
       responses:
         '201':
           description: Transaction created
+  /api/payment/bank-accounts:
+    get:
+      summary: List bank accounts for manual payment
+      security: []
+      responses:
+        '200':
+          description: Manual transfer bank accounts for buyer payment screens
+  /api/payments/{paymentRef}/confirm:
+    post:
+      summary: Confirm manual payment by payment reference
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: paymentRef
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bankUsed:
+                  type: string
+                narration:
+                  type: string
+                screenshotUrl:
+                  type: string
+            example:
+              bankUsed: "Access Bank"
+              narration: "Manual transfer"
+              screenshotUrl: "https://example.com/proof.png"
+      responses:
+        '200':
+          description: Payment confirmation stored on the transaction
   /api/transactions/{id}:
     get:
       summary: Get transaction by ID
@@ -3729,7 +3848,7 @@ paths:
   /api/transporters:
     get:
       summary: List transporters
-      description: Buyer/admin transporter discovery endpoint for the transporter listing page. Returns transporter profile plus summary metrics like rating, reviewsCount, totalSales, deliveriesCount, location, and years of experience. Supports buyer-side filtering by transporter rating, Nigerian state/location, years of experience, and fleet availability/size.
+      description: Buyer/admin transporter discovery endpoint for the transporter listing page. Returns transporter profile plus summary metrics like rating, reviewsCount, totalSales, deliveriesCount, location, years of experience, coverageStates, and customersCount. Supports buyer-side filtering by transporter rating, Nigerian state/location, years of experience, and fleet availability/size.
       parameters:
         - in: query
           name: search
@@ -3820,6 +3939,12 @@ paths:
                             yearsOfExperience:
                               type: integer
                             matchingFleetCount:
+                              type: integer
+                            coverageStates:
+                              type: array
+                              items:
+                                type: string
+                            customersCount:
                               type: integer
               example:
                 success: true
@@ -4845,9 +4970,43 @@ paths:
   /api/transporters/dashboard/revenue:
     get:
       summary: Transporter revenue
+      description: Returns the authenticated transporter's approved transport revenue. Optional `from` and `to` ISO dates narrow the dataset and response includes both `totalRevenue` and chart-friendly `data`.
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
       responses:
         '200':
           description: Revenue stats
+  /api/transporters/dashboard/overview:
+    get:
+      summary: Transporter dashboard overview
+      description: Returns overview cards for the authenticated transporter dashboard.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Overview stats including revenue, bookings, drivers, fleets, and deltas
+  /api/transporters/dashboard/most-hired-drivers:
+    get:
+      summary: Most hired transporter drivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ranked driver list for the transporter dashboard
   /api/transporters/dashboard/customers:
     get:
       summary: Transporter customers
@@ -4893,6 +5052,11 @@ paths:
   /api/transporters/dashboard/top-customers:
     get:
       summary: Transporter top customers
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
           description: Top customers
@@ -4911,6 +5075,24 @@ paths:
       responses:
         '200':
           description: Trucks on transit
+  /api/transporters/dashboard/transit:
+    get:
+      summary: Transporter transit board
+      description: Returns active fleet trips for the authenticated transporter. `status=in_progress` expands to planned, loaded, on_transit, and arrived.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Active trip list for the dashboard transit widget
   /api/admin/dashboard/registered-users:
     get:
       summary: Admin registered users stats
@@ -4941,6 +5123,192 @@ paths:
       responses:
         '200':
           description: Revenue chart
+  /api/admin/dashboard/overview:
+    get:
+      summary: Admin dashboard overview cards
+      description: Returns `{ users, payments, orders, visitors }`, each as `{ value, deltaPercent }`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Overview metrics for users, payments, orders, and visitors
+  /api/admin/dashboard/revenue:
+    get:
+      summary: Admin dashboard revenue series
+      description: Returns admin revenue chart points in `{ date, value }` format. Accepts optional `period`, `from`, and `to` query params for frontend compatibility.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum: [month, year]
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Revenue chart points in `{ date, value }` format
+  /api/admin/dashboard/top-agents:
+    get:
+      summary: Admin dashboard top agents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Top agents list
+  /api/admin/dashboard/top-buyers:
+    get:
+      summary: Admin dashboard top buyers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Top buyers list
+  /api/admin/dashboard/top-transporters:
+    get:
+      summary: Admin dashboard top transporters
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Top transporters list
+  /api/admin/orders/track/agent:
+    get:
+      summary: Admin agent-side order tracking list
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, payment_pending, paid, delivered]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated admin oversight list for seller/agent order flow
+  /api/admin/orders/track/transporter:
+    get:
+      summary: Admin transporter-side order tracking list
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, picked, on_transit, delivered]
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated admin oversight list for transport execution
+  /api/admin/orders/{orderId}/buyer-info:
+    get:
+      summary: Admin order buyer info
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Buyer profile attached to the order
+  /api/admin/orders/{orderId}/seller-info:
+    get:
+      summary: Admin order seller info
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seller or agent profiles attached to the order items
+  /api/admin/orders/{orderId}/transporter-info:
+    get:
+      summary: Admin order transporter info
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assigned transporter profile for the order
+  /api/admin/orders/{orderId}/tracking:
+    get:
+      summary: Admin order tracking timeline
+      description: Admin alias of the shared order tracking read endpoint.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tracking timeline with current location and stage timestamps
   /api/admin/top-buyers:
     get:
       summary: Admin top buyers
@@ -5283,6 +5651,7 @@ paths:
   /api/customers:
     get:
       summary: List customers (buyers)
+      description: Admin or agent customer list. Supports `search`, `name`, `state`, `location` alias, `year`, `month`, `page`, and `limit`.
       parameters:
         - in: query
           name: page
@@ -5305,12 +5674,126 @@ paths:
           schema:
             type: string
         - in: query
+          name: location
+          schema:
+            type: string
+          description: Alias of `state` for frontend compatibility.
+        - in: query
           name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
           schema:
             type: integer
       responses:
         '200':
           description: Customers list
+
+  /api/admin/approvals:
+    get:
+      summary: Generic admin approvals list
+      security:
+        - bearerAuth: []
+      description: Frontend-compatibility approvals list. Use `type=agent|transporter|farmer`, optional `status=pending|approved|declined`, plus `search`, `state`, `year`, `month`, `page`, and `limit`.
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [agent, transporter, farmer]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, declined, rejected]
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated approvals list
+
+  /api/admin/approvals/{id}/approve:
+    post:
+      summary: Generic admin approval action
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [agent, transporter, farmer]
+                note:
+                  type: string
+            example:
+              type: "agent"
+              note: "Verified documents"
+      responses:
+        '200':
+          description: Approval target approved
+
+  /api/admin/approvals/{id}/decline:
+    post:
+      summary: Generic admin decline action
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [agent, transporter, farmer]
+                reason:
+                  type: string
+            example:
+              type: "farmer"
+              reason: "Incomplete KYC"
+      responses:
+        '200':
+          description: Approval target declined
 
   /api/admin/approvals/agents:
       get:
@@ -5631,6 +6114,18 @@ paths:
           name: search
           schema:
             type: string
+        - in: query
+          name: state
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
         - in: query
           name: page
           schema:
@@ -6302,9 +6797,26 @@ paths:
   /api/notifications:
     get:
       summary: GET /api/notifications
-      description: Authenticated user notification list. Uses the bearer token user identity directly; no specific active role is required.
+      description: Authenticated user notification list. Uses the bearer token user identity directly; no specific active role is required. Supports both `isRead=true|false` and buyer-frontend-friendly `unread=true`.
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: isRead
+          schema:
+            type: boolean
+        - in: query
+          name: unread
+          schema:
+            type: boolean
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
           description: Success
@@ -6324,6 +6836,30 @@ paths:
       responses:
         '200':
           description: Success
+
+  /api/notifications/stream:
+    get:
+      summary: Live notification stream
+      description: Server-Sent Events stream for the authenticated user's notifications. Emits `connected`, then `snapshot`, then incremental `notifications` events. Supports `unread=true`, `limit`, and optional ISO `since` cursor.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: unread
+          schema:
+            type: boolean
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: since
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Text/event-stream response with notification frames
 
   /api/notifications/{id}:
     delete:
@@ -6478,6 +7014,135 @@ paths:
       responses:
         '201':
           description: Success
+  /api/reviews/summary:
+    get:
+      summary: Get aggregated review summary
+      description: Returns summary metrics for an agent or transporter review page. Pass `agentId` for public or buyer/admin lookups. Authenticated self-view for agent/transporter/admin can omit it.
+      parameters:
+        - in: query
+          name: agentId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aggregated review summary with rating distribution and recent reviewers
+  /api/agents/me:
+    get:
+      summary: Get current agent session profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated agent profile summary
+  /api/agents/dashboard/overview:
+    get:
+      summary: Agent dashboard overview
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Agent overview cards for revenue, orders, customers, and products
+  /api/agents/dashboard/revenue:
+    get:
+      summary: Agent dashboard revenue series
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Agent revenue chart points
+  /api/agents/dashboard/top-customers:
+    get:
+      summary: Agent top customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Top customers served by the agent
+  /api/agents/dashboard/most-sold-items:
+    get:
+      summary: Agent most sold items
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Best-selling items for the agent
+  /api/agents/dashboard/most-sold-categories:
+    get:
+      summary: Agent most sold categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category mix with percentage split
+  /api/agents/dashboard/out-of-stock:
+    get:
+      summary: Agent out-of-stock products
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Out-of-stock widget feed
+  /api/agents/orders/{orderId}:
+    get:
+      summary: Agent order detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Full order detail for an agent-owned order item, including buyer, transporter, fleet, and route context
+  /api/agents/orders/{orderId}/tracking:
+    get:
+      summary: Agent order tracking detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Picked/on-transit/delivered timestamps plus route markers for the agent tracking screen
+  /api/buyers/banners:
+    get:
+      summary: List buyer homepage banners
+      security: []
+      responses:
+        '200':
+          description: Buyer marketing banners
 
   /api/shipping:
     get:
@@ -6574,23 +7239,113 @@ paths:
   /api/transporters/customers:
     get:
       summary: Get transporter customers
-      description: Returns the authenticated transporter's customers. Requires bearer auth with `activeRole` set to `transporter`. Customers are derived from orders assigned to the transporter, accepted negotiations/shipping requests, trips, and confirmed bookings.
+      description: Returns the authenticated transporter's customers. Supports `search`, `year`, `month`, `page`, and `limit`. Customers are derived from orders, confirmed bookings, and trips linked to the transporter.
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
       responses:
         '200':
-          description: Customer list
+          description: Paginated customer list
           content:
             application/json:
               example:
                 success: true
                 data:
-                  - buyerId: "67debuyer1234567890abc1"
+                  - id: "67debuyer1234567890abc1"
                     name: "Buyer One"
                     email: "buyer@example.com"
-                    ordersCount: 3
+                    mobile: "+2348000000000"
+                    orders: 3
+                    revenue: 420000
+                    date: "2026-06-12T10:30:00.000Z"
         '403':
           description: Only transporters can use this route
+  /api/transporters/customers/{id}:
+    get:
+      summary: Get transporter customer detail
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer profile with recent orders, bookings, and trips
+  /api/transporters/customers/{id}/chat:
+    post:
+      summary: Open transporter support chat with a customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: string
+                message:
+                  type: string
+            example:
+              subject: "Support"
+              message: "Checking in on your delivery"
+      responses:
+        '201':
+          description: Returns a conversation id for the support modal
+  /api/transporters/{id}/reviews/summary:
+    get:
+      summary: Get transporter review summary
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Aggregated rating summary for a transporter
+  /api/states:
+    get:
+      summary: List supported Nigerian states
+      responses:
+        '200':
+          description: State reference data
+  /api/transporters/fleet-statuses:
+    get:
+      summary: List transporter fleet statuses
+      responses:
+        '200':
+          description: Fleet status reference data
 
   /api/transporters/dashboard:
     get:

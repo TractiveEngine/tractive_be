@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     
     // Query parameters
     const isRead = searchParams.get('isRead');
+    const unread = searchParams.get('unread');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const skip = (page - 1) * limit;
@@ -24,7 +25,9 @@ export async function GET(request: Request) {
     // Build query
     const query: any = { user: user._id };
     
-    if (isRead !== null && isRead !== undefined) {
+    if (unread === 'true') {
+      query.isRead = false;
+    } else if (isRead !== null && isRead !== undefined) {
       query.isRead = isRead === 'true';
     }
 
@@ -42,6 +45,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      data: notifications,
       notifications,
       unreadCount,
       pagination: {

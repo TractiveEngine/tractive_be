@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
-import { getTransporterDashboardData } from '@/lib/transporterDashboard';
+import { getTransporterOverview } from '@/lib/transporterPortal';
 
 export async function GET(request: Request) {
   const user = await getAuthUser(request);
@@ -11,6 +11,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Transporter access required' }, { status: 403 });
   }
 
-  const data = await getTransporterDashboardData(user._id.toString());
-  return NextResponse.json({ success: true, data: data.topCustomers }, { status: 200 });
+  const { searchParams } = new URL(request.url);
+  const limit = Math.min(20, Math.max(1, Number(searchParams.get('limit')) || 5));
+  const data = await getTransporterOverview(user._id.toString());
+  return NextResponse.json({ success: true, data: data.topCustomers.slice(0, limit) }, { status: 200 });
 }

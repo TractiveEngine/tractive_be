@@ -95,6 +95,37 @@ export async function GET(request: Request) {
   const reviewMap = new Map(reviewStats.map((item) => [item._id.toString(), item]));
   const deliveryMap = new Map(deliveryStats.map((item) => [item._id.toString(), item]));
   const fleetCoverageMap = new Map(fleetCoverage.map((item: any) => [item._id.toString(), item.matches]));
+  const customerCountMap = new Map<string, number>();
+  const coverageStatesMap = new Map<string, Set<string>>();
+
+  const fleets = await Truck.find({ transporter: { $in: transporterIds } })
+    .select('transporter route')
+    .lean();
+  for (const fleet of fleets as any[]) {
+    const transporterId = fleet.transporter?.toString?.();
+    if (!transporterId) continue;
+    if (!coverageStatesMap.has(transporterId)) coverageStatesMap.set(transporterId, new Set<string>());
+    if (fleet.route?.fromState) coverageStatesMap.get(transporterId)!.add(fleet.route.fromState);
+    if (fleet.route?.toState) coverageStatesMap.get(transporterId)!.add(fleet.route.toState);
+  }
+
+  const orders = await Order.find({ transporter: { $in: transporterIds } })
+    .select('transporter buyer')
+    .lean();
+  for (const order of orders as any[]) {
+    const transporterId = order.transporter?.toString?.();
+    const buyerId = order.buyer?.toString?.();
+    if (!transporterId || !buyerId) continue;
+    if (!customerCountMap.has(transporterId)) customerCountMap.set(transporterId, 0);
+  }
+  const uniqueCustomersByTransporter = new Map<string, Set<string>>();
+  for (const order of orders as any[]) {
+    const transporterId = order.transporter?.toString?.();
+    const buyerId = order.buyer?.toString?.();
+    if (!transporterId || !buyerId) continue;
+    if (!uniqueCustomersByTransporter.has(transporterId)) uniqueCustomersByTransporter.set(transporterId, new Set<string>());
+    uniqueCustomersByTransporter.get(transporterId)!.add(buyerId);
+  }
 
   let data = transporters.map((transporter) => {
     const transporterId = transporter._id.toString();
@@ -112,6 +143,8 @@ export async function GET(request: Request) {
       yearsOfExperience,
       location: transporter.state || transporter.address || null,
       matchingFleetCount: fleetCoverageMap.get(transporterId) ?? 0,
+      coverageStates: Array.from(coverageStatesMap.get(transporterId) || []),
+      customersCount: (uniqueCustomersByTransporter.get(transporterId) || new Set()).size,
     };
   });
 
