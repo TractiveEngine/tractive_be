@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBid from '@/models/fleetBid';
 import FleetPayment from '@/models/fleetPayment';
@@ -34,7 +39,7 @@ export async function GET(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
 
   const { id } = await Promise.resolve(params);
@@ -55,7 +60,7 @@ export async function GET(
       return NextResponse.json({ success: false, message: 'Not authorized for this fleet' }, { status: 403 });
     }
   } else if (!ensureActiveRole(user, 'admin')) {
-    return NextResponse.json({ success: false, message: 'Buyer, transporter, or admin access required' }, { status: 403 });
+    return roleAccessRequiredResponse(['buyer', 'transporter', 'admin']);
   }
 
   const payments = await FleetPayment.find(query)
@@ -74,8 +79,11 @@ export async function POST(
 ) {
   await dbConnect();
   const user = await getAuthUser(request);
-  if (!user || !ensureActiveRole(user, 'buyer')) {
-    return NextResponse.json({ success: false, message: 'Buyer access required' }, { status: 403 });
+  if (!user) {
+    return authenticationRequiredResponse();
+  }
+  if (!ensureActiveRole(user, 'buyer')) {
+    return roleAccessRequiredResponse('buyer');
   }
 
   const { id } = await Promise.resolve(params);

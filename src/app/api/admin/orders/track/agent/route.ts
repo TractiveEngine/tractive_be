@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import Product from '@/models/product';
 import Order from '@/models/order';
 import dbConnect from '@/lib/dbConnect';
 import { requireAdmin } from '@/lib/apiAdmin';
+import '@/models/user';
+import '@/models/product';
 
 export async function GET(request: Request) {
   await dbConnect();
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
 
   const filtered = orders.filter((order: any) => {
     const ownerNames = (order.products || []).map((item: any) => item?.product?.owner?.name || item?.product?.owner?.businessName);
-    const searchPool = [order._id.toString(), order.buyer?.name, order.buyer?.businessName, ...ownerNames];
+    const searchPool = [String(order?._id || ''), order.buyer?.name, order.buyer?.businessName, ...ownerNames];
     return !search || searchPool.some((value) => String(value || '').toLowerCase().includes(search.toLowerCase()));
   });
 
@@ -72,4 +73,3 @@ export async function GET(request: Request) {
     pagination: { page, limit, total }
   }, { status: 200 });
 }
-

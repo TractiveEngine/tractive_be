@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import dbConnect from './dbConnect';
 import User from '@/models/user';
 import { verifyToken } from './auth';
@@ -8,15 +9,12 @@ type ApprovalAwareUser = {
   activeRole?: Role | null;
   agentApprovalStatus?: string | null;
   transporterApprovalStatus?: string | null;
+  tokenVersion?: number | null;
 };
 
-export async function getAuthUser(request: Request) {
+export async function getAuthUserFromToken(token: string | null | undefined) {
   await dbConnect();
-
-  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-
-  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) return null;
   const decoded = verifyToken(token);
   if (!decoded?.userId) return null;
   const user = await User.findById(decoded.userId);
@@ -25,6 +23,14 @@ export async function getAuthUser(request: Request) {
     return null;
   }
   return user;
+}
+
+export async function getAuthUser(request: Request) {
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+
+  const token = authHeader.slice('Bearer '.length).trim();
+  return getAuthUserFromToken(token);
 }
 
 export function isRoleApproved(user: ApprovalAwareUser | null | undefined, role: Role) {
@@ -40,4 +46,26 @@ export function hasRole(user: ApprovalAwareUser | null | undefined, role: Role) 
 
 export function ensureActiveRole(user: ApprovalAwareUser | null | undefined, role: Role) {
   return user?.activeRole === role && hasRole(user, role);
+}
+
+export function authenticationRequiredResponse() {
+  return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+}
+
+export function roleAccessRequiredResponse(roles: Role | Role[]) {
+  const roleList = Array.isArray(roles) ? roles : [roles];
+  const labels = roleList.map((role) => role.charAt(0).toUpperCase() + role.slice(1));
+  const message =
+    labels.length === 1
+      ? `${labels[0]} access required`
+      : `${labels.slice(0, -1).join(', ')}, or ${labels[labels.length - 1]} access required`;
+  return NextResponse.json({ success: false, message }, { status: 403 });
+}
+
+export function approvalRequiredResponse(role: Extract<Role, 'agent' | 'transporter'>) {
+  const label = role.charAt(0).toUpperCase() + role.slice(1);
+  return NextResponse.json(
+    { success: false, message: `${label} account is awaiting admin approval` },
+    { status: 403 }
+  );
 }

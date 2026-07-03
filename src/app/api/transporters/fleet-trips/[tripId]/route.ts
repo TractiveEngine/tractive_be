@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import '@/models/truck';
 import '@/models/order';
 import '@/models/driver';
 import '@/models/fleetBooking';
 import { buildFleetTripLoadMeta } from '@/lib/fleetTrip';
-import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
+import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummaryWithStats } from '@/lib/fleetTripView';
 
 function getDocId(value: any) {
   return value?._id?.toString?.() || value?.toString?.() || null;
@@ -20,7 +25,7 @@ async function serializeTrip(trip: any) {
   return {
     ...tripObject,
     ...buildFleetTripLoadMeta(tripObject.loadWeightKg),
-    transporter: buildTransporterSummary(tripObject.transporter),
+    transporter: await buildTransporterSummaryWithStats(tripObject.transporter),
     buyers: buildBuyerSummaries(tripObject.buyerIds),
     packages,
     packageCount: packages.length,
@@ -36,7 +41,7 @@ export async function GET(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
 
   const { tripId } = await Promise.resolve(params);
@@ -59,7 +64,7 @@ export async function GET(
   const isAdmin = ensureActiveRole(user, 'admin');
   const isBuyer = ensureActiveRole(user, 'buyer') && trip.buyerIds.some((buyer: any) => buyer._id.toString() === user._id.toString());
   if (!isTransporter && !isAdmin && !isBuyer) {
-    return NextResponse.json({ success: false, message: 'Not authorized for this fleet trip' }, { status: 403 });
+    return roleAccessRequiredResponse(['buyer', 'transporter', 'admin']);
   }
 
   return NextResponse.json({ success: true, data: await serializeTrip(trip) }, { status: 200 });

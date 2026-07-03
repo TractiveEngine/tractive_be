@@ -27,6 +27,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const farmers = await Farmer.find({ createdBy: id });
   const followersCount = await SellerFollow.countDocuments({ seller: seller._id });
+  const isFollowing = !!(authUser
+    ? await SellerFollow.exists({ seller: seller._id, buyer: authUser._id })
+    : false);
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
@@ -62,6 +65,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ]);
   const averageRating = ratingAgg[0]?.averageRating ?? 0;
   const totalReviews = ratingAgg[0]?.totalReviews ?? 0;
+  const ratingDistributionAgg = await Review.aggregate([
+    { $match: { agent: seller._id } },
+    {
+      $group: {
+        _id: '$rating',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  const ratingDistributionMap = new Map(
+    ratingDistributionAgg.map((row: any) => [Number(row._id), Number(row.count || 0)])
+  );
+  const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => {
+    const count = ratingDistributionMap.get(rating) || 0;
+    return {
+      rating,
+      count,
+      percentage: totalReviews > 0 ? Number(((count / totalReviews) * 100).toFixed(1)) : 0
+    };
+  });
   const rateStatus =
     averageRating >= 4.5 ? 'Excellent' :
     averageRating >= 3.5 ? 'Good' :
@@ -137,6 +160,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         image: seller.image || null,
         location: [seller.state, seller.country].filter(Boolean).join(', ') || null,
         followersCount,
+        isFollowing,
         email: seller.email,
         phoneNumbers: seller.phone ? [seller.phone] : [],
         yearsOfExperience,
@@ -147,6 +171,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         averageRating,
         rateStatus,
         totalReviews,
+        ratingDistribution,
         customerNumber,
         amountOfSales,
         roles: seller.roles,

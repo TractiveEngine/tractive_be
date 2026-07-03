@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
 import '@/models/truck';
 import '@/models/order';
 import '@/models/driver';
 import '@/models/fleetBooking';
-import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
+import { buildBuyerSummaries, buildFleetTripPackages, buildTransporterSummaryWithStats } from '@/lib/fleetTripView';
 import { buildTrackingSummaryFromEvents, computeEstimatedDeliveryDate } from '@/lib/orderView';
 
 function getDocId(value: any) {
@@ -22,7 +27,7 @@ export async function GET(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
 
   const { tripId } = await Promise.resolve(params);
@@ -45,7 +50,7 @@ export async function GET(
   const isAdmin = ensureActiveRole(user, 'admin');
   const isBuyer = ensureActiveRole(user, 'buyer') && trip.buyerIds.some((buyer: any) => buyer._id.toString() === user._id.toString());
   if (!isTransporter && !isAdmin && !isBuyer) {
-    return NextResponse.json({ success: false, message: 'Not authorized to view this tracking timeline' }, { status: 403 });
+    return roleAccessRequiredResponse(['buyer', 'transporter', 'admin']);
   }
 
   const timeline = await FleetTripTrackingEvent.find({ fleetTrip: trip._id }).sort({ createdAt: 1 }).lean();
@@ -72,7 +77,7 @@ export async function GET(
       currentLongitude: trip.currentLongitude ?? null,
       locationLabel: currentLocationLabel,
       fleet: trip.fleet,
-      transporter: buildTransporterSummary((trip as any).transporter),
+      transporter: await buildTransporterSummaryWithStats((trip as any).transporter),
       driver: (trip as any).driver ? {
         id: (trip as any).driver._id,
         name: (trip as any).driver.name || 'Unknown',

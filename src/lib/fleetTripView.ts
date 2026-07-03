@@ -1,4 +1,5 @@
 import Product from '@/models/product';
+import { buildTransporterStatsMap } from './orderView';
 
 function toIdString(value: any) {
   return value?.toString?.() || value || null;
@@ -42,6 +43,20 @@ export function buildTransporterSummary(transporter: any) {
     address: transporter.address || null,
     state: transporter.state || null,
     image: transporter.image || null
+  };
+}
+
+export async function buildTransporterSummaryWithStats(transporter: any) {
+  if (!transporter || typeof transporter !== 'object') return null;
+  const transporterId = toIdString(transporter._id);
+  const statsMap = transporterId ? await buildTransporterStatsMap([transporterId]) : new Map<string, any>();
+  const stats = transporterId ? statsMap.get(transporterId) : null;
+  return {
+    ...buildTransporterSummary(transporter),
+    logoUrl: transporter.image || null,
+    rating: stats?.rating ?? 0,
+    ratingLabel: stats?.ratingLabel ?? 'Not rated',
+    followers: stats?.followers ?? 0
   };
 }
 

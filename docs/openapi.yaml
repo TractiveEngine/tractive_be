@@ -2479,52 +2479,59 @@ paths:
             application/json:
               example:
                 success: true
-                  data:
-                    tripId: "67detrip1234567890abc1"
-                    trackingCode: "TRIP-1001"
-                    fleetId: "67defleet1234567890abc1"
-                    status: "on_transit"
-                    origin: "Abia"
-                    destination: "Anambra"
-                    currentLocation:
+                data:
+                  tripId: "67detrip1234567890abc1"
+                  trackingCode: "TRIP-1001"
+                  fleetId: "67defleet1234567890abc1"
+                  status: "on_transit"
+                  origin: "Abia"
+                  destination: "Anambra"
+                  currentLocation:
+                    lat: 6.4499
+                    lng: 7.5000
+                    label: "Enugu"
+                  currentLatitude: 6.4499
+                  currentLongitude: 7.5000
+                  locationLabel: "Enugu"
+                  transporter:
+                    id: "67detrans1234567890abc1"
+                    name: "Prime Haulage"
+                    businessName: "Prime Haulage"
+                    image: "https://example.com/transporter.png"
+                    logoUrl: "https://example.com/transporter.png"
+                    rating: 4.4
+                  pickedAt: "2026-05-03T10:00:00.000Z"
+                  onTransitAt: "2026-05-03T14:00:00.000Z"
+                  deliveredAt: null
+                  estDeliveryDate: "2026-05-05T14:00:00.000Z"
+                  buyers:
+                    - id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      phone: "+2348011111111"
+                      state: "Abia"
+                      address: "No 24 Umuahia road"
+                      image: "https://example.com/buyer.png"
+                  orders:
+                    - id: "67deorder1234567890abc1"
+                      buyerId: "67debuyer1234567890abc1"
+                      transportStatus: "on_transit"
+                  packages:
+                    - productId: "67deproduct1234567890abc1"
+                      name: "Tomatoes"
+                      image: "https://example.com/tomatoes.png"
+                  timeline:
+                    - status: "planned"
+                      timestamp: "2026-05-03T10:00:00.000Z"
+                      note: "Trip created"
+                      location: "Abia"
+                      lat: null
+                      lng: null
+                    - status: "on_transit"
+                      timestamp: "2026-05-03T14:00:00.000Z"
+                      note: "Truck departed"
+                      location: "Enugu"
                       lat: 6.4499
                       lng: 7.5000
-                      label: "Enugu"
-                    currentLatitude: 6.4499
-                    currentLongitude: 7.5000
-                    locationLabel: "Enugu"
-                    pickedAt: "2026-05-03T10:00:00.000Z"
-                    onTransitAt: "2026-05-03T14:00:00.000Z"
-                    deliveredAt: null
-                    estDeliveryDate: "2026-05-05T14:00:00.000Z"
-                    buyers:
-                      - id: "67debuyer1234567890abc1"
-                        name: "Buyer One"
-                        phone: "+2348011111111"
-                        state: "Abia"
-                        address: "No 24 Umuahia road"
-                        image: "https://example.com/buyer.png"
-                    orders:
-                      - id: "67deorder1234567890abc1"
-                        buyerId: "67debuyer1234567890abc1"
-                        transportStatus: "on_transit"
-                    packages:
-                      - productId: "67deproduct1234567890abc1"
-                        name: "Tomatoes"
-                        image: "https://example.com/tomatoes.png"
-                    timeline:
-                      - status: "planned"
-                        timestamp: "2026-05-03T10:00:00.000Z"
-                        note: "Trip created"
-                        location: "Abia"
-                        lat: null
-                        lng: null
-                      - status: "on_transit"
-                        timestamp: "2026-05-03T14:00:00.000Z"
-                        note: "Truck departed"
-                        location: "Enugu"
-                        lat: 6.4499
-                        lng: 7.5000
   /api/transporters/fleet-trips/{tripId}/status:
     patch:
       summary: Update fleet trip tracking status
@@ -2544,11 +2551,11 @@ paths:
             schema:
               type: object
               required: [status]
-                properties:
-                  status:
-                    type: string
-                    enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
-                    description: "`picked` is accepted as a frontend alias and stored internally as `loaded`."
+              properties:
+                status:
+                  type: string
+                  enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
+                  description: "`picked` is accepted as a frontend alias and stored internally as `loaded`."
                 location:
                   type: string
                 note:
@@ -2572,20 +2579,73 @@ paths:
             application/json:
               example:
                 success: true
-                  data:
-                    _id: "67detrip1234567890abc1"
+                data:
+                  _id: "67detrip1234567890abc1"
+                  status: "loaded"
+                  transportStatus: "picked"
+                  currentLocation: "Enugu"
+                  currentLatitude: 6.4499
+                  currentLongitude: 7.5000
+                  latestTrackingEvent:
                     status: "loaded"
-                    transportStatus: "picked"
-                    currentLocation: "Enugu"
-                    currentLatitude: 6.4499
-                    currentLongitude: 7.5000
-                    latestTrackingEvent:
-                      status: "loaded"
-                      requestedStatus: "picked"
-                      note: "Truck departed"
-                      location: "Enugu"
-                      latitude: 6.4499
-                      longitude: 7.5000
+                    requestedStatus: "picked"
+                    note: "Truck departed"
+                    location: "Enugu"
+                    latitude: 6.4499
+                    longitude: 7.5000
+  /api/transporters/fleet-trips/{tripId}/locations:
+    post:
+      summary: Post a fleet trip location ping
+      description: Lightweight GPS/location update endpoint for transporter/admin live-map updates without changing trip status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tripId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng]
+              properties:
+                lat:
+                  type: number
+                lng:
+                  type: number
+                location:
+                  type: string
+                note:
+                  type: string
+                timestamp:
+                  type: string
+                  format: date-time
+            example:
+              lat: 6.4499
+              lng: 7.5
+              location: "Enugu"
+              note: "Live GPS ping"
+              timestamp: "2026-07-02T16:30:00.000Z"
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  tripId: "67detrip1234567890abc1"
+                  status: "on_transit"
+                  currentLocation:
+                    lat: 6.4499
+                    lng: 7.5
+                    label: "Enugu"
+                  locationLabel: "Enugu"
+                  lastUpdatedAt: "2026-07-02T16:30:00.000Z"
   /api/transporters/orders/{orderId}/buyer:
     get:
       summary: Get buyer info for assigned order
@@ -3533,6 +3593,20 @@ paths:
       responses:
         '201':
           description: Transaction created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "686a22223333444455556666"
+                  order: "507f1f77bcf86cd799439014"
+                  buyer: "507f1f77bcf86cd799439015"
+                  amount: 50000
+                  paymentMethod: "wallet"
+                  paymentReference: "PAY-20260627-1001"
+                  status: "pending"
+                  commissionRate: 0.1
+                  commissionAmount: 5000
   /api/payment/bank-accounts:
     get:
       summary: List bank accounts for manual payment
@@ -4729,7 +4803,7 @@ paths:
   /api/sellers/{id}:
     get:
       summary: Seller details
-      description: Returns seller profile plus embedded products and recommendations. Supports product filtering via `search`, `status`, `category`, `subcategory`, `page`, and `limit`.
+      description: Returns seller profile plus embedded products and recommendations. Supports product filtering via `search`, `status`, `category`, `subcategory`, `page`, and `limit`. When the caller is an authenticated buyer, `isFollowing` reflects the current follow state.
       parameters:
         - in: path
           name: id
@@ -4780,12 +4854,25 @@ paths:
                         type: string
                       followersCount:
                         type: integer
+                      isFollowing:
+                        type: boolean
                       yearsOfExperience:
                         type: integer
                       rating:
                         type: number
                       totalReviews:
                         type: integer
+                      ratingDistribution:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            rating:
+                              type: integer
+                            count:
+                              type: integer
+                            percentage:
+                              type: number
                       amountOfSales:
                         type: number
                       products:
@@ -6312,7 +6399,173 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Success
+          description: User counts summary including removed users
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  totalUsers: 120
+                  buyers: 70
+                  agents: 25
+                  transporters: 18
+                  admins: 7
+                  activeUsers: 101
+                  suspendedUsers: 9
+                  removedUsers: 10
+                  newUsersCurrentPeriod: 14
+                  newUsersPreviousPeriod: 9
+                  activeAccountsCurrentPeriod: 42
+                  activeAccountsPreviousPeriod: 36
+                  activeAccounts7Days: 18
+
+  /api/admin/banners:
+    get:
+      summary: List banners for admin management
+      description: Admin-only banner management list. Returns all stored banners. Use this to manage ordering, scheduling, and activation.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: active
+          schema:
+            type: boolean
+        - in: query
+          name: search
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated banner list
+    post:
+      summary: Create banner
+      description: Admin creates a homepage banner. Upload the image to Cloudinary or another CDN first, then send the hosted `imageUrl` here.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageUrl]
+              properties:
+                title:
+                  type: string
+                imageUrl:
+                  type: string
+                  format: uri
+                link:
+                  type: string
+                  description: Absolute URL or app-relative path like `/buyers/products`.
+                alt:
+                  type: string
+                position:
+                  type: number
+                isActive:
+                  type: boolean
+                startDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                endDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+            example:
+              title: "Fresh Harvest Week"
+              imageUrl: "https://res.cloudinary.com/demo/image/upload/v1751530000/tractive/banner-fresh-harvest.jpg"
+              link: "/buyers/products"
+              alt: "Fresh harvest deals"
+              position: 1
+              isActive: true
+              startDate: "2026-07-03T00:00:00.000Z"
+              endDate: "2026-07-31T23:59:59.000Z"
+      responses:
+        '201':
+          description: Banner created
+
+  /api/admin/banners/{id}:
+    get:
+      summary: Get one banner
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Banner detail
+    patch:
+      summary: Update banner
+      description: Admin updates a stored banner. Send only the fields that should change.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                imageUrl:
+                  type: string
+                  format: uri
+                link:
+                  type: string
+                alt:
+                  type: string
+                position:
+                  type: number
+                isActive:
+                  type: boolean
+                startDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+                endDate:
+                  type: string
+                  format: date-time
+                  nullable: true
+            example:
+              position: 2
+              isActive: true
+              alt: "Updated fresh harvest banner"
+      responses:
+        '200':
+          description: Banner updated
+    delete:
+      summary: Delete banner
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Banner deleted
 
   /api/auth/add-account:
     post:
@@ -6840,10 +7093,20 @@ paths:
   /api/notifications/stream:
     get:
       summary: Live notification stream
-      description: Server-Sent Events stream for the authenticated user's notifications. Emits `connected`, then `snapshot`, then incremental `notifications` events. Supports `unread=true`, `limit`, and optional ISO `since` cursor.
+      description: Server-Sent Events stream for the authenticated user's notifications. Emits `connected`, then `snapshot`, then incremental `notifications` events. Supports `unread=true`, `limit`, and optional ISO `since` cursor. For browser `EventSource`, use `?token=<JWT>` or `?accessToken=<JWT>` because custom Authorization headers are not available there.
       security:
         - bearerAuth: []
       parameters:
+        - in: query
+          name: token
+          schema:
+            type: string
+          description: Optional JWT for browser EventSource clients.
+        - in: query
+          name: accessToken
+          schema:
+            type: string
+          description: Alias of `token`.
         - in: query
           name: unread
           schema:
@@ -6905,6 +7168,48 @@ paths:
       responses:
         '200':
           description: Success
+
+  /api/profile/bank-account:
+    get:
+      summary: Get authenticated user's payout bank account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Saved payout bank account
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  bankName: "GTBank"
+                  accountName: "Enrico Tester"
+                  accountNumber: "0012345678"
+    patch:
+      summary: Save authenticated user's payout bank account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bankName, accountName, accountNumber]
+              properties:
+                bankName:
+                  type: string
+                accountName:
+                  type: string
+                accountNumber:
+                  type: string
+            example:
+              bankName: "GTBank"
+              accountName: "Enrico Tester"
+              accountNumber: "0012345678"
+      responses:
+        '200':
+          description: Bank account updated
     patch:
       summary: PATCH /api/profile
       security:
@@ -7139,10 +7444,25 @@ paths:
   /api/buyers/banners:
     get:
       summary: List buyer homepage banners
+      description: Returns active, scheduled homepage banners sorted by `position`. Banner images should already be uploaded to Cloudinary or another CDN, and the stored hosted URL is returned as `imageUrl`.
       security: []
       responses:
         '200':
           description: Buyer marketing banners
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "686b00001111222233334444"
+                    title: "Fresh Harvest Week"
+                    imageUrl: "https://res.cloudinary.com/demo/image/upload/v1751530000/tractive/banner-fresh-harvest.jpg"
+                    link: "/buyers/products"
+                    alt: "Fresh harvest deals"
+                    position: 1
+                    isActive: true
+                    startDate: "2026-07-03T00:00:00.000Z"
+                    endDate: "2026-07-31T23:59:59.000Z"
 
   /api/shipping:
     get:
@@ -7306,11 +7626,12 @@ paths:
           schema:
             type: string
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [message]
               properties:
                 subject:
                   type: string
@@ -7321,7 +7642,20 @@ paths:
               message: "Checking in on your delivery"
       responses:
         '201':
-          description: Returns a conversation id for the support modal
+          description: Returns the created support message/thread metadata
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  id: "686a11112222333344445555"
+                  threadId: "686a00001111222233334444"
+                  conversationId: "686a00001111222233334444"
+                  customerId: "686a99998888777766665555"
+                  subject: "Support"
+                  message: "Checking in on your delivery"
+                  createdAt: "2026-07-02T14:10:00.000Z"
+                  status: "open"
   /api/transporters/{id}/reviews/summary:
     get:
       summary: Get transporter review summary
@@ -7343,9 +7677,21 @@ paths:
   /api/transporters/fleet-statuses:
     get:
       summary: List transporter fleet statuses
+      description: Reference list for fleet status dropdowns.
       responses:
         '200':
           description: Fleet status reference data
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - value: "available"
+                    label: "Available"
+                  - value: "under_maintenance"
+                    label: "Under Maintenance"
+                  - value: "on_transit"
+                    label: "On Transit"
 
   /api/transporters/dashboard:
     get:

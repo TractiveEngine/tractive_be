@@ -7,7 +7,12 @@ import FleetTrip from '@/models/fleetTrip';
 import '@/models/truck';
 import '@/models/user';
 import { createNotification } from '@/lib/notifications';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import { buildOrderItemLocalTransport } from '@/lib/localTransport';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { getUnitWeightKg } from '@/lib/productUnit';
@@ -26,10 +31,10 @@ export async function POST(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
   if (!ensureActiveRole(user, 'buyer')) {
-    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
+    return roleAccessRequiredResponse('buyer');
   }
 
   const { products, totalAmount, address, transportStatus, bidIds } = await request.json();
@@ -191,7 +196,7 @@ export async function GET(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
   const { searchParams } = new URL(request.url);
   const pageParam = searchParams.get('page');
@@ -222,7 +227,7 @@ export async function GET(request: Request) {
   } else if (ensureActiveRole(user, 'admin')) {
     if (buyerId) query.buyer = buyerId;
   } else {
-    return NextResponse.json({ error: 'Buyer, agent, or admin access required' }, { status: 403 });
+    return roleAccessRequiredResponse(['buyer', 'agent', 'admin']);
   }
 
   if (status && ['pending', 'payment_pending', 'paid', 'delivered'].includes(status)) {

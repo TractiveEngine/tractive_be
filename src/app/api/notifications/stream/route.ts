@@ -1,6 +1,6 @@
 import dbConnect from '@/lib/dbConnect';
 import Notification from '@/models/notification';
-import { getAuthUser } from '@/lib/apiAuth';
+import { getAuthUser, getAuthUserFromToken } from '@/lib/apiAuth';
 
 const encoder = new TextEncoder();
 const STREAM_POLL_MS = 15000;
@@ -27,15 +27,17 @@ function sseEvent(event: string, data: unknown) {
 
 export async function GET(request: Request) {
   await dbConnect();
-  const user = await getAuthUser(request);
+  const { searchParams } = new URL(request.url);
+  const tokenFromQuery = searchParams.get('token') || searchParams.get('accessToken');
+  const user = tokenFromQuery
+    ? await getAuthUserFromToken(tokenFromQuery)
+    : await getAuthUser(request);
   if (!user) {
     return new Response(JSON.stringify({ success: false, message: 'Authentication required' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   }
-
-  const { searchParams } = new URL(request.url);
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
   const unreadOnly = searchParams.get('unread') === 'true';
   const since = searchParams.get('since');
