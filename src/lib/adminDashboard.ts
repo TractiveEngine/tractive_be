@@ -49,6 +49,7 @@ export async function getAdminDashboardData(options?: {
   const admins = await User.countDocuments({ roles: 'admin' });
   const activeUsers = await User.countDocuments({ status: 'active' });
   const suspendedUsers = await User.countDocuments({ status: 'suspended' });
+  const removedUsers = await User.countDocuments({ status: 'removed' });
   const [usersCurrentPeriod, usersPreviousPeriod, activeAccountsCurrentPeriod, activeAccountsPreviousPeriod, activeAccounts7Days] = await Promise.all([
     User.countDocuments({ createdAt: { $gte: currentPeriodStart, $lte: now } }),
     User.countDocuments({ createdAt: { $gte: previousPeriodStart, $lt: previousPeriodEnd } }),
@@ -244,6 +245,7 @@ export async function getAdminDashboardData(options?: {
       admins,
       activeUsers,
       suspendedUsers,
+      removedUsers,
       newUsersCurrentPeriod: usersCurrentPeriod,
       newUsersPreviousPeriod: usersPreviousPeriod,
       activeAccountsCurrentPeriod,

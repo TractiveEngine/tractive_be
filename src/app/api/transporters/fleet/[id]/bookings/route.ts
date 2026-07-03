@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser, hasRole } from '@/lib/apiAuth';
+import {
+  approvalRequiredResponse,
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  hasRole,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import Truck from '@/models/truck';
 import FleetBooking from '@/models/fleetBooking';
 import '@/models/fleetBid';
@@ -14,7 +21,7 @@ export async function GET(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
 
   const { id } = await Promise.resolve(params);
@@ -46,15 +53,9 @@ export async function GET(
       return NextResponse.json({ success: false, message: 'Not authorized for this fleet' }, { status: 403 });
     }
   } else if (user.activeRole === 'transporter' && !hasRole(user as any, 'transporter')) {
-    return NextResponse.json(
-      { success: false, message: 'Transporter account is awaiting admin approval' },
-      { status: 403 }
-    );
+    return approvalRequiredResponse('transporter');
   } else if (!ensureActiveRole(user, 'admin')) {
-    return NextResponse.json(
-      { success: false, message: 'Transporter or admin access required' },
-      { status: 403 }
-    );
+    return roleAccessRequiredResponse(['transporter', 'admin']);
   }
 
   const [bookings, total] = await Promise.all([

@@ -4,7 +4,12 @@ import Order from '@/models/order';
 import TrackingEvent from '@/models/trackingEvent';
 import FleetTrip from '@/models/fleetTrip';
 import FleetTripTrackingEvent from '@/models/fleetTripTrackingEvent';
-import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 import { mapTripStatusToOrderTransportStatus } from '@/lib/fleetTrip';
 import { buildTrackingSummaryFromEvents, computeEstimatedDeliveryDate } from '@/lib/orderView';
@@ -16,7 +21,7 @@ export async function GET(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
 
   const { orderId } = await Promise.resolve(params);
@@ -38,7 +43,7 @@ export async function GET(
   const isAdmin = ensureActiveRole(user, 'admin');
 
   if (!isBuyer && !isTransporter && !isSeller && !isAdmin) {
-    return NextResponse.json({ success: false, message: 'Not authorized to view this tracking timeline' }, { status: 403 });
+    return roleAccessRequiredResponse(['buyer', 'agent', 'transporter', 'admin']);
   }
 
   if (order.fleetTripId) {

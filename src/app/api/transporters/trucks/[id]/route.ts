@@ -9,14 +9,17 @@ import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
 import { getFleetBidSummaries } from '@/lib/fleetBidSummary';
 
 // GET /api/transporters/trucks/:id
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid truck id' }, { status: 400 });
   }

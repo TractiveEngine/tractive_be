@@ -29,6 +29,14 @@ export async function POST(
   if (!customer) {
     return NextResponse.json({ success: false, message: 'Customer not found' }, { status: 404 });
   }
+  const messageText = typeof body?.message === 'string'
+    ? body.message.trim()
+    : typeof body?.initialMessage === 'string'
+      ? body.initialMessage.trim()
+      : '';
+  if (!messageText) {
+    return NextResponse.json({ success: false, message: 'message is required' }, { status: 400 });
+  }
 
   let conversation = await Conversation.findOne({
     participants: { $all: [user._id, customer._id] }
@@ -42,23 +50,26 @@ export async function POST(
     });
   }
 
-  const initialMessage = body?.message || body?.initialMessage || null;
-  if (initialMessage) {
-    await Message.create({
-      conversation: conversation._id,
-      sender: user._id,
-      text: initialMessage,
-      readBy: [user._id]
-    });
-    conversation.lastMessageAt = new Date();
-    await conversation.save();
-  }
+  const createdMessage = await Message.create({
+    conversation: conversation._id,
+    sender: user._id,
+    text: messageText,
+    readBy: [user._id]
+  });
+  conversation.lastMessageAt = new Date();
+  await conversation.save();
 
   return NextResponse.json({
     success: true,
     data: {
+      id: createdMessage._id,
+      threadId: conversation._id,
       conversationId: conversation._id,
-      subject: body?.subject || null
+      customerId: customer._id,
+      subject: typeof body?.subject === 'string' ? body.subject.trim() || null : null,
+      message: createdMessage.text,
+      createdAt: createdMessage.createdAt,
+      status: conversation.isClosed ? 'closed' : 'open'
     }
   }, { status: 201 });
 }

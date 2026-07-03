@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import Truck from '@/models/truck';
 import FleetBooking from '@/models/fleetBooking';
 import '@/models/order';
 import '@/models/driver';
 import { buildFleetTripLoadMeta, createFleetTripFromConfirmedBookings } from '@/lib/fleetTrip';
-import { buildBuyerSummaries, buildFleetSummary, buildFleetTripPackages, buildTransporterSummary } from '@/lib/fleetTripView';
+import { buildBuyerSummaries, buildFleetSummary, buildFleetTripPackages, buildTransporterSummaryWithStats } from '@/lib/fleetTripView';
 
 async function serializeTrip(trip: any) {
   const tripObject = trip.toObject();
@@ -17,7 +22,7 @@ async function serializeTrip(trip: any) {
     ...tripObject,
     ...buildFleetTripLoadMeta(tripObject.loadWeightKg),
     fleet: buildFleetSummary(tripObject.fleet),
-    transporter: buildTransporterSummary(tripObject.transporter),
+    transporter: await buildTransporterSummaryWithStats(tripObject.transporter),
     buyers: buildBuyerSummaries(tripObject.buyerIds),
     packages,
     packageCount: packages.length,
@@ -30,10 +35,10 @@ export async function GET(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
   if (!ensureActiveRole(user, 'transporter') && !ensureActiveRole(user, 'admin')) {
-    return NextResponse.json({ success: false, message: 'Transporter or admin access required' }, { status: 403 });
+    return roleAccessRequiredResponse(['transporter', 'admin']);
   }
 
   const { searchParams } = new URL(request.url);
@@ -84,10 +89,10 @@ export async function POST(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
   if (!ensureActiveRole(user, 'transporter') && !ensureActiveRole(user, 'admin')) {
-    return NextResponse.json({ success: false, message: 'Transporter or admin access required' }, { status: 403 });
+    return roleAccessRequiredResponse(['transporter', 'admin']);
   }
 
   const body: any = await request.json().catch(() => ({}));

@@ -1,13 +1,12 @@
-import { NextResponse } from 'next/server';
-import { getAuthUser, ensureActiveRole } from './apiAuth';
+import { authenticationRequiredResponse, getAuthUser, ensureActiveRole, roleAccessRequiredResponse } from './apiAuth';
 
 export async function requireAdmin(request: Request) {
   const user = await getAuthUser(request);
   if (!user) {
-    return { error: NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 }) };
+    return { error: authenticationRequiredResponse() };
   }
   if (!ensureActiveRole(user, 'admin') && !(user.roles || []).includes('admin')) {
-    return { error: NextResponse.json({ success: false, message: 'Admin access required' }, { status: 403 }) };
+    return { error: roleAccessRequiredResponse('admin') };
   }
   return { user };
 }

@@ -5,6 +5,19 @@ import Order from '@/models/order';
 import Product from '@/models/product';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
+const AGENT_COMMISSION_RATE = 0.1;
+
+function withCommissionMeta(transaction: any) {
+  if (!transaction) return transaction;
+  const amount = Number(transaction.amount || 0);
+  const commissionAmount = Number((amount * AGENT_COMMISSION_RATE).toFixed(2));
+  return {
+    ...transaction,
+    commissionRate: AGENT_COMMISSION_RATE,
+    commissionAmount
+  };
+}
+
 export async function POST(request: Request) {
   await dbConnect();
   const user = await getAuthUser(request);
@@ -45,7 +58,7 @@ export async function POST(request: Request) {
   if (existingTransaction) {
     return NextResponse.json({
       success: true,
-      data: existingTransaction,
+      data: withCommissionMeta(existingTransaction.toObject()),
       message: 'Existing transaction returned'
     }, { status: 200 });
   }
@@ -63,7 +76,7 @@ export async function POST(request: Request) {
   order.updatedAt = new Date();
   await order.save();
 
-  return NextResponse.json({ success: true, data: transaction }, { status: 201 });
+  return NextResponse.json({ success: true, data: withCommissionMeta(transaction.toObject()) }, { status: 201 });
 }
 
 export async function GET(request: Request) {
@@ -132,7 +145,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     success: true,
-    data: transactions,
+    data: transactions.map((transaction: any) => withCommissionMeta(transaction.toObject())),
     pagination: { page, limit, total }
   }, { status: 200 });
 }

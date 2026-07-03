@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import {
+  authenticationRequiredResponse,
+  ensureActiveRole,
+  getAuthUser,
+  roleAccessRequiredResponse
+} from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
 import Truck from '@/models/truck';
 import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, syncTripOrders } from '@/lib/fleetTrip';
@@ -22,10 +27,10 @@ export async function PATCH(
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
+    return authenticationRequiredResponse();
   }
   if (!ensureActiveRole(user, 'transporter') && !ensureActiveRole(user, 'admin')) {
-    return NextResponse.json({ success: false, message: 'Transporter or admin access required' }, { status: 403 });
+    return roleAccessRequiredResponse(['transporter', 'admin']);
   }
 
   const { tripId } = await Promise.resolve(params);
