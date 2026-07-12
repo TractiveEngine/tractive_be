@@ -4,7 +4,7 @@ import User from '@/models/user';
 import type { NextRequest } from 'next/server';
 import sendEmail from '@/lib/sendSmtpMail';
 import { verifyToken } from '@/lib/auth';
-import { hasRole } from '@/lib/apiAuth';
+import { getFirstAvailableRole, hasRole } from '@/lib/apiAuth';
 
 interface AddAccountPayload {
   role: 'buyer' | 'agent' | 'transporter' | 'admin';
@@ -70,18 +70,24 @@ export async function POST(request: NextRequest) {
     }, { status: 400 });
   }
 
+  const hadRoleBefore = user.roles.includes(role);
+  const isRestrictedRole = role === 'agent' || role === 'transporter';
+  const needsApprovalOnCreate = isRestrictedRole && !hadRoleBefore;
+
   // Add role if not present
-  if (!user.roles.includes(role)) {
+  if (!hadRoleBefore) {
     user.roles.push(role);
   }
-  if (role === 'agent' && user.agentApprovalStatus !== 'approved') {
+  if (role === 'agent' && needsApprovalOnCreate) {
     user.agentApprovalStatus = 'pending';
   }
-  if (role === 'transporter' && user.transporterApprovalStatus !== 'approved') {
+  if (role === 'transporter' && needsApprovalOnCreate) {
     user.transporterApprovalStatus = 'pending';
   }
   if (hasRole(user as any, role)) {
     user.activeRole = role;
+  } else if (!hasRole(user as any, user.activeRole as any)) {
+    user.activeRole = getFirstAvailableRole(user as any);
   }
 
   // Update extra info
@@ -121,9 +127,12 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     message:
-      role === 'agent' || role === 'transporter'
+      needsApprovalOnCreate
         ? 'Account type added and submitted for admin approval.'
-        : 'Account type and info updated.',
+        : hadRoleBefore
+          ? 'Account info updated.'
+          : 'Account type and info updated.',
+    approvalRequired: needsApprovalOnCreate,
     user: {
       email: user.email,
       id: user._id,

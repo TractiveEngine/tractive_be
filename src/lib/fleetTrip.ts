@@ -106,6 +106,9 @@ export async function createFleetTripFromBooking({
   const shipmentItems = Array.isArray(booking.shipmentItems) ? booking.shipmentItems : [];
   const orderIds = uniqueObjectIds(shipmentItems.map((item: any) => item.orderId));
   const buyerIds = uniqueObjectIds([booking.buyer]);
+  const fleet = await Truck.findById(booking.fleet).select('_id route');
+  const resolvedOrigin = origin ?? fleet?.route?.fromState ?? null;
+  const resolvedDestination = destination ?? fleet?.route?.toState ?? null;
 
   const trip = await FleetTrip.create({
     fleet: booking.fleet,
@@ -116,9 +119,9 @@ export async function createFleetTripFromBooking({
     orderIds,
     buyerIds,
     status: 'planned',
-    origin: origin ?? null,
-    destination: destination ?? null,
-    currentLocation: origin ?? null,
+    origin: resolvedOrigin,
+    destination: resolvedDestination,
+    currentLocation: resolvedOrigin,
     trackingCode: `TRIP-${Date.now()}`,
     loadWeightKg: Number(booking.loadWeightKg || payment?.loadWeightKg || 0),
     wholeTruckOnly: booking.wholeTruckOnly === true,
@@ -151,7 +154,7 @@ export async function createFleetTripFromBooking({
     tripId: trip._id,
     status: 'planned',
     note: payment ? 'Trip created from approved fleet payment' : 'Trip created',
-    location: origin ?? '',
+    location: resolvedOrigin ?? '',
     updatedBy: createdBy || null,
     updatedByRole: null
   });

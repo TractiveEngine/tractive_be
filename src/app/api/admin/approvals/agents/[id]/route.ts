@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
-import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { getAuthUser, ensureActiveRole, getFirstAvailableRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 // PATCH /api/admin/approvals/agents/:id - Approve or reject agent
@@ -37,6 +37,9 @@ export async function PATCH(
   agent.agentApprovalStatus = status;
   if (reason) {
     agent.approvalNotes = reason;
+  }
+  if (status === 'rejected' && agent.activeRole === 'agent') {
+    agent.activeRole = getFirstAvailableRole(agent as any);
   }
   await agent.save();
 

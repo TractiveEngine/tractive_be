@@ -2535,7 +2535,7 @@ paths:
   /api/transporters/fleet-trips/{tripId}/status:
     patch:
       summary: Update fleet trip tracking status
-      description: Transporter/admin operational update for a shared trip. Linked orders are synchronized automatically.
+      description: Transporter/admin manual operational update for a shared trip. This route supports status changes and metadata-only updates for MVP, including location label, lat/lng, origin, destination, and manual ETA. Linked orders are synchronized automatically.
       security:
         - bearerAuth: []
       parameters:
@@ -2550,13 +2550,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [status]
               properties:
                 status:
                   type: string
                   enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
-                  description: "`picked` is accepted as a frontend alias and stored internally as `loaded`."
+                  description: Optional. `picked` is accepted as a frontend alias and stored internally as `loaded`.
                 location:
+                  type: string
+                origin:
+                  type: string
+                destination:
                   type: string
                 note:
                   type: string
@@ -2566,12 +2569,19 @@ paths:
                 lng:
                   type: number
                   nullable: true
+                estDeliveryDate:
+                  type: string
+                  format: date-time
+                  nullable: true
               example:
-                status: "picked"
-                location: "Enugu"
-                lat: 6.4499
-                lng: 7.5000
-                note: "Truck departed"
+                status: "on_transit"
+                location: "Ibadan toll gate"
+                origin: "Kaduna"
+                destination: "Lagos"
+                lat: 7.3775
+                lng: 3.947
+                estDeliveryDate: "2026-07-14T18:00:00.000Z"
+                note: "Vehicle departed and is on schedule"
       responses:
         '200':
           description: Fleet trip updated
@@ -2581,18 +2591,22 @@ paths:
                 success: true
                 data:
                   _id: "67detrip1234567890abc1"
-                  status: "loaded"
-                  transportStatus: "picked"
-                  currentLocation: "Enugu"
-                  currentLatitude: 6.4499
-                  currentLongitude: 7.5000
+                  status: "on_transit"
+                  transportStatus: "on_transit"
+                  origin: "Kaduna"
+                  destination: "Lagos"
+                  currentLocation: "Ibadan toll gate"
+                  currentLatitude: 7.3775
+                  currentLongitude: 3.947
+                  estDeliveryDate: "2026-07-14T18:00:00.000Z"
                   latestTrackingEvent:
-                    status: "loaded"
-                    requestedStatus: "picked"
-                    note: "Truck departed"
-                    location: "Enugu"
-                    latitude: 6.4499
-                    longitude: 7.5000
+                    status: "on_transit"
+                    requestedStatus: "on_transit"
+                    note: "Vehicle departed and is on schedule"
+                    location: "Ibadan toll gate"
+                    latitude: 7.3775
+                    longitude: 3.947
+                    updatedByRole: "admin"
   /api/transporters/fleet-trips/{tripId}/locations:
     post:
       summary: Post a fleet trip location ping
@@ -6167,8 +6181,8 @@ paths:
               transactionId: "507f1f77bcf86cd799439016"
               reason: "Duplicate charge"
       responses:
-        '201':
-          description: Success
+        '200':
+          description: Role added or account info updated. Agent and transporter approval is only triggered when that role is first created.
 
   /api/admin/users:
     get:
@@ -7269,9 +7283,10 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Success
+          description: Current active role plus approval state for restricted roles
     patch:
       summary: PATCH /api/profile/switch-role
+      description: Switches the active role only if the user already has that role and it is approved. Buyer and admin do not need approval. Agent and transporter return 403 when still pending or rejected.
       security:
         - bearerAuth: []
       requestBody:
@@ -7284,7 +7299,9 @@ paths:
               activeRole: "buyer"
       responses:
         '200':
-          description: Success
+          description: Active role switched successfully
+        '403':
+          description: Role exists but is not currently usable, usually because agent or transporter approval is still pending or was rejected
 
   /api/reviews:
     get:

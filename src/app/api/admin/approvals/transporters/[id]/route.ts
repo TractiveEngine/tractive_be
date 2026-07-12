@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
-import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
+import { getAuthUser, ensureActiveRole, getFirstAvailableRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 export async function PATCH(
@@ -36,6 +36,9 @@ export async function PATCH(
   transporter.transporterApprovalStatus = status;
   if (reason) {
     transporter.approvalNotes = reason;
+  }
+  if (status === 'rejected' && transporter.activeRole === 'transporter') {
+    transporter.activeRole = getFirstAvailableRole(transporter as any);
   }
   await transporter.save();
 

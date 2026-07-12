@@ -40,12 +40,32 @@ export function isRoleApproved(user: ApprovalAwareUser | null | undefined, role:
   return true;
 }
 
+export function getRoleApprovalStatus(user: ApprovalAwareUser | null | undefined, role: Role) {
+  if (!user) return null;
+  if (role === 'agent') return user.agentApprovalStatus ?? null;
+  if (role === 'transporter') return user.transporterApprovalStatus ?? null;
+  return 'approved';
+}
+
 export function hasRole(user: ApprovalAwareUser | null | undefined, role: Role) {
   return !!user && Array.isArray(user.roles) && user.roles.includes(role) && isRoleApproved(user, role);
 }
 
 export function ensureActiveRole(user: ApprovalAwareUser | null | undefined, role: Role) {
   return user?.activeRole === role && hasRole(user, role);
+}
+
+export function getFirstAvailableRole(user: ApprovalAwareUser | null | undefined): Role | null {
+  if (!user || !Array.isArray(user.roles)) return null;
+
+  const orderedRoles: Role[] = ['buyer', 'agent', 'transporter', 'admin'];
+  for (const role of orderedRoles) {
+    if (hasRole(user, role)) {
+      return role;
+    }
+  }
+
+  return null;
 }
 
 export function authenticationRequiredResponse() {
