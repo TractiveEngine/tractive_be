@@ -37,9 +37,14 @@ export async function POST(request: Request) {
     return roleAccessRequiredResponse('buyer');
   }
 
-  const { products, totalAmount, address, transportStatus, bidIds } = await request.json();
+  const body = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ success: false, message: 'Valid JSON request body is required' }, { status: 400 });
+  }
+
+  const { products, totalAmount, address, transportStatus, bidIds } = body as Record<string, any>;
   if (!products || !Array.isArray(products) || products.length === 0 || !totalAmount) {
-    return NextResponse.json({ error: 'Products and totalAmount required' }, { status: 400 });
+    return NextResponse.json({ success: false, message: 'Products and totalAmount required' }, { status: 400 });
   }
 
   const idempotencyKey = request.headers.get('Idempotency-Key') || request.headers.get('idempotency-key');
@@ -83,7 +88,7 @@ export async function POST(request: Request) {
   const productMap = new Map(productDocs.map((product: any) => [product._id.toString(), product]));
   const missingProducts = productIds.filter((id: string) => !productMap.has(String(id)));
   if (missingProducts.length > 0) {
-    return NextResponse.json({ error: 'One or more products not found' }, { status: 400 });
+    return NextResponse.json({ success: false, message: 'One or more products not found' }, { status: 400 });
   }
 
   const orderProducts = products.map((item: any) => {
@@ -108,22 +113,22 @@ export async function POST(request: Request) {
     const bids = await Bid.find({ _id: { $in: bidIds }, buyer: user._id });
     const missing = bidIds.filter((id: string) => !bids.some((b) => b._id.toString() === id));
     if (missing.length > 0) {
-      return NextResponse.json({ error: 'One or more bids not found for buyer' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'One or more bids not found for buyer' }, { status: 400 });
     }
     const invalidStatus = bids.find((bid) => bid.status !== 'accepted');
     if (invalidStatus) {
-      return NextResponse.json({ error: 'All bids must be accepted before creating an order' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'All bids must be accepted before creating an order' }, { status: 400 });
     }
     const bidProductIds = bids.map((bid: any) => bid.product?.toString?.() ?? String(bid.product)).sort();
     const requestProductIds = orderProducts.map((item) => item.product.toString()).sort();
     if (JSON.stringify(bidProductIds) !== JSON.stringify(requestProductIds)) {
-      return NextResponse.json({ error: 'Products must match the selected accepted bids' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Products must match the selected accepted bids' }, { status: 400 });
     }
     const bidMap = new Map(bids.map((bid: any) => [bid.product.toString(), bid]));
     for (const item of orderProducts) {
       const bid: any = bidMap.get(item.product.toString());
       if (!bid || Number(bid.quantity) !== Number(item.quantity)) {
-        return NextResponse.json({ error: 'Order quantities must match the selected accepted bids' }, { status: 400 });
+        return NextResponse.json({ success: false, message: 'Order quantities must match the selected accepted bids' }, { status: 400 });
       }
       item.unit = bid.unit;
       item.unitWeightKg = bid.unitWeightKg ?? getUnitWeightKg(bid.unit);
@@ -132,18 +137,18 @@ export async function POST(request: Request) {
     }
     const expectedTotal = bids.reduce((sum, bid) => sum + getEffectiveProductBidAmount(bid), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
-      return NextResponse.json({ error: 'Total amount does not match accepted bids' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Total amount does not match accepted bids' }, { status: 400 });
     }
   } else {
     for (const item of orderProducts) {
       const productDoc: any = productMap.get(item.product.toString());
       if (productDoc.status !== 'available' || Number(item.quantity) > Number(productDoc.quantity || 0)) {
-        return NextResponse.json({ error: 'One or more products exceed available stock' }, { status: 400 });
+        return NextResponse.json({ success: false, message: 'One or more products exceed available stock' }, { status: 400 });
       }
     }
     const expectedTotal = orderProducts.reduce((sum, item) => sum + (item.lineSubtotal || 0), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
-      return NextResponse.json({ error: 'Total amount does not match products and local transport' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Total amount does not match products and local transport' }, { status: 400 });
     }
   }
 
@@ -256,6 +261,7 @@ export async function GET(request: Request) {
 
   const [orders, total] = await Promise.all([
     Order.find(query)
+      .populate('transporter', '_id name businessName phone image address state createdAt')
       .populate({
         path: 'products.product',
         populate: { path: 'owner', select: '_id name businessName image' }
@@ -280,7 +286,10 @@ export async function GET(request: Request) {
     : [];
   const tripMap = new Map(trips.map((trip: any) => [trip._id.toString(), trip]));
   const transporterIds = Array.from(new Set(
-    trips.map((trip: any) => trip.transporter?._id?.toString?.() || trip.transporter?.toString?.()).filter(Boolean)
+    [
+      ...trips.map((trip: any) => trip.transporter?._id?.toString?.() || trip.transporter?.toString?.()),
+      ...orders.map((order: any) => order.transporter?._id?.toString?.() || order.transporter?.toString?.())
+    ].filter(Boolean)
   ));
   const transporterStatsMap = await buildTransporterStatsMap(transporterIds);
 
@@ -288,7 +297,10 @@ export async function GET(request: Request) {
     const orderObj = order.toObject();
     const tripId = orderObj.fleetTripId?.toString?.() || null;
     const trip = tripId ? tripMap.get(tripId) : null;
-    const transporter = trip?.transporter && typeof trip.transporter === 'object' ? trip.transporter : null;
+    const transporter =
+      trip?.transporter && typeof trip.transporter === 'object'
+        ? trip.transporter
+        : (orderObj.transporter && typeof orderObj.transporter === 'object' ? orderObj.transporter : null);
     const fleet = trip?.fleet && typeof trip.fleet === 'object' ? trip.fleet : null;
     const transporterId = transporter?._id?.toString?.() || null;
     const trackingSummary = buildTrackingSummaryFromEvents(

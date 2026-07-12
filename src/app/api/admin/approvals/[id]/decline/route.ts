@@ -3,7 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 import Farmer from '@/models/farmer';
 import mongoose from 'mongoose';
-import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
+import { ensureActiveRole, getAuthUser, getFirstAvailableRole } from '@/lib/apiAuth';
 
 async function updateApproval(id: string, reason?: string | null, typeHint?: string | null, adminUser?: any) {
   if (typeHint === 'agent' || !typeHint) {
@@ -11,6 +11,9 @@ async function updateApproval(id: string, reason?: string | null, typeHint?: str
     if (agent?.roles?.includes('agent')) {
       agent.agentApprovalStatus = 'rejected';
       if (reason) agent.approvalNotes = reason;
+      if (agent.activeRole === 'agent') {
+        agent.activeRole = getFirstAvailableRole(agent as any);
+      }
       await agent.save();
       return { type: 'agent', data: agent };
     }
@@ -20,6 +23,9 @@ async function updateApproval(id: string, reason?: string | null, typeHint?: str
     if (transporter?.roles?.includes('transporter')) {
       transporter.transporterApprovalStatus = 'rejected';
       if (reason) transporter.approvalNotes = reason;
+      if (transporter.activeRole === 'transporter') {
+        transporter.activeRole = getFirstAvailableRole(transporter as any);
+      }
       await transporter.save();
       return { type: 'transporter', data: transporter };
     }

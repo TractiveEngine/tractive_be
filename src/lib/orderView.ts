@@ -186,6 +186,12 @@ export function buildFleetSummaryForOrder(fleet: any) {
 
 export function computeEstimatedDeliveryDate(trip: any) {
   if (!trip || typeof trip !== 'object') return null;
+  if (trip.estimatedDeliveryDate) {
+    const manualDate = new Date(trip.estimatedDeliveryDate);
+    if (!Number.isNaN(manualDate.getTime())) {
+      return manualDate;
+    }
+  }
   const startDate = trip.startedAt || trip.createdAt;
   const estimateValue = Number(trip?.fleet?.estimatedDeliveryValue || 0);
   const estimateUnit = trip?.fleet?.estimatedDeliveryUnit;

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 import jwt from 'jsonwebtoken';
-import { hasRole, isRoleApproved } from '@/lib/apiAuth';
+import { getFirstAvailableRole, getRoleApprovalStatus, hasRole, isRoleApproved } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
 
@@ -76,20 +76,18 @@ export async function PATCH(request: Request) {
   }
 
   if (!hasRole(user as any, activeRole)) {
+    const approvalStatus = getRoleApprovalStatus(user as any, activeRole);
     const message =
       activeRole === 'agent' || activeRole === 'transporter'
-        ? `${activeRole} account is awaiting admin approval`
+        ? approvalStatus === 'rejected'
+          ? `${activeRole} account was rejected by admin`
+          : `${activeRole} account is awaiting admin approval`
         : `You cannot switch to '${activeRole}' right now`;
     return NextResponse.json(
       {
         error: message,
         approvalRequired: activeRole === 'agent' || activeRole === 'transporter',
-        approvalStatus:
-          activeRole === 'agent'
-            ? user.agentApprovalStatus
-            : activeRole === 'transporter'
-              ? user.transporterApprovalStatus
-              : null
+        approvalStatus
       },
       { status: 403 }
     );
@@ -126,8 +124,17 @@ export async function GET(request: Request) {
     );
   }
 
+  const normalizedActiveRole = hasRole(user as any, user.activeRole as any)
+    ? user.activeRole
+    : getFirstAvailableRole(user as any);
+
+  if (normalizedActiveRole !== user.activeRole) {
+    user.activeRole = normalizedActiveRole;
+    await user.save();
+  }
+
   return NextResponse.json({
-    activeRole: user.activeRole,
+    activeRole: normalizedActiveRole,
     availableRoles: user.roles,
     roleApprovals: {
       agent: user.roles.includes('agent')

@@ -48,9 +48,17 @@ export async function PATCH(
 
   const body: any = await request.json().catch(() => ({}));
   const requestedStatus = body?.status;
-  const status = STATUS_ALIASES[requestedStatus] || requestedStatus;
+  const status = requestedStatus ? (STATUS_ALIASES[requestedStatus] || requestedStatus) : trip.status;
   const lat = body?.lat;
   const lng = body?.lng;
+  const estDeliveryDateInput = body?.estDeliveryDate ?? body?.estimatedDeliveryDate;
+  const estDeliveryDate =
+    estDeliveryDateInput === undefined || estDeliveryDateInput === null || estDeliveryDateInput === ''
+      ? undefined
+      : new Date(estDeliveryDateInput);
+  if (!requestedStatus && lat === undefined && lng === undefined && estDeliveryDateInput === undefined && body?.origin === undefined && body?.destination === undefined && body?.location === undefined && body?.note === undefined) {
+    return NextResponse.json({ success: false, message: 'Provide at least one trip field to update' }, { status: 400 });
+  }
   if (!TRIP_STATUS.includes(status)) {
     return NextResponse.json({ success: false, message: 'Invalid trip status' }, { status: 400 });
   }
@@ -60,12 +68,24 @@ export async function PATCH(
   if (lng !== undefined && (typeof lng !== 'number' || Number.isNaN(lng))) {
     return NextResponse.json({ success: false, message: 'lng must be a valid number' }, { status: 400 });
   }
+  if (estDeliveryDate && Number.isNaN(estDeliveryDate.getTime())) {
+    return NextResponse.json({ success: false, message: 'estDeliveryDate must be a valid ISO date' }, { status: 400 });
+  }
   const previousStatus = trip.status;
 
   trip.status = status;
+  if (typeof body?.origin === 'string') {
+    trip.origin = body.origin.trim() || null;
+  }
+  if (typeof body?.destination === 'string') {
+    trip.destination = body.destination.trim() || null;
+  }
   trip.currentLocation = body?.location ?? trip.currentLocation ?? null;
   trip.currentLatitude = typeof lat === 'number' ? lat : trip.currentLatitude ?? null;
   trip.currentLongitude = typeof lng === 'number' ? lng : trip.currentLongitude ?? null;
+  if (estDeliveryDate !== undefined) {
+    trip.estimatedDeliveryDate = estDeliveryDate;
+  }
   if (status === 'on_transit' && !trip.startedAt) {
     trip.startedAt = new Date();
   }
@@ -109,9 +129,12 @@ export async function PATCH(
       _id: trip._id,
       status: trip.status,
       transportStatus: mapTripStatusToOrderTransportStatus(trip.status),
+      origin: trip.origin || null,
+      destination: trip.destination || null,
       currentLocation: trip.currentLocation || '',
       currentLatitude: trip.currentLatitude ?? null,
       currentLongitude: trip.currentLongitude ?? null,
+      estDeliveryDate: trip.estimatedDeliveryDate || null,
       latestTrackingEvent: {
         status,
         requestedStatus: requestedStatus || status,
