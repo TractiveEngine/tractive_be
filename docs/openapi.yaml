@@ -4498,6 +4498,9 @@ paths:
   /api/customers/{id}/chat:
     post:
       summary: Create or reuse customer chat
+      description: Generic authenticated customer chat route. This is the route agent-facing customer support screens should use. It creates or reuses a conversation between the authenticated user and the selected customer.
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -4518,8 +4521,20 @@ paths:
       responses:
         '200':
           description: Conversation reused
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  conversationId: "686a00001111222233334444"
         '201':
           description: Conversation created
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  conversationId: "686a00001111222233334444"
   /api/buyers/top-sellers:
     get:
       summary: Buyer top sellers
