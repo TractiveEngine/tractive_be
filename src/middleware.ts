@@ -8,19 +8,15 @@ const defaultAllowedOrigins = [
   "https://tractive-be.vercel.app",
 ];
 
-const envOrigins = [
+const envOriginEntries = [
   process.env.ALLOWED_ORIGINS,
   process.env.FRONTEND_ORIGIN,
   process.env.NEXT_PUBLIC_APP_URL,
 ]
-  .filter(Boolean)
-  .join(",");
-
-const envList = envOrigins || defaultAllowedOrigins.join(",");
+  .filter(Boolean);
 
 const allowedOrigins = new Set(
-  envList
-    .split(",")
+  [...defaultAllowedOrigins, ...envOriginEntries.join(",").split(",")]
     .map((s) => s.trim())
     .filter(Boolean)
 );
@@ -52,28 +48,33 @@ export function middleware(request: NextRequest) {
   }
 
   const origin = request.headers.get("origin");
+  const requestedHeaders =
+    request.headers.get("access-control-request-headers") ||
+    "Content-Type, Authorization";
 
   // If no Origin header (non-browser request), skip CORS enforcement
   if (!origin) {
     return NextResponse.next();
   }
 
+  const resolvedOrigin = isAllowedOrigin(origin) ? origin : defaultAllowedOrigins[0];
+
+  const corsHeaders: Record<string, string> = {
+    "Access-Control-Allow-Origin": resolvedOrigin,
+    "Access-Control-Allow-Methods": "GET,POST,PATCH,PUT,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": requestedHeaders,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Expose-Headers": "Content-Type, Authorization",
+    Vary: "Origin, Access-Control-Request-Headers",
+  };
+
   // Strict validation: block if origin isn't explicitly allowed
   if (!isAllowedOrigin(origin)) {
     return NextResponse.json(
       { error: "CORS not allowed for this origin" },
-      { status: 403 }
+      { status: 403, headers: corsHeaders }
     );
   }
-
-  const corsHeaders: Record<string, string> = {
-    "Access-Control-Allow-Origin": origin, // echo back the validated origin
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,PUT,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Expose-Headers": "Content-Type, Authorization",
-    Vary: "Origin",
-  };
 
   // Preflight
   if (request.method === "OPTIONS") {
