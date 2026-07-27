@@ -1,10 +1,22 @@
 // src/middleware.ts
 import { NextResponse, NextRequest } from "next/server";
 
-const envList =
-  process.env.ALLOWED_ORIGINS ??
-  process.env.FRONTEND_ORIGIN ?? // optional fallback for single origin setups
-  "http://localhost:3000";
+const defaultAllowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://tractive-new.vercel.app",
+  "https://tractive-be.vercel.app",
+];
+
+const envOrigins = [
+  process.env.ALLOWED_ORIGINS,
+  process.env.FRONTEND_ORIGIN,
+  process.env.NEXT_PUBLIC_APP_URL,
+]
+  .filter(Boolean)
+  .join(",");
+
+const envList = envOrigins || defaultAllowedOrigins.join(",");
 
 const allowedOrigins = new Set(
   envList

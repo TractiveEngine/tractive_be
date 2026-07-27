@@ -10,6 +10,7 @@ import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { releaseProductInventory, reserveProductInventory } from '@/lib/productInventory';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const SAFE_AGENT_FIELDS = '_id name email phone state businessName image';
 
 type JwtUserPayload = {
   userId: string;
@@ -39,7 +40,10 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   await dbConnect();
   const { id } = await params;
-  const bid = await Bid.findById(id).populate('product buyer agent');
+  const bid = await Bid.findById(id)
+    .populate('product')
+    .populate({ path: 'buyer', select: '_id name email phone businessName image state' })
+    .populate({ path: 'agent', select: SAFE_AGENT_FIELDS });
   if (!bid) {
     return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
   }

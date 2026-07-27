@@ -4,12 +4,15 @@ import User from '@/models/user';
 import { requireAdmin } from '@/lib/apiAdmin';
 import mongoose from 'mongoose';
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   const { error } = await requireAdmin(request);
   if (error) return error;
   await dbConnect();
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid user ID' }, { status: 400 });
   }

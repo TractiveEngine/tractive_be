@@ -10,6 +10,7 @@ import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { getUnitWeightKg } from '@/lib/productUnit';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const SAFE_AGENT_FIELDS = '_id name email phone state businessName image';
 
 type JwtUserPayload = {
   userId: string;
@@ -194,7 +195,11 @@ export async function GET(request: Request) {
 
   // If buyer, get their own bids
   const [bids, total] = await Promise.all([
-    Bid.find({ buyer: user._id }).populate('product agent').skip(skip).limit(limit),
+    Bid.find({ buyer: user._id })
+      .populate('product')
+      .populate({ path: 'agent', select: SAFE_AGENT_FIELDS })
+      .skip(skip)
+      .limit(limit),
     Bid.countDocuments({ buyer: user._id })
   ]);
   return NextResponse.json({

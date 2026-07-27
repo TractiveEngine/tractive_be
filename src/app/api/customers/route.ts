@@ -102,7 +102,7 @@ export async function GET(request: Request) {
         userQuery._id = { $in: buyerIds };
         const [buyerDocs, count] = await Promise.all([
           User.find(userQuery)
-            .select('_id name email phone image businessName createdAt')
+            .select('_id name email phone image businessName state address createdAt')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit),
@@ -123,7 +123,7 @@ export async function GET(request: Request) {
   } else {
     const [customerDocs, count] = await Promise.all([
       User.find(userQuery)
-        .select('_id name email phone image businessName createdAt')
+        .select('_id name email phone image businessName state address createdAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -133,11 +133,19 @@ export async function GET(request: Request) {
     total = count;
   }
 
-  const pagination = { page, limit, total };
+  const normalizedCustomers = customers.map((customer: any) => {
+    const customerObject = typeof customer.toObject === 'function' ? customer.toObject() : customer;
+    return {
+      ...customerObject,
+      state: customerObject.state || null,
+      image: customerObject.image || null
+    };
+  });
+
+  const pagination = { page, limit, total, totalPages: Math.ceil(total / limit) };
   return NextResponse.json({
     success: true,
-    data: { customers, pagination },
-    customers,
+    data: normalizedCustomers,
     pagination
   }, { status: 200 });
 }
