@@ -7,14 +7,17 @@ import { getAuthUser } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 // POST /api/customers/:id/chat - open or create chat with customer
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid customer id' }, { status: 400 });
   }

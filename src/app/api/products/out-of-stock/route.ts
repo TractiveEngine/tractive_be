@@ -13,9 +13,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: 'Only admin or agent can view out-of-stock products' }, { status: 403 });
   }
 
-  const products = await Product.find({
-    $or: [{ status: 'out_of_stock' }, { quantity: { $lte: 0 } }],
-  }).sort({ updatedAt: -1 });
+  const query: Record<string, unknown> = {
+    status: 'out_of_stock'
+  };
+  if (ensureActiveRole(user, 'agent')) {
+    query.owner = user._id;
+  }
+
+  const products = await Product.find(query).sort({ updatedAt: -1 });
 
   return NextResponse.json({ success: true, data: products }, { status: 200 });
 }
