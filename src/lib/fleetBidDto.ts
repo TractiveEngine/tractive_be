@@ -1,5 +1,7 @@
 import FleetBid from '@/models/fleetBid';
 import { buildShipmentLoadMeta } from '@/lib/fleetShipment';
+import '@/models/truck';
+import '@/models/user';
 
 export const fleetBidPopulate = [
   { path: 'buyer', select: '_id name email phone' },

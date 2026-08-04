@@ -11,6 +11,22 @@ import { buildCapacityMeta } from '@/lib/truckCapacity';
 import { buildFleetPricingMeta } from '@/lib/fleetPricing';
 import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
 import { getFleetBidSummaries } from '@/lib/fleetBidSummary';
+import Product from '@/models/product';
+
+function buildRecommendationSummary(product: any) {
+  return {
+    _id: product._id,
+    name: product.name || null,
+    images: Array.isArray(product.images) ? product.images : [],
+    image: Array.isArray(product.images) ? product.images[0] || null : null,
+    price: product.price ?? null,
+    unit: product.unit || null,
+    unitWeightKg: product.unitWeightKg ?? null,
+    categories: product.categories || [],
+    category: product.category || null,
+    subcategory: product.subcategory || null
+  };
+}
 
 // GET /api/transporters/:id
 export async function GET(
@@ -91,7 +107,7 @@ export async function GET(
     }
   }
 
-  const [reviewAgg, deliveryAgg, driversCount, fleetCount, drivers, fleet, filteredFleetCount] = await Promise.all([
+  const [reviewAgg, ratingDistributionAgg, recentReviews, deliveryAgg, driversCount, fleetCount, drivers, fleet, filteredFleetCount, recommendations] = await Promise.all([
     Review.aggregate([
       { $match: { agent: transporter._id } },
       {
@@ -102,6 +118,20 @@ export async function GET(
         }
       }
     ]),
+    Review.aggregate([
+      { $match: { agent: transporter._id } },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 }
+        }
+      }
+    ]),
+    Review.find({ agent: transporter._id })
+      .populate('buyer', '_id name businessName image')
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean(),
     Order.aggregate([
       { $match: { transporter: transporter._id, status: 'delivered' } },
       {
@@ -128,12 +158,32 @@ export async function GET(
         select: '_id name phone licenseNumber trackingNumber'
       })
       .sort({ createdAt: -1 }),
-    Truck.countDocuments(fleetQuery)
+    Truck.countDocuments(fleetQuery),
+    Product.find({
+      owner: transporter._id,
+      status: 'available'
+    })
+      .select('_id name images price unit unitWeightKg categories category subcategory')
+      .sort({ createdAt: -1 })
+      .limit(8)
+      .lean()
   ]);
   const bidSummaries = await getFleetBidSummaries(fleet.map((truck: any) => truck._id));
 
   const review = reviewAgg[0];
   const delivery = deliveryAgg[0];
+  const totalReviews = review?.totalReviews ?? 0;
+  const ratingDistributionMap = new Map(
+    ratingDistributionAgg.map((row: any) => [Number(row._id), Number(row.count || 0)])
+  );
+  const ratingDistribution = [5, 4, 3, 2, 1].map((rating) => {
+    const count = ratingDistributionMap.get(rating) || 0;
+    return {
+      rating,
+      count,
+      percentage: totalReviews > 0 ? Number(((count / totalReviews) * 100).toFixed(1)) : 0
+    };
+  });
 
   return NextResponse.json({
     success: true,
@@ -141,7 +191,16 @@ export async function GET(
       ...transporter.toObject(),
       location: transporter.state || transporter.address || null,
       rating: review?.averageRating ?? 0,
-      reviewsCount: review?.totalReviews ?? 0,
+      reviewsCount: totalReviews,
+      totalReviews,
+      ratingDistribution,
+      phoneNumbers: transporter.phone ? [transporter.phone] : [],
+      recentReviewers: recentReviews.map((reviewDoc: any) => ({
+        id: reviewDoc.buyer?._id?.toString?.() || null,
+        name: reviewDoc.buyer?.name || reviewDoc.buyer?.businessName || 'Anonymous',
+        avatar: reviewDoc.buyer?.image || null
+      })),
+      recommendations: recommendations.map(buildRecommendationSummary),
       totalSales: delivery?.totalSales ?? 0,
       deliveriesCount: delivery?.deliveriesCount ?? 0,
       driversCount,

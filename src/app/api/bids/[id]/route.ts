@@ -221,3 +221,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   return NextResponse.json({ bid }, { status: 200 });
 }
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  await dbConnect();
+  const { id } = await params;
+  const userData = getUserFromRequest(request);
+  if (!userData) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
+  const user = await User.findById(userData.userId);
+  const bid = await Bid.findById(id);
+  if (!bid) {
+    return NextResponse.json({ error: 'Bid not found' }, { status: 404 });
+  }
+
+  if (!user || !user._id.equals(bid.buyer)) {
+    return NextResponse.json({ error: 'Only the buyer can withdraw this bid' }, { status: 403 });
+  }
+
+  if (!['pending', 'countered', 'rejected'].includes(bid.status)) {
+    return NextResponse.json({ error: 'Only pending or countered bids can be withdrawn' }, { status: 400 });
+  }
+
+  await bid.deleteOne();
+  return NextResponse.json({ success: true, message: 'Bid withdrawn successfully' }, { status: 200 });
+}

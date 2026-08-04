@@ -152,6 +152,18 @@ export function buildOrderOwnerSummary(owner: any) {
   };
 }
 
+export function buildOrderAgentSummary(products: any[]) {
+  const owners = new Map<string, any>();
+  for (const item of products || []) {
+    const owner = item?.product?.owner;
+    if (!owner || typeof owner !== 'object') continue;
+    const id = owner._id?.toString?.();
+    if (!id || owners.has(id)) continue;
+    owners.set(id, buildOrderOwnerSummary(owner));
+  }
+  return owners.size > 0 ? Array.from(owners.values())[0] : null;
+}
+
 export function buildTransporterSummaryForOrder(transporter: any, stats?: any) {
   if (!transporter || typeof transporter !== 'object') return null;
   return {

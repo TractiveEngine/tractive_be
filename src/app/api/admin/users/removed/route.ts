@@ -3,6 +3,9 @@ import { requireAdmin } from '@/lib/apiAdmin';
 import dbConnect from '@/lib/dbConnect';
 import User from '@/models/user';
 
+const SAFE_REMOVED_USER_FIELDS =
+  '_id name email roles activeRole status businessName phone createdAt updatedAt isVerified agentApprovalStatus transporterApprovalStatus';
+
 export async function GET(request: Request) {
   const { error } = await requireAdmin(request);
   if (error) return error;
@@ -16,7 +19,11 @@ export async function GET(request: Request) {
   const skip = (page - 1) * limit;
 
   const [users, total] = await Promise.all([
-    User.find({ status: 'removed' }).skip(skip).limit(limit),
+    User.find({ status: 'removed' })
+      .select(SAFE_REMOVED_USER_FIELDS)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     User.countDocuments({ status: 'removed' })
   ]);
 

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const wishlistItems = await WishlistItem.find({ buyer: user._id })
+    const wishlistItems = await WishlistItem.find({ buyer: user._id, product: { $ne: null } })
       .populate('product')
       .sort({ createdAt: -1 });
 

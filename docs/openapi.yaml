@@ -2519,6 +2519,10 @@ paths:
                     - productId: "67deproduct1234567890abc1"
                       name: "Tomatoes"
                       image: "https://example.com/tomatoes.png"
+                      images:
+                        - "https://example.com/tomatoes.png"
+                      description: "Fresh tomatoes"
+                      category: "Vegetables"
                   timeline:
                     - status: "planned"
                       timestamp: "2026-05-03T10:00:00.000Z"
@@ -3662,7 +3666,7 @@ paths:
   /api/transactions/{id}:
     get:
       summary: Get transaction by ID
-      description: Buyer-only detail endpoint. Requires bearer auth with `activeRole` set to `buyer`, and only returns transactions owned by the authenticated buyer.
+      description: Transaction detail endpoint for buyers and agents. Returns the same commission metadata as the list route.
       security:
         - bearerAuth: []
       parameters:
@@ -3674,6 +3678,17 @@ paths:
       responses:
         '200':
           description: Transaction details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  _id: "507f1f77bcf86cd799439301"
+                  amount: 4500
+                  status: "approved"
+                  paymentMethod: "card"
+                  commissionRate: 0.1
+                  commissionAmount: 450
     patch:
       summary: Legacy transaction update (admin only)
       description: Legacy endpoint. Prefer PATCH /api/transactions/{id}/status for status updates.
@@ -4106,7 +4121,7 @@ paths:
   /api/transporters/{id}:
     get:
       summary: Get transporter by id
-      description: Returns transporter profile plus rating, reviewsCount, totalSales, deliveriesCount, driversCount, fleetCount, location, and embedded driver/fleet lists for the transporter detail page. The fleet list supports buyer-side filters similar to the seller products page, including route, availability, and tonnes-based size filtering.
+      description: Returns transporter profile plus rating, totalReviews, ratingDistribution, phoneNumbers, recentReviewers, recommendations, totalSales, deliveriesCount, driversCount, fleetCount, location, and embedded driver/fleet lists for the transporter detail page. The fleet list supports buyer-side filters similar to the seller products page, including route, availability, and tonnes-based size filtering.
       parameters:
         - in: path
           name: id
@@ -4195,6 +4210,20 @@ paths:
                         type: number
                       reviewsCount:
                         type: integer
+                      totalReviews:
+                        type: integer
+                      phoneNumbers:
+                        type: array
+                        items:
+                          type: string
+                      recentReviewers:
+                        type: array
+                        items:
+                          type: object
+                      recommendations:
+                        type: array
+                        items:
+                          type: object
                       totalSales:
                         type: number
                       deliveriesCount:
@@ -5346,6 +5375,42 @@ paths:
       responses:
         '200':
           description: Paginated admin oversight list for seller/agent order flow
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "507f1f77bcf86cd799439401"
+                    status: "paid"
+                    transportStatus: "pending"
+                    totalAmount: 304000
+                    createdAt: "2026-07-29T10:08:16.430Z"
+                    buyer:
+                      _id: "507f1f77bcf86cd799439402"
+                      name: "Buyer One"
+                      phone: "+2348090908787"
+                      state: "Kwara"
+                      image: null
+                    products:
+                      - product:
+                          _id: "507f1f77bcf86cd799439403"
+                          name: "Tomatoes"
+                          images:
+                            - "https://example.com/tomatoes.png"
+                          description: "Fresh tomatoes"
+                          category: "Vegetables"
+                        quantity: 5
+                        unit: "kg"
+                    sellers:
+                      - _id: "507f1f77bcf86cd799439404"
+                        name: "Agent Seller"
+                        phone: "+2348000000000"
+                        state: "Kano"
+                        image: null
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
   /api/admin/orders/track/transporter:
     get:
       summary: Admin transporter-side order tracking list
@@ -7321,7 +7386,7 @@ paths:
   /api/reviews:
     get:
       summary: GET /api/reviews
-      description: Public/admin/buyer view should pass `agentId`. Authenticated self-view for agent/transporter/admin can omit `agentId`, but self-view still depends on the currently usable role and approval state.
+      description: Public/admin/buyer view should pass `agentId`. Authenticated self-view for agent/transporter/admin can omit `agentId`, but self-view still depends on the currently usable role and approval state. Response now includes `recentReviewers`.
       parameters:
         - in: query
           name: agentId
@@ -7335,7 +7400,7 @@ paths:
           description: Success
     post:
       summary: POST /api/reviews
-      description: Buyer-only review creation endpoint. Requires bearer auth with `activeRole` set to `buyer`.
+      description: Buyer-only review creation endpoint. Supports both legacy `agentId` and newer `revieweeId` plus `revieweeType` payloads. Duplicate reviews for the same reviewee by the same buyer are rejected with `409` and `hasReviewed: true`.
       security:
         - bearerAuth: []
       requestBody:
@@ -7345,12 +7410,15 @@ paths:
             schema:
               type: object
             example:
-              agentId: "507f1f77bcf86cd799439011"
+              revieweeId: "507f1f77bcf86cd799439011"
+              revieweeType: "transporter"
               rating: 5
               comment: "Excellent service and quality products!"
       responses:
         '201':
           description: Success
+        '409':
+          description: Buyer already reviewed this reviewee
   /api/reviews/summary:
     get:
       summary: Get aggregated review summary
@@ -7891,7 +7959,7 @@ paths:
   /api/wishlist:
     delete:
       summary: DELETE /api/wishlist
-      description: Buyer-only wishlist removal endpoint. Requires bearer auth with `activeRole` set to `buyer`.
+      description: Buyer-only wishlist removal endpoint. Accept either `productId` or `fleetId`.
       security:
         - bearerAuth: []
       requestBody:
@@ -7907,7 +7975,7 @@ paths:
           description: Success
     get:
       summary: GET /api/wishlist
-      description: Buyer-only wishlist list endpoint. Requires bearer auth with `activeRole` set to `buyer`.
+      description: Buyer-only wishlist list endpoint. Use `type=product` or `type=fleet`.
       security:
         - bearerAuth: []
       parameters:
@@ -7919,12 +7987,17 @@ paths:
           name: limit
           schema:
             type: integer
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [product, fleet]
       responses:
         '200':
           description: Success
     post:
       summary: POST /api/wishlist
-      description: Buyer-only wishlist add endpoint. Requires bearer auth with `activeRole` set to `buyer`.
+      description: Buyer-only wishlist add endpoint. Accept either `productId` or `fleetId`.
       security:
         - bearerAuth: []
       requestBody:
@@ -7937,4 +8010,109 @@ paths:
               productId: "507f1f77bcf86cd799439013"
       responses:
         '201':
+          description: Success
+  /api/wishlist/fleets:
+    get:
+      summary: GET /api/wishlist/fleets
+      description: Alias route for fleet wishlist list.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Success
+  /api/support/contacts:
+    get:
+      summary: GET /api/support/contacts
+      description: Returns configured support contact channels for frontend help/support screens.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  hotline: "+2348000000000"
+                  whatsapp: "+2348000000000"
+                  email: "support@tractive.app"
+  /api/agents/products/{id}/restock:
+    post:
+      summary: POST /api/agents/products/{id}/restock
+      description: Agent/admin utility endpoint to add stock quantity back to a product and recalculate status.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              quantity: 20
+      responses:
+        '200':
+          description: Product restocked successfully
+  /api/transporters/fleet/{id}/similar:
+    get:
+      summary: GET /api/transporters/fleet/{id}/similar
+      description: Returns similar fleets based on route overlap and model, for buyer-side fleet discovery.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Similar fleets list
+  /api/products/pending:
+    get:
+      summary: GET /api/products/pending
+      description: Admin/agent endpoint reserved for pending products. Current product model does not use a `pending` status, so the endpoint returns an empty list unless such a status is introduced later.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending products list
+    post:
+      summary: POST /api/wishlist/fleets
+      description: Alias route for adding a fleet wishlist item. Use payload `{ "fleetId": "..." }`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              fleetId: "507f1f77bcf86cd799439014"
+      responses:
+        '201':
+          description: Success
+    delete:
+      summary: DELETE /api/wishlist/fleets
+      description: Alias route for removing a fleet wishlist item. Use payload `{ "fleetId": "..." }`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+            example:
+              fleetId: "507f1f77bcf86cd799439014"
+      responses:
+        '200':
           description: Success

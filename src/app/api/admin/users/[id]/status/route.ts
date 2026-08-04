@@ -4,6 +4,9 @@ import User from '@/models/user';
 import { requireAdmin } from '@/lib/apiAdmin';
 import mongoose from 'mongoose';
 
+const SAFE_USER_STATUS_FIELDS =
+  '_id name email roles activeRole status businessName phone createdAt updatedAt isVerified agentApprovalStatus transporterApprovalStatus';
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> | { id: string } }
@@ -23,7 +26,9 @@ export async function PATCH(
     return NextResponse.json({ success: false, message: 'Invalid status' }, { status: 400 });
   }
 
-  const user = await User.findByIdAndUpdate(id, { status }, { new: true });
+  const user = await User.findByIdAndUpdate(id, { status }, { new: true })
+    .select(SAFE_USER_STATUS_FIELDS)
+    .lean();
   if (!user) {
     return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
   }

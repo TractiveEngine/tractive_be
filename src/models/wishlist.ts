@@ -9,16 +9,37 @@ const WishlistItemSchema = new mongoose.Schema({
   },
   product: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Product', 
-    required: true,
+    ref: 'Product',
+    default: null,
+    index: true
+  },
+  fleet: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Truck',
+    default: null,
     index: true
   }
 }, { 
   timestamps: true 
 });
 
-// Unique compound index to prevent duplicate wishlist entries
-WishlistItemSchema.index({ buyer: 1, product: 1 }, { unique: true });
+WishlistItemSchema.pre('validate', function(next) {
+  const hasProduct = !!this.product;
+  const hasFleet = !!this.fleet;
+  if (hasProduct === hasFleet) {
+    return next(new Error('Exactly one of product or fleet is required'));
+  }
+  next();
+});
+
+WishlistItemSchema.index(
+  { buyer: 1, product: 1 },
+  { unique: true, partialFilterExpression: { product: { $type: 'objectId' } } }
+);
+WishlistItemSchema.index(
+  { buyer: 1, fleet: 1 },
+  { unique: true, partialFilterExpression: { fleet: { $type: 'objectId' } } }
+);
 
 export default mongoose.models.WishlistItem || 
   mongoose.model('WishlistItem', WishlistItemSchema);
