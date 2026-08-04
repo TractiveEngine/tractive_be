@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 const UPDATABLE_FIELDS = [
   'name',
   'phone',
+  'image',
   'businessName',
   'nin',
   'businessCAC',

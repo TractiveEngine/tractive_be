@@ -3,6 +3,7 @@ import dbConnect from '@/lib/dbConnect';
 import Review from '@/models/review';
 import User from '@/models/user';
 import { getAuthUser, ensureActiveRole, hasRole } from '@/lib/apiAuth';
+import mongoose from 'mongoose';
 
 // POST /api/reviews - buyer reviews an agent/transporter
 export async function POST(request: Request) {
@@ -15,14 +16,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Only buyers can review agents' }, { status: 403 });
   }
 
-  const { agentId, rating, comment } = await request.json();
-  if (!agentId || !rating || rating < 1 || rating > 5) {
-    return NextResponse.json({ error: 'Agent, rating (1-5) required' }, { status: 400 });
+  const { agentId, revieweeId, revieweeType, rating, comment } = await request.json();
+  const targetId = agentId || revieweeId;
+  if (!targetId || !rating || rating < 1 || rating > 5) {
+    return NextResponse.json({ error: 'revieweeId/agentId and rating (1-5) required' }, { status: 400 });
   }
 
-  const agent = await User.findById(agentId);
-  if (!agent || (!agent.roles.includes('agent') && !agent.roles.includes('transporter'))) {
-    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  if (!mongoose.Types.ObjectId.isValid(targetId)) {
+    return NextResponse.json({ error: 'Invalid reviewee id' }, { status: 400 });
+  }
+
+  const agent = await User.findById(targetId);
+  const allowedTypes = revieweeType ? [revieweeType] : ['agent', 'seller', 'transporter'];
+  const canReviewAgent = allowedTypes.includes('agent') || allowedTypes.includes('seller');
+  const canReviewTransporter = allowedTypes.includes('transporter');
+  if (
+    !agent ||
+    (
+      !(canReviewAgent && agent.roles.includes('agent')) &&
+      !(canReviewTransporter && agent.roles.includes('transporter'))
+    )
+  ) {
+    return NextResponse.json({ error: 'Review target not found' }, { status: 404 });
+  }
+
+  const existingReview = await Review.findOne({ agent: agent._id, buyer: buyer._id });
+  if (existingReview) {
+    return NextResponse.json({
+      success: false,
+      message: 'You have already reviewed this user',
+      hasReviewed: true,
+      data: existingReview
+    }, { status: 409 });
   }
 
   const review = await Review.create({
@@ -69,13 +94,19 @@ export async function GET(request: Request) {
   const averageRating = totalReviews > 0
     ? reviews.reduce((sum: number, review: any) => sum + Number(review.rating || 0), 0) / totalReviews
     : 0;
+  const recentReviewers = reviews.slice(0, 5).map((review: any) => ({
+    id: review.buyer?._id?.toString?.() || null,
+    name: review.buyer?.name || review.buyer?.businessName || 'Anonymous',
+    avatar: review.buyer?.image || null
+  }));
 
   return NextResponse.json({
     success: true,
     data: {
       reviews,
       averageRating,
-      totalReviews
+      totalReviews,
+      recentReviewers
     },
     reviews
   }, { status: 200 });

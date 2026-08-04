@@ -5,7 +5,11 @@ export function convertQuantityToKg(quantity: unknown, unit: unknown, unitWeight
   }
 
   const normalizedUnit = typeof unit === 'string' ? unit.trim().toLowerCase() : '';
+  const resolvedUnitWeightKg = Number(unitWeightKg);
   if (!normalizedUnit || normalizedUnit === 'kg' || normalizedUnit === 'kilogram' || normalizedUnit === 'kilograms') {
+    if (Number.isFinite(resolvedUnitWeightKg) && resolvedUnitWeightKg > 1) {
+      return qty * resolvedUnitWeightKg;
+    }
     return qty;
   }
 
@@ -28,11 +32,10 @@ export function convertQuantityToKg(quantity: unknown, unit: unknown, unitWeight
   }
 
   if (normalizedUnit === 'bag' || normalizedUnit === 'bags') {
-    const bagWeightKg = Number(unitWeightKg);
-    if (!Number.isFinite(bagWeightKg) || bagWeightKg <= 0) {
+    if (!Number.isFinite(resolvedUnitWeightKg) || resolvedUnitWeightKg <= 0) {
       return null;
     }
-    return qty * bagWeightKg;
+    return qty * resolvedUnitWeightKg;
   }
 
   return null;

@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
   const user = await User.findById(payload.userId)
     .select(
-      "-password -resetPasswordToken -resetPasswordTokenExpiry -verificationCode"
+      "-password -resetPasswordToken -resetPasswordTokenExpiry -verificationCode -refreshToken -refreshTokenExpiry -tokenVersion"
     )
     .lean();
 
@@ -119,7 +119,7 @@ export async function PATCH(req: Request) {
     { $set: updates },
     { new: true }
   ).select(
-    "-password -resetPasswordToken -resetPasswordTokenExpiry -verificationCode"
+    "-password -resetPasswordToken -resetPasswordTokenExpiry -verificationCode -refreshToken -refreshTokenExpiry -tokenVersion"
   );
 
   if (!user) {

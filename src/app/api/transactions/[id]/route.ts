@@ -2,25 +2,74 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
 import Order from '@/models/order';
+import Product from '@/models/product';
 import { createNotification } from '@/lib/notifications';
 import { reserveProductInventory } from '@/lib/productInventory';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+const AGENT_COMMISSION_RATE = 0.1;
+
+function withCommissionMeta(transaction: any) {
+  if (!transaction) return transaction;
+  const amount = Number(transaction.amount || 0);
+  const commissionAmount = Number((amount * AGENT_COMMISSION_RATE).toFixed(2));
+  return {
+    ...transaction,
+    commissionRate: AGENT_COMMISSION_RATE,
+    commissionAmount
+  };
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
-  const { id } = await params;
+  const { id } = await Promise.resolve(params);
   const user = await getAuthUser(request);
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
-  if (!ensureActiveRole(user, 'buyer')) {
-    return NextResponse.json({ error: 'Buyer access required' }, { status: 403 });
+
+  const transaction = await Transaction.findById(id)
+    .populate('buyer', 'name email businessName phone')
+    .populate({
+      path: 'order',
+      populate: {
+        path: 'products.product',
+        model: Product,
+        populate: {
+          path: 'owner',
+          select: 'name email businessName'
+        }
+      }
+    });
+
+  if (!transaction) {
+    return NextResponse.json({ success: false, message: 'Transaction not found' }, { status: 404 });
   }
-  const transaction = await Transaction.findById(id).populate('order');
-  if (!transaction || String(transaction.buyer) !== user._id.toString()) {
-    return NextResponse.json({ error: 'Transaction not found or access denied' }, { status: 404 });
+
+  let allowed = false;
+  if (ensureActiveRole(user, 'buyer')) {
+    allowed = String((transaction as any).buyer?._id || transaction.buyer) === user._id.toString();
+  } else if (ensureActiveRole(user, 'agent')) {
+    const productIds = await Product.find({ owner: user._id }).distinct('_id');
+    const orderProducts = ((transaction as any).order?.products || []).map((item: any) =>
+      item?.product?._id?.toString?.() || item?.product?.toString?.()
+    );
+    allowed = orderProducts.some((productId: string) =>
+      productIds.some((ownedId: any) => ownedId.toString() === productId)
+    );
   }
-  return NextResponse.json({ transaction }, { status: 200 });
+
+  if (!allowed) {
+    return NextResponse.json({ success: false, message: 'Transaction not found or access denied' }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    data: withCommissionMeta(transaction.toObject())
+  }, { status: 200 });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

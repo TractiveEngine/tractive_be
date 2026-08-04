@@ -18,6 +18,7 @@ import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { getUnitWeightKg } from '@/lib/productUnit';
 import {
   buildFleetSummaryForOrder,
+  buildOrderAgentSummary,
   buildOrderOwnerSummary,
   buildOrderPaymentMethodMap,
   computeEstimatedDeliveryDate,
@@ -310,6 +311,7 @@ export async function GET(request: Request) {
 
     return {
       ...orderObj,
+      agent: buildOrderAgentSummary(orderObj.products || []),
       products: (orderObj.products || []).map((item: any) => ({
         ...item,
         product: item.product && typeof item.product === 'object'

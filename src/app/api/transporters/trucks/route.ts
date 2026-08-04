@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Truck from '@/models/truck';
 import { getAuthUser } from '@/lib/apiAuth';
+import mongoose from 'mongoose';
 import { buildCapacityMeta } from '@/lib/truckCapacity';
 import { buildFleetPricingMeta } from '@/lib/fleetPricing';
 import { buildEstimatedDeliveryMeta } from '@/lib/estimatedDelivery';
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
   const fromState = searchParams.get('fromState');
   const toState = searchParams.get('toState');
   const pricingModel = searchParams.get('pricingModel');
+  const transporterId = searchParams.get('transporterId');
 
   const query: any = {};
   if (status === 'empty') query.status = 'available';
@@ -29,6 +31,12 @@ export async function GET(request: Request) {
   if (fromState) query['route.fromState'] = fromState;
   if (toState) query['route.toState'] = toState;
   if (pricingModel) query.pricingModel = pricingModel;
+  if (transporterId) {
+    if (!mongoose.Types.ObjectId.isValid(transporterId)) {
+      return NextResponse.json({ success: false, message: 'Invalid transporterId' }, { status: 400 });
+    }
+    query.transporter = transporterId;
+  }
   if (search) {
     const regex = new RegExp(search, 'i');
     query.$or = [

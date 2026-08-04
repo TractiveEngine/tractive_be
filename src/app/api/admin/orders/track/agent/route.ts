@@ -66,6 +66,19 @@ export async function GET(request: Request) {
       totalAmount: order.totalAmount,
       createdAt: order.createdAt,
       buyer: order.buyer,
+      products: (order.products || [])
+        .filter((item: any) => item?.product)
+        .map((item: any) => ({
+          product: {
+            _id: item.product._id || null,
+            name: item.product.name || null,
+            images: Array.isArray(item.product.images) ? item.product.images : [],
+            description: item.product.description || null,
+            category: item.product.category || item.product.categories?.[0] || null
+          },
+          quantity: item.quantity ?? null,
+          unit: item.unit || item.product.unit || null
+        })),
       sellers: (order.products || [])
         .map((item: any) => item?.product?.owner)
         .filter(Boolean)

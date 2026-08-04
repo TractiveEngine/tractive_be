@@ -13,7 +13,7 @@ export async function buildFleetTripPackages(bookingIds: any[]) {
   const shipmentItems = bookingIds.flatMap((booking: any) => Array.isArray(booking?.shipmentItems) ? booking.shipmentItems : []);
   const productIds = Array.from(new Set(shipmentItems.map((item: any) => toIdString(item?.productId)).filter(Boolean)));
   const products = await Product.find({ _id: { $in: productIds } })
-    .select('_id name images unit unitWeightKg')
+    .select('_id name images unit unitWeightKg description category categories')
     .lean();
   const productMap = new Map(products.map((product: any) => [product._id.toString(), product]));
 
@@ -24,6 +24,9 @@ export async function buildFleetTripPackages(bookingIds: any[]) {
       productId,
       name: item?.productName || product?.name || 'Unknown product',
       image: Array.isArray(product?.images) && product.images.length > 0 ? product.images[0] : null,
+      images: Array.isArray(product?.images) ? product.images : [],
+      description: product?.description || null,
+      category: product?.category || product?.categories?.[0] || null,
       quantity: item?.quantity ?? null,
       unit: item?.unit || product?.unit || null,
       unitWeightKg: product?.unitWeightKg ?? null,

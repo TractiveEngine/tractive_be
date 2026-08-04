@@ -3,8 +3,10 @@ import dbConnect from '@/lib/dbConnect';
 import Bid from '@/models/bid';
 import Product from '@/models/product';
 import User from '@/models/user';
+import Review from '@/models/review';
 import '@/models/farmer';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { createNotification } from '@/lib/notifications';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 import { getUnitWeightKg } from '@/lib/productUnit';
@@ -202,9 +204,51 @@ export async function GET(request: Request) {
       .limit(limit),
     Bid.countDocuments({ buyer: user._id })
   ]);
+  const agentIds = Array.from(new Set(
+    bids
+      .map((bid: any) => bid.agent?._id?.toString?.() || bid.agent?.toString?.())
+      .filter(Boolean)
+  ));
+  const reviewStats = agentIds.length > 0
+    ? await Review.aggregate([
+        { $match: { agent: { $in: agentIds.map((id) => bidIdToObjectId(id)).filter(Boolean) } } },
+        {
+          $group: {
+            _id: '$agent',
+            averageRating: { $avg: '$rating' },
+            totalReviews: { $sum: 1 }
+          }
+        }
+      ])
+    : [];
+  const reviewStatsMap = new Map(
+    reviewStats.map((entry: any) => [entry._id.toString(), entry])
+  );
   return NextResponse.json({
     success: true,
-    data: bids,
+    data: bids.map((bid: any) => {
+      const bidObj = bid.toObject();
+      const agentId = bidObj.agent?._id?.toString?.() || bidObj.agent?.toString?.();
+      const stats = agentId ? reviewStatsMap.get(agentId) : null;
+      return {
+        ...bidObj,
+        agent: bidObj.agent && typeof bidObj.agent === 'object'
+          ? {
+              ...bidObj.agent,
+              rating: stats?.averageRating ?? 0,
+              reviewsCount: stats?.totalReviews ?? 0
+            }
+          : bidObj.agent
+      };
+    }),
     pagination: { page, limit, total }
   }, { status: 200 });
+}
+
+function bidIdToObjectId(id: string) {
+  try {
+    return new mongoose.Types.ObjectId(id);
+  } catch {
+    return null;
+  }
 }

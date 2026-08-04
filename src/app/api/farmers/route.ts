@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   const {
-    name, phone, businessName, nin, businessCAC, address,
+    name, phone, image, businessName, nin, businessCAC, address,
     country, state, lga, villageOrLocalMarket,
     bankName, bankAccountName, bankAccountNumber
   } = await request.json();
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   const farmer = await Farmer.create({
     name,
     phone,
+    image: image || null,
     businessName,
     nin,
     businessCAC,
