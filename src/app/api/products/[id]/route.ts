@@ -7,7 +7,7 @@ import Bid from '@/models/bid';
 import { attachWishlistedFlag, buildCategoryFields } from '@/lib/productPayload';
 import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import { normalizeLocalTransport } from '@/lib/localTransport';
-import { getUnitWeightKg, normalizeProductUnit } from '@/lib/productUnit';
+import { getUnitWeightKg, normalizeProductRecord, normalizeProductUnit } from '@/lib/productUnit';
 
 // GET /api/products/[id]
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -83,7 +83,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   ], authUser ? { userId: authUser._id.toString() } : null);
 
   const product = {
-    ...productWithWishlist,
+    ...normalizeProductRecord(productWithWishlist),
     reviewSummary,
     recentReviews,
     bidSummary

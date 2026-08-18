@@ -45,20 +45,28 @@ export async function POST(request: Request) {
     isVerified: false,
   });
 
-  await sendEmail({
-    to: user.email,
-    subject: 'Verify your email for Tractive Engine',
-    template: 'register',
-    replacements: {
-      name: safeString(user.name),
-      email: safeString(user.email),
-      verificationCode: verificationCode,
-    }
-  });
+  let emailVerificationSent = true;
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: 'Verify your email for Tractive Engine',
+      template: 'register',
+      replacements: {
+        name: safeString(user.name),
+        email: safeString(user.email),
+        verificationCode: verificationCode,
+      }
+    });
+  } catch (error) {
+    emailVerificationSent = false;
+    console.error('Register verification email failed:', error);
+  }
 
   return NextResponse.json({
-    message: 'User registered. Verification email sent.',
+    message: emailVerificationSent
+      ? 'User registered. Verification email sent.'
+      : 'User registered. Verification email could not be sent right now.',
     user: { email: user.email, id: user._id },
-    emailVerificationSent: true,
+    emailVerificationSent,
   }, { status: 201 });
 }

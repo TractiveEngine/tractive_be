@@ -1573,6 +1573,50 @@ paths:
       responses:
         '201':
           description: Fleet payment created
+  /api/transporters/fleet/payments:
+    get:
+      summary: Alias of /api/transporters/fleet/{id}/payments using fleetId query
+      description: Backward-compatible alias route. Send `fleetId` as a query parameter.
+      parameters:
+        - in: query
+          name: fleetId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fleet payments list
+    post:
+      summary: Alias of /api/transporters/fleet/{id}/payments using fleetId in body
+      description: Backward-compatible alias route. Send the same payload as the direct fleet payment route plus `fleetId` in the request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fleetId, paymentMethod]
+              properties:
+                fleetId:
+                  type: string
+                fleetBidId:
+                  type: string
+                amount:
+                  type: number
+                loadWeightKg:
+                  type: number
+                shipmentItems:
+                  type: array
+                  items:
+                    type: object
+                paymentMethod:
+                  type: string
+                  enum: [cash, bank_transfer, card]
+                note:
+                  type: string
+      responses:
+        '201':
+          description: Fleet payment created
   /api/fleet-bookings:
     get:
       summary: List fleet bookings
@@ -2063,9 +2107,54 @@ paths:
   /api/transporters/negotiations:
     get:
       summary: List transporter negotiations
+      description: Returns the transporter's actionable negotiation items. Preferred source is fleet bids with status `pending` or `countered`; if none exist, legacy negotiation records are returned as fallback. Supports `status`, `page`, `limit`, `year`, and `month`.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: month
+          schema:
+            type: integer
       responses:
         '200':
           description: Negotiations list
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  - _id: "67defleetbid1234567890abc"
+                    source: "fleet_bid"
+                    status: "pending"
+                    negotiationStatus: "pending"
+                    amount: 180000
+                    counterAmount: null
+                    loadWeightKg: 5000
+                    fleet:
+                      _id: "67defleet1234567890abc"
+                      fleetName: "North Route Fleet"
+                    buyer:
+                      _id: "67debuyer1234567890abc"
+                      name: "Buyer One"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
   /api/transporters/negotiations/{id}/respond:
     post:
       summary: Respond to negotiation
@@ -2317,16 +2406,16 @@ paths:
   /api/transporters/fleet-trips:
     get:
       summary: List fleet trips
-      description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip.
+      description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip. `picked` is accepted as a query alias and mapped to stored trip status `loaded`. Each trip row also includes `transportStatus` for frontend delivery-state labels.
       security:
         - bearerAuth: []
-        parameters:
-          - in: query
-            name: status
-            schema:
-              type: string
-              enum: [planned, loaded, on_transit, arrived, delivered, cancelled]
-            description: Use `planned` for both current planned trips and legacy trips still stored as `pending`.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
+          description: Use `planned` for both current planned trips and legacy trips still stored as `pending`. Use `picked` as a frontend alias for stored trip status `loaded`.
         - in: query
           name: fleetId
           schema:
@@ -2375,6 +2464,7 @@ paths:
                           name: "Buyer One"
                           phone: "+2348011111111"
                     status: "planned"
+                    transportStatus: "pending"
                     origin: "Abia"
                     destination: "Anambra"
                     currentLocation: "Abia"
@@ -7806,7 +7896,7 @@ paths:
   /api/transporters/transactions:
     get:
       summary: Get transporter transactions
-      description: Returns transactions for orders assigned to the authenticated transporter. Requires bearer auth with `activeRole` set to `transporter`. Supports filtering by transaction status and paginating the result set.
+      description: Returns a merged transaction feed for the authenticated transporter. This includes buyer order transactions on assigned orders and transporter fleet payment records, sorted newest first. Requires bearer auth with `activeRole` set to `transporter`. Supports filtering by status and paginating the merged result set.
       security:
         - bearerAuth: []
       parameters:
@@ -7832,6 +7922,7 @@ paths:
                 success: true
                 data:
                   - _id: "67detrx1234567890abc"
+                    type: "order_transaction"
                     buyer:
                       id: "67debuyer1234567890abc1"
                       name: "Buyer One"
@@ -7848,10 +7939,28 @@ paths:
                     approvedBy: null
                     createdAt: "2026-03-24T12:00:00.000Z"
                     updatedAt: "2026-03-24T12:00:00.000Z"
+                  - _id: "67defleetpay1234567890abc"
+                    type: "fleet_payment"
+                    buyer:
+                      id: "67debuyer1234567890abc1"
+                      name: "Buyer One"
+                      email: "buyer@example.com"
+                      phone: "+2348000000000"
+                    fleet:
+                      id: "67defleet1234567890abc1"
+                      plateNumber: "ABC-123"
+                      fleetName: "North Route Fleet"
+                    amount: 210000
+                    loadWeightKg: 5000
+                    paymentMethod: "bank_transfer"
+                    status: "approved"
+                    approvedBy: "67deadmin1234567890abc1"
+                    createdAt: "2026-03-25T12:00:00.000Z"
+                    updatedAt: "2026-03-25T12:10:00.000Z"
                 pagination:
                   page: 1
                   limit: 20
-                  total: 1
+                  total: 2
                   totalPages: 1
   /api/transporters/fleet-bids:
     get:

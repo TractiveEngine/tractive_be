@@ -105,7 +105,13 @@ export async function PATCH(
 
   const order = await Order.findOneAndUpdate(
     { _id: orderId },
-    { $set: { transportStatus, updatedAt: new Date() } },
+    {
+      $set: {
+        transportStatus,
+        status: transportStatus === 'delivered' ? 'delivered' : existingOrder.status === 'pending' ? 'paid' : existingOrder.status,
+        updatedAt: new Date()
+      }
+    },
     { new: true }
   );
   if (!order) {

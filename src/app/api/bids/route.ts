@@ -62,6 +62,9 @@ export async function POST(request: Request) {
   if (!product) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 });
   }
+  if (product.owner?.toString() === user._id.toString()) {
+    return NextResponse.json({ error: 'You cannot bid on your own product' }, { status: 400 });
+  }
   if (!Number.isFinite(quantity) || quantity <= 0 || quantity > Number(product.quantity || 0)) {
     return NextResponse.json({ error: 'Requested quantity exceeds available stock' }, { status: 400 });
   }

@@ -31,15 +31,19 @@ export async function POST(request: Request) {
   // Frontend reset password page URL with token
   const resetLink = `${process.env.FRONTEND_ORIGIN || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
-  await sendEmail({
-    to: user.email,
-    subject: 'Reset your password',
-    template: 'reset-password',
-    replacements: {
-      name: user.name || user.email,
-      resetLink: resetLink,
-    }
-  });
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your password',
+      template: 'reset-password',
+      replacements: {
+        name: user.name || user.email,
+        resetLink: resetLink,
+      }
+    });
+  } catch (error) {
+    console.error('Forgot password email failed:', error);
+  }
 
   return NextResponse.json({ message: 'If your email exists, you will receive a reset link.' }, { status: 200 });
 }

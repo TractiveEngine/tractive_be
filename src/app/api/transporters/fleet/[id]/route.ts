@@ -79,6 +79,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     body.pricingModel = normalizeFleetPricingModel(body.pricingModel);
     body.wholeTruckOnly = body.pricingModel === 'flat_rate_whole_truck';
   }
+  if (body.price !== undefined) {
+    const price = Number(body.price);
+    if (!Number.isFinite(price) || price <= 0) {
+      return NextResponse.json({ success: false, message: 'price must be a positive number' }, { status: 400 });
+    }
+    body.price = price;
+  }
+  if (body.currentLoadKg !== undefined && body.currentLoadKg !== null) {
+    const currentLoadKg = Number(body.currentLoadKg);
+    if (!Number.isFinite(currentLoadKg) || currentLoadKg < 0) {
+      return NextResponse.json({ success: false, message: 'currentLoadKg must be a non-negative number' }, { status: 400 });
+    }
+    body.currentLoadKg = currentLoadKg;
+  }
 
   const effectivePricingModel = normalizeFleetPricingModel(body.pricingModel ?? existingTruck.pricingModel);
   const effectiveCapacityKg =
@@ -92,6 +106,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       success: false,
       message: 'capacity or capacityKg is required for flat-rate whole-truck fleets'
     }, { status: 400 });
+  }
+  if (effectiveCapacityKg === null || !Number.isFinite(effectiveCapacityKg) || effectiveCapacityKg <= 0) {
+    return NextResponse.json({ success: false, message: 'capacity must be a positive value in tonnes or kg' }, { status: 400 });
+  }
+  const nextCurrentLoadKg =
+    body.currentLoadKg !== undefined
+      ? body.currentLoadKg
+      : Number(existingTruck.currentLoadKg || 0);
+  if (nextCurrentLoadKg > effectiveCapacityKg) {
+    return NextResponse.json({ success: false, message: 'currentLoadKg cannot exceed fleet capacity' }, { status: 400 });
   }
 
   const truck = await Truck.findOneAndUpdate(

@@ -131,12 +131,13 @@ export async function POST(request: Request) {
       if (!bid || Number(bid.quantity) !== Number(item.quantity)) {
         return NextResponse.json({ success: false, message: 'Order quantities must match the selected accepted bids' }, { status: 400 });
       }
+      const effectiveBidAmount = Number(getEffectiveProductBidAmount(bid) || 0);
       item.unit = bid.unit;
       item.unitWeightKg = bid.unitWeightKg ?? getUnitWeightKg(bid.unit);
-      item.unitPrice = Number(bid.quantity) > 0 ? getEffectiveProductBidAmount(bid) / Number(bid.quantity) : null;
-      item.lineSubtotal = getEffectiveProductBidAmount(bid);
+      item.unitPrice = effectiveBidAmount;
+      item.lineSubtotal = effectiveBidAmount * Number(item.quantity);
     }
-    const expectedTotal = bids.reduce((sum, bid) => sum + getEffectiveProductBidAmount(bid), 0) + localTransportTotal;
+    const expectedTotal = orderProducts.reduce((sum, item) => sum + Number(item.lineSubtotal || 0), 0) + localTransportTotal;
     if (Number(totalAmount) !== expectedTotal) {
       return NextResponse.json({ success: false, message: 'Total amount does not match accepted bids' }, { status: 400 });
     }

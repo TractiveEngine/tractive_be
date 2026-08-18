@@ -41,22 +41,31 @@ export async function POST(req: Request) {
   user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
   await user.save();
 
-  await sendEmail({
-    to: user.email,
-    subject: "Your verification code",
-    template: "register",
-    replacements: {
-      name: String(user.name ?? ""),
-      email: user.email,
-      verificationCode: code,
-    },
-  });
+  let emailSent = true;
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Your verification code",
+      template: "register",
+      replacements: {
+        name: String(user.name ?? ""),
+        email: user.email,
+        verificationCode: code,
+      },
+    });
+  } catch (error) {
+    emailSent = false;
+    console.error('Resend verification email failed:', error);
+  }
 
   return NextResponse.json(
     {
       ok: true,
       resent: true,
-      message: "Verification code has been successfully resent to your email.",
+      emailSent,
+      message: emailSent
+        ? "Verification code has been successfully resent to your email."
+        : "Verification code was refreshed, but the email could not be sent right now.",
     },
     { status: 200 }
   );

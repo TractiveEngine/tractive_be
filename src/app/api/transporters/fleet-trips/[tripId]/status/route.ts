@@ -8,8 +8,7 @@ import {
   roleAccessRequiredResponse
 } from '@/lib/apiAuth';
 import FleetTrip from '@/models/fleetTrip';
-import Truck from '@/models/truck';
-import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, syncTripOrders } from '@/lib/fleetTrip';
+import { appendFleetTripTrackingEvent, mapTripStatusToOrderTransportStatus, releaseTripResources, syncTripOrders } from '@/lib/fleetTrip';
 
 const TRIP_STATUS = ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'] as const;
 const STATUS_ALIASES: Record<string, typeof TRIP_STATUS[number]> = {
@@ -103,12 +102,7 @@ export async function PATCH(
     previousStatus !== 'cancelled' &&
     (status === 'delivered' || status === 'cancelled')
   ) {
-    const fleet = await Truck.findById((trip as any).fleet).select('_id currentLoadKg');
-    if (fleet) {
-      fleet.currentLoadKg = Math.max(0, Number(fleet.currentLoadKg || 0) - Number((trip as any).loadWeightKg || 0));
-      fleet.updatedAt = new Date();
-      await fleet.save();
-    }
+    await releaseTripResources(trip, status);
   }
 
   await appendFleetTripTrackingEvent({

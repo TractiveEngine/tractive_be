@@ -9,6 +9,7 @@ import Order from '@/models/order';
 import mongoose from 'mongoose';
 import { getAuthUser } from '@/lib/apiAuth';
 import { attachWishlistedFlag } from '@/lib/productPayload';
+import { normalizeProductRecord } from '@/lib/productUnit';
 
 // GET /api/sellers/:id - seller profile
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -142,11 +143,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ]);
 
   const normalizedProducts = await attachWishlistedFlag(
-    products.map((product) => product.toObject()),
+    products.map((product) => normalizeProductRecord(product.toObject())),
     authUser ? { userId: authUser._id.toString() } : null
   );
   const normalizedRecommendations = await attachWishlistedFlag(
-    recommendations.map((product) => product.toObject()),
+    recommendations.map((product) => normalizeProductRecord(product.toObject())),
     authUser ? { userId: authUser._id.toString() } : null
   );
 

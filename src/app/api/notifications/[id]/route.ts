@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 // PATCH /api/notifications/[id] - Mark single notification as read/unread
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   await dbConnect();
 
@@ -17,7 +17,7 @@ export async function PATCH(
   }
 
   try {
-    const { id } = params;
+    const { id } = await Promise.resolve(params);
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -72,7 +72,7 @@ export async function PATCH(
 // DELETE /api/notifications/[id] - Delete single notification
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   await dbConnect();
 
@@ -82,7 +82,7 @@ export async function DELETE(
   }
 
   try {
-    const { id } = params;
+    const { id } = await Promise.resolve(params);
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {

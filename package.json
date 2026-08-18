@@ -11,8 +11,10 @@
     "test": "vitest run --passWithNoTests --maxWorkers=1",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --maxWorkers=1",
-    "seed": "ts-node src/scripts/seed.ts",
-    "reset": "ts-node src/scripts/reset.ts",
+    "seed": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/seed.ts",
+    "reset": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/reset.ts",
+    "backfill:order-bid-totals": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-order-bid-totals.ts",
+    "backfill:order-bid-totals:write": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-order-bid-totals.ts --write",
     "postman:test": "newman run docs/Tractive-API.postman_collection.json --env-var base_url=http://localhost:3000",
     "postman:export": "echo 'Open Postman → Collection → Export → Save to docs/Tractive-API.postman_collection.json'"
   },

@@ -5,6 +5,7 @@ import User from '@/models/user';
 import mongoose from 'mongoose';
 import { getAuthUser } from '@/lib/apiAuth';
 import { attachWishlistedFlag } from '@/lib/productPayload';
+import { normalizeProductRecord } from '@/lib/productUnit';
 
 // GET /api/sellers/:id/products - products owned by seller
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -54,7 +55,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     Product.countDocuments(query)
   ]);
 
-  const normalized = await attachWishlistedFlag(products.map((product) => product.toObject()), authUser ? { userId: authUser._id.toString() } : null);
+  const normalized = await attachWishlistedFlag(
+    products.map((product) => normalizeProductRecord(product.toObject())),
+    authUser ? { userId: authUser._id.toString() } : null
+  );
 
   return NextResponse.json({
     success: true,
