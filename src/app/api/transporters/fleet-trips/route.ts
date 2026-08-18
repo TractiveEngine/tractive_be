@@ -20,6 +20,12 @@ async function serializeTrip(trip: any) {
   const packages = await buildFleetTripPackages(tripObject.bookingIds || []);
   return {
     ...tripObject,
+    transportStatus:
+      tripObject.status === 'loaded'
+        ? 'picked'
+        : tripObject.status === 'arrived' || tripObject.status === 'delivered'
+          ? 'delivered'
+          : tripObject.status,
     ...buildFleetTripLoadMeta(tripObject.loadWeightKg),
     fleet: buildFleetSummary(tripObject.fleet),
     transporter: await buildTransporterSummaryWithStats(tripObject.transporter),
@@ -53,8 +59,9 @@ export async function GET(request: Request) {
   if (ensureActiveRole(user, 'transporter')) {
     query.transporter = user._id;
   }
-  if (status && ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'].includes(status)) {
-    query.status = status === 'planned' ? { $in: ['planned', 'pending'] } : status;
+  const normalizedStatus = status === 'picked' ? 'loaded' : status;
+  if (normalizedStatus && ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'].includes(normalizedStatus)) {
+    query.status = normalizedStatus === 'planned' ? { $in: ['planned', 'pending'] } : normalizedStatus;
   }
   if (fleetId && mongoose.Types.ObjectId.isValid(fleetId)) {
     query.fleet = fleetId;

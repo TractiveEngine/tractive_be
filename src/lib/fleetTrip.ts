@@ -45,16 +45,71 @@ export async function syncTripOrders(tripId: any, tripStatus: unknown) {
   const orderIds = await Order.find({ fleetTripId: tripId }).distinct('_id');
   if (orderIds.length === 0) return;
 
+  const transportStatus = mapTripStatusToOrderTransportStatus(tripStatus);
+  const nextOrderStatus = transportStatus === 'delivered' ? 'delivered' : 'paid';
+
   await Order.updateMany(
     { _id: { $in: orderIds } },
     {
       $set: {
         fleetTripId: tripId,
-        transportStatus: mapTripStatusToOrderTransportStatus(tripStatus),
+        transportStatus,
+        status: nextOrderStatus,
         updatedAt: new Date()
       }
     }
   );
+}
+
+export async function releaseTripResources(trip: any, nextStatus: string) {
+  const bookingIds = Array.isArray(trip?.bookingIds) ? trip.bookingIds : [];
+  const paymentIds = Array.isArray(trip?.paymentIds) ? trip.paymentIds : [];
+  const fleetId = trip?.fleet;
+
+  if (fleetId) {
+    const fleet = await Truck.findById(fleetId).select('_id currentLoadKg status');
+    if (fleet) {
+      fleet.currentLoadKg = Math.max(0, Number(fleet.currentLoadKg || 0) - Number(trip?.loadWeightKg || 0));
+      if (nextStatus === 'delivered' || nextStatus === 'cancelled') {
+        fleet.status = 'available';
+      }
+      fleet.updatedAt = new Date();
+      await fleet.save();
+    }
+  }
+
+  if (bookingIds.length > 0) {
+    if (nextStatus === 'delivered') {
+      await FleetBooking.updateMany(
+        { _id: { $in: bookingIds } },
+        {
+          $set: {
+            status: 'completed',
+            fleetTripId: null,
+            updatedAt: new Date()
+          }
+        }
+      );
+    } else if (nextStatus === 'cancelled') {
+      await FleetBooking.updateMany(
+        { _id: { $in: bookingIds } },
+        {
+          $set: {
+            status: 'confirmed',
+            fleetTripId: null,
+            updatedAt: new Date()
+          }
+        }
+      );
+    }
+  }
+
+  if (paymentIds.length > 0 && nextStatus === 'cancelled') {
+    await FleetPayment.updateMany(
+      { _id: { $in: paymentIds } },
+      { $set: { fleetTripId: null, updatedAt: new Date() } }
+    );
+  }
 }
 
 export async function appendFleetTripTrackingEvent({

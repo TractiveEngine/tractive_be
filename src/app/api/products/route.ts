@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import { attachWishlistedFlag, buildCategoryFields } from "@/lib/productPayload";
 import { getAuthUser } from "@/lib/apiAuth";
 import { normalizeLocalTransport } from "@/lib/localTransport";
-import { getUnitWeightKg, normalizeProductUnit } from "@/lib/productUnit";
+import { getUnitWeightKg, normalizeProductRecord, normalizeProductUnit } from "@/lib/productUnit";
 
 export async function POST(request: Request) {
   await dbConnect();
@@ -119,6 +119,12 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+  }
+  if (!Array.isArray(images) || images.length === 0) {
+    return NextResponse.json(
+      { error: "At least one product image is required" },
+      { status: 400 }
+    );
   }
 
   if (videos !== undefined) {
@@ -274,7 +280,7 @@ export async function GET(request?: Request) {
   ]);
 
   const normalized = await attachWishlistedFlag(
-    products,
+    products.map((product: any) => normalizeProductRecord(product)),
     authUser ? { userId: authUser._id.toString() } : null
   );
 

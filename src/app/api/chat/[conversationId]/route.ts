@@ -36,7 +36,7 @@ function getUserFromRequest(request: Request): JwtUserPayload | null {
 // GET /api/chat/[conversationId] - Get messages for conversation
 export async function GET(
   request: Request,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> | { conversationId: string } }
 ) {
   await dbConnect();
 
@@ -46,7 +46,7 @@ export async function GET(
   }
 
   try {
-    const { conversationId } = params;
+    const { conversationId } = await Promise.resolve(params);
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(conversationId)) {
@@ -115,7 +115,7 @@ export async function GET(
 // POST /api/chat/[conversationId] - Send message to conversation
 export async function POST(
   request: Request,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> | { conversationId: string } }
 ) {
   await dbConnect();
 
@@ -125,7 +125,7 @@ export async function POST(
   }
 
   try {
-    const { conversationId } = params;
+    const { conversationId } = await Promise.resolve(params);
     const { text } = await request.json();
 
     // Validate required fields

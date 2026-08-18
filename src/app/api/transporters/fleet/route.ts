@@ -79,6 +79,7 @@ export async function POST(request: Request) {
 
   const pricingModel = normalizeFleetPricingModel(body.pricingModel);
   const estimatedDeliveryUnit = normalizeEstimatedDeliveryUnit(body.estimatedDeliveryUnit);
+  const price = Number(body.price);
   const estimatedDeliveryValue =
     body.estimatedDeliveryValue !== undefined && body.estimatedDeliveryValue !== null
       ? Number(body.estimatedDeliveryValue)
@@ -93,6 +94,22 @@ export async function POST(request: Request) {
       : typeof body.capacityKg === 'number'
       ? body.capacityKg
       : parseCapacityToKg(body.capacity || body.size);
+  const currentLoadKg =
+    body.currentLoadKg !== undefined && body.currentLoadKg !== null
+      ? Number(body.currentLoadKg)
+      : 0;
+  if (!Number.isFinite(price) || price <= 0) {
+    return NextResponse.json({ success: false, message: 'price must be a positive number' }, { status: 400 });
+  }
+  if (capacityKg === null || !Number.isFinite(capacityKg) || capacityKg <= 0) {
+    return NextResponse.json({ success: false, message: 'capacity must be a positive value in tonnes or kg' }, { status: 400 });
+  }
+  if (!Number.isFinite(currentLoadKg) || currentLoadKg < 0) {
+    return NextResponse.json({ success: false, message: 'currentLoadKg must be a non-negative number' }, { status: 400 });
+  }
+  if (currentLoadKg > capacityKg) {
+    return NextResponse.json({ success: false, message: 'currentLoadKg cannot exceed fleet capacity' }, { status: 400 });
+  }
   if (pricingModel === 'flat_rate_whole_truck' && (capacityKg === null || capacityKg <= 0)) {
     return NextResponse.json({
       success: false,
@@ -117,11 +134,8 @@ export async function POST(request: Request) {
       ? `${capacityTonnes} tonnes`
       : body.capacity || body.size,
     capacityKg,
-    currentLoadKg:
-      typeof body.currentLoadKg === 'number' && body.currentLoadKg >= 0
-        ? body.currentLoadKg
-        : 0,
-    price: body.price,
+    currentLoadKg,
+    price,
     pricingModel,
     wholeTruckOnly: pricingModel === 'flat_rate_whole_truck',
     estimatedDeliveryValue,

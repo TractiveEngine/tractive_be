@@ -5,14 +5,17 @@ import { getAuthUser, ensureActiveRole } from '@/lib/apiAuth';
 import mongoose from 'mongoose';
 
 // DELETE /api/help/:id
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   await dbConnect();
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ success: false, message: 'Authentication required' }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await Promise.resolve(params);
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return NextResponse.json({ success: false, message: 'Invalid ticket id' }, { status: 400 });
   }

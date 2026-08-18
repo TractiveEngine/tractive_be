@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Transaction from '@/models/transaction';
 import Order from '@/models/order';
+import FleetPayment from '@/models/fleetPayment';
 import { ensureActiveRole, getAuthUser } from '@/lib/apiAuth';
 
 // GET /api/transporters/transactions - Get transporter's transactions
@@ -23,30 +24,34 @@ export async function GET(request: Request) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
     const skip = (page - 1) * limit;
 
-    // Get all orders assigned to this transporter
-    const orders = await Order.find({ transporter: user._id });
+    const orders = await Order.find({ transporter: user._id }).select('_id');
     const orderIds = orders.map(order => order._id);
 
-    const query: Record<string, unknown> = {
+    const orderTransactionQuery: Record<string, unknown> = {
       order: { $in: orderIds }
     };
+    const fleetPaymentQuery: Record<string, unknown> = {
+      transporter: user._id
+    };
     if (status && ['pending', 'approved', 'rejected', 'refunded'].includes(status)) {
-      query.status = status;
+      orderTransactionQuery.status = status;
+      fleetPaymentQuery.status = status;
     }
 
-    const [transactions, total] = await Promise.all([
-      Transaction.find(query)
+    const [transactions, fleetPayments] = await Promise.all([
+      Transaction.find(orderTransactionQuery)
         .populate('buyer', 'name email businessName phone')
         .populate('order')
+        .sort({ createdAt: -1 }),
+      FleetPayment.find(fleetPaymentQuery)
+        .populate('buyer', 'name email businessName phone')
+        .populate('fleet', 'plateNumber fleetName fleetNumber model')
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Transaction.countDocuments(query)
     ]);
 
-    // Format response with additional details
-    const formattedTransactions = transactions.map(transaction => ({
+    const formattedOrderTransactions = transactions.map(transaction => ({
       _id: transaction._id,
+      type: 'order_transaction',
       buyer: {
         id: transaction.buyer._id,
         name: transaction.buyer.name || transaction.buyer.businessName || 'Unknown',
@@ -67,9 +72,37 @@ export async function GET(request: Request) {
       updatedAt: transaction.updatedAt
     }));
 
+    const formattedFleetPayments = fleetPayments.map((payment: any) => ({
+      _id: payment._id,
+      type: 'fleet_payment',
+      buyer: payment.buyer ? {
+        id: payment.buyer._id,
+        name: payment.buyer.name || payment.buyer.businessName || 'Unknown',
+        email: payment.buyer.email,
+        phone: payment.buyer.phone
+      } : null,
+      fleet: payment.fleet ? {
+        id: payment.fleet._id,
+        plateNumber: payment.fleet.plateNumber,
+        fleetName: payment.fleet.fleetName || payment.fleet.fleetNumber || payment.fleet.model || null
+      } : null,
+      amount: payment.amount,
+      paymentMethod: payment.paymentMethod,
+      status: payment.status,
+      approvedBy: payment.approvedBy,
+      loadWeightKg: payment.loadWeightKg ?? null,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt
+    }));
+
+    const mergedTransactions = [...formattedOrderTransactions, ...formattedFleetPayments]
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const total = mergedTransactions.length;
+    const pagedTransactions = mergedTransactions.slice(skip, skip + limit);
+
     return NextResponse.json({ 
       success: true, 
-      data: formattedTransactions,
+      data: pagedTransactions,
       pagination: {
         page,
         limit,
