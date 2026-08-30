@@ -1,38 +1,22 @@
 import mongoose from 'mongoose';
 import Bid from '@/models/bid';
 import Order from '@/models/order';
-import Transaction from '@/models/transaction';
 import '@/models/product';
 import '@/models/user';
 import { getEffectiveProductBidAmount } from '@/lib/productBidAmount';
 
 export async function getEligibleWonBidsForBuyer(buyerId: string) {
   try {
-    const paymentInFlightOrderIdsRaw = await Transaction.find({
+    // A won bid is consumed the moment an order references it. Payment status
+    // must not allow the same accepted bid to be checked out a second time.
+    const orderQuery: any = {
       buyer: buyerId,
-      status: { $in: ['pending', 'approved'] }
-    }).distinct('order');
-
-    const paymentInFlightOrderIds = paymentInFlightOrderIdsRaw.filter((id: any) =>
-      id && mongoose.Types.ObjectId.isValid(String(id))
-    );
-
-    const paidOrderQuery: any = {
-      buyer: buyerId,
-      bidIds: { $exists: true, $ne: [] },
-      status: { $in: ['payment_pending', 'paid', 'delivered'] }
+      bidIds: { $exists: true, $ne: [] }
     };
 
-    if (paymentInFlightOrderIds.length > 0) {
-      paidOrderQuery.$or = [
-        { status: { $in: ['payment_pending', 'paid', 'delivered'] } },
-        { _id: { $in: paymentInFlightOrderIds } }
-      ];
-    }
+    const orders = await Order.find(orderQuery).select('bidIds');
 
-    const paidOrders = await Order.find(paidOrderQuery).select('bidIds');
-
-    const consumedBidIds = paidOrders
+    const consumedBidIds = orders
       .flatMap((order: any) => (Array.isArray(order.bidIds) ? order.bidIds : []))
       .map((id: any) => String(id))
       .filter((id: string) => mongoose.Types.ObjectId.isValid(id));

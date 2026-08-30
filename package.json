@@ -15,6 +15,8 @@
     "reset": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/reset.ts",
     "backfill:order-bid-totals": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-order-bid-totals.ts",
     "backfill:order-bid-totals:write": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-order-bid-totals.ts --write",
+    "backfill:fleet-trip-resources": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-fleet-trip-resources.ts",
+    "backfill:fleet-trip-resources:write": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" src/scripts/backfill-fleet-trip-resources.ts --write",
     "postman:test": "newman run docs/Tractive-API.postman_collection.json --env-var base_url=http://localhost:3000",
     "postman:export": "echo 'Open Postman → Collection → Export → Save to docs/Tractive-API.postman_collection.json'"
   },

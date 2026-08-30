@@ -70,8 +70,6 @@ export async function PATCH(
   if (estDeliveryDate && Number.isNaN(estDeliveryDate.getTime())) {
     return NextResponse.json({ success: false, message: 'estDeliveryDate must be a valid ISO date' }, { status: 400 });
   }
-  const previousStatus = trip.status;
-
   trip.status = status;
   if (typeof body?.origin === 'string') {
     trip.origin = body.origin.trim() || null;
@@ -97,11 +95,7 @@ export async function PATCH(
   trip.updatedAt = new Date();
   await trip.save();
 
-  if (
-    previousStatus !== 'delivered' &&
-    previousStatus !== 'cancelled' &&
-    (status === 'delivered' || status === 'cancelled')
-  ) {
+  if (status === 'delivered' || status === 'cancelled') {
     await releaseTripResources(trip, status);
   }
 
