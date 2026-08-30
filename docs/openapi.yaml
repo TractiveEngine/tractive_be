@@ -2406,7 +2406,7 @@ paths:
   /api/transporters/fleet-trips:
     get:
       summary: List fleet trips
-      description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip. `picked` is accepted as a query alias and mapped to stored trip status `loaded`. Each trip row also includes `transportStatus` for frontend delivery-state labels.
+      description: Trip-based operational tracking board for transporters and admins. Use this for tracking tabs such as new, picked, in transit, or delivered when multiple orders/buyers can share one truck trip. `pending` maps to New/`planned` (including legacy pending trips), and `picked` maps to stored trip status `loaded`. Unknown status values return 400. Each trip row also includes `transportStatus` for frontend delivery-state labels.
       security:
         - bearerAuth: []
       parameters:
@@ -2414,8 +2414,8 @@ paths:
           name: status
           schema:
             type: string
-            enum: [planned, loaded, picked, on_transit, arrived, delivered, cancelled]
-          description: Use `planned` for both current planned trips and legacy trips still stored as `pending`. Use `picked` as a frontend alias for stored trip status `loaded`.
+            enum: [pending, planned, loaded, picked, on_transit, arrived, delivered, cancelled]
+          description: Use `pending` or `planned` for the New tab; both include legacy trips stored as `pending`. Use `picked` as a frontend alias for stored trip status `loaded`.
         - in: query
           name: fleetId
           schema:
@@ -2483,6 +2483,8 @@ paths:
                   totalPages: 1
         '403':
           description: Transporter or admin access required
+        '400':
+          description: Invalid status filter
     post:
       summary: Create fleet trip from confirmed bookings
       description: Manual trip creation for shared-load bookings. Whole-truck bookings are created automatically on payment approval, but shared-load confirmed bookings can be grouped into a trip with this endpoint. Frontend can either send `fleetId` plus explicit `bookingIds`, or send only `fleetId` to let backend include all confirmed unassigned bookings currently attached to that fleet.
@@ -2629,7 +2631,7 @@ paths:
   /api/transporters/fleet-trips/{tripId}/status:
     patch:
       summary: Update fleet trip tracking status
-      description: Transporter/admin manual operational update for a shared trip. This route supports status changes and metadata-only updates for MVP, including location label, lat/lng, origin, destination, and manual ETA. Linked orders are synchronized automatically.
+      description: Transporter/admin manual operational update for a shared trip. This route supports status changes and metadata-only updates for MVP, including location label, lat/lng, origin, destination, and manual ETA. Linked orders are synchronized automatically. Setting `delivered` completes its bookings and releases fleet capacity; setting `cancelled` returns its bookings to the unassigned confirmed pool.
       security:
         - bearerAuth: []
       parameters:

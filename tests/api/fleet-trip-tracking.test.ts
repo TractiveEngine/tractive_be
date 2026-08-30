@@ -354,5 +354,42 @@ describe('Fleet trip tracking', () => {
 
     const releasedTruck: any = await Truck.findById(truck._id);
     expect(releasedTruck.currentLoadKg).toBe(0);
+    expect(releasedTruck.status).toBe('available');
+    expect(await FleetBooking.countDocuments({ fleet: truck._id, status: 'completed' })).toBe(2);
+  });
+
+  it('maps pending to planned trips and rejects unknown trip status filters', async () => {
+    const { user: admin } = await createAdmin();
+    const { user: transporter } = await createTransporter();
+    const truck = await createTruck({ transporter: transporter._id } as any);
+    await FleetTrip.create({
+      fleet: truck._id,
+      transporter: transporter._id,
+      bookingIds: [],
+      paymentIds: [],
+      orderIds: [],
+      buyerIds: [],
+      status: 'planned',
+      loadWeightKg: 1
+    });
+
+    const pendingRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/transporters/fleet-trips?status=pending',
+      admin._id.toString(),
+      { method: 'GET', role: 'admin', email: admin.email }
+    );
+    const listRoute = await import('@/app/api/transporters/fleet-trips/route');
+    const pendingResponse = await listRoute.GET(pendingRequest);
+    const pendingData = await getResponseJson(pendingResponse as Response);
+    expect((pendingResponse as Response).status).toBe(200);
+    expect(pendingData.data).toHaveLength(1);
+
+    const invalidRequest = createAuthenticatedRequest(
+      'http://localhost:3000/api/transporters/fleet-trips?status=bogus_value',
+      admin._id.toString(),
+      { method: 'GET', role: 'admin', email: admin.email }
+    );
+    const invalidResponse = await listRoute.GET(invalidRequest);
+    expect((invalidResponse as Response).status).toBe(400);
   });
 });

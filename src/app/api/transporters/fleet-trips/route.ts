@@ -59,8 +59,19 @@ export async function GET(request: Request) {
   if (ensureActiveRole(user, 'transporter')) {
     query.transporter = user._id;
   }
-  const normalizedStatus = status === 'picked' ? 'loaded' : status;
-  if (normalizedStatus && ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'].includes(normalizedStatus)) {
+  const statusAliases: Record<string, string> = {
+    picked: 'loaded',
+    pending: 'planned'
+  };
+  const normalizedStatus = status ? (statusAliases[status] || status) : null;
+  const allowedStatuses = ['planned', 'loaded', 'on_transit', 'arrived', 'delivered', 'cancelled'];
+  if (normalizedStatus && !allowedStatuses.includes(normalizedStatus)) {
+    return NextResponse.json({
+      success: false,
+      message: 'Invalid trip status. Use pending, planned, picked, loaded, on_transit, arrived, delivered, or cancelled'
+    }, { status: 400 });
+  }
+  if (normalizedStatus) {
     query.status = normalizedStatus === 'planned' ? { $in: ['planned', 'pending'] } : normalizedStatus;
   }
   if (fleetId && mongoose.Types.ObjectId.isValid(fleetId)) {

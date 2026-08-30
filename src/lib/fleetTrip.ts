@@ -66,18 +66,6 @@ export async function releaseTripResources(trip: any, nextStatus: string) {
   const paymentIds = Array.isArray(trip?.paymentIds) ? trip.paymentIds : [];
   const fleetId = trip?.fleet;
 
-  if (fleetId) {
-    const fleet = await Truck.findById(fleetId).select('_id currentLoadKg status');
-    if (fleet) {
-      fleet.currentLoadKg = Math.max(0, Number(fleet.currentLoadKg || 0) - Number(trip?.loadWeightKg || 0));
-      if (nextStatus === 'delivered' || nextStatus === 'cancelled') {
-        fleet.status = 'available';
-      }
-      fleet.updatedAt = new Date();
-      await fleet.save();
-    }
-  }
-
   if (bookingIds.length > 0) {
     if (nextStatus === 'delivered') {
       await FleetBooking.updateMany(
@@ -110,6 +98,47 @@ export async function releaseTripResources(trip: any, nextStatus: string) {
       { $set: { fleetTripId: null, updatedAt: new Date() } }
     );
   }
+
+  if (fleetId) {
+    await reconcileFleetLoad(fleetId);
+  }
+}
+
+/**
+ * Rebuild fleet capacity from confirmed bookings. Reconciliation is
+ * idempotent, preventing stale or double-subtracted load values.
+ */
+export async function reconcileFleetLoad(fleetId: any) {
+  const fleet = await Truck.findById(fleetId).select('_id capacity capacityKg currentLoadKg wholeTruckOnly status');
+  if (!fleet) return null;
+
+  const confirmedBookings = await FleetBooking.find({
+    fleet: fleet._id,
+    status: 'confirmed'
+  }).select('loadWeightKg wholeTruckOnly');
+  const activeTripCount = await FleetTrip.countDocuments({
+    fleet: fleet._id,
+    status: { $in: ['planned', 'loaded', 'on_transit', 'arrived'] }
+  });
+  const capacityMeta = buildCapacityMeta(fleet.toObject());
+  const hasWholeTruckBooking = confirmedBookings.some((booking: any) => booking.wholeTruckOnly === true);
+  const confirmedLoadKg = confirmedBookings.reduce(
+    (sum: number, booking: any) => sum + Math.max(0, Number(booking.loadWeightKg || 0)),
+    0
+  );
+
+  fleet.currentLoadKg = hasWholeTruckBooking
+    ? Math.max(confirmedLoadKg, Number(capacityMeta.capacityKg || 0))
+    : confirmedLoadKg;
+
+  // Keep explicit maintenance state, but never leave an idle fleet in transit.
+  if (activeTripCount === 0 && fleet.status !== 'under_maintenance') {
+    fleet.status = 'available';
+  }
+  fleet.updatedAt = new Date();
+  await fleet.save();
+
+  return fleet;
 }
 
 export async function appendFleetTripTrackingEvent({
