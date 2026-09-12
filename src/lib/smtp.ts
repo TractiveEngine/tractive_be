@@ -2,11 +2,13 @@
 
 import nodemailer from "nodemailer";
 
-const passKey = process.env.NEXT_PUBLIC_ZEPTOMAIL_API_KEY;
+// SMTP credentials must remain server-only. Never use a NEXT_PUBLIC_* value
+// for a mail provider credential because Next.js can expose it to the client.
+const passKey = process.env.ZEPTOMAIL_API_KEY;
 
 if (!passKey) {
   console.error(
-    "NEXT_PUBLIC_ZEPTOMAIL_API_KEY is not set in environment variables"
+    "ZEPTOMAIL_API_KEY is not set in environment variables"
   );
 }
 
